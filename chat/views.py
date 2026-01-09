@@ -17,7 +17,7 @@ def globalChat(request):
         'messages': messages,
         'profile': request.user.profile,
     }
-    return render(request, 'chat/global_chat.html', context)
+    return render(request, 'chat/globalChat.html', context)
 
 
 @login_required
@@ -109,7 +109,7 @@ def directMessages(request):
         'conversations': conversations,
         'profile': request.user.profile,
     }
-    return render(request, 'chat/direct_messages.html', context)
+    return render(request, 'chat/directMessages.html', context)
 
 
 @login_required

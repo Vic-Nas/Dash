@@ -78,7 +78,7 @@ def publicProfile(request, username):
         'isOwnProfile': isOwnProfile,
         'currentUserProfile': request.user.profile,
     }
-    return render(request, 'accounts/public_profile.html', context)
+    return render(request, 'accounts/publicProfile.html', context)
 
 
 @login_required
