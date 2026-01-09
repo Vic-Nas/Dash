@@ -199,14 +199,36 @@
       <span class="stat-label">Current Score:</span>
       <span class="stat-value" id="currentScore">0</span>
     </div>
+
+    <!-- Sound toggle -->
+    <button
+      onclick="toggleSound()"
+      id="soundBtn"
+      style="
+        width:100%;
+        margin:8px 0;
+        padding:8px;
+        background:#2a2f6b;
+        border:none;
+        border-radius:6px;
+        color:#fff;
+        cursor:pointer;
+        font-size:13px;
+      "
+    >
+      🔊 Sound ON
+    </button>
+
     <div class="stat">
       <span class="stat-label">Walls Survived:</span>
       <span class="stat-value" id="wallsSurvived">0</span>
     </div>
+
     <div class="stat">
       <span class="stat-label">Walls Hit:</span>
       <span class="stat-value" id="wallsHit">0</span>
     </div>
+
     <div class="stat">
       <span class="stat-label">Time:</span>
       <span class="stat-value" id="time">0s</span>
@@ -577,6 +599,230 @@
         render();
       }
     });
+
+
+    // 1. ADD GAMEAUDIO CLASS (same as multiplayer - paste entire class here)
+    class GameAudio {
+      constructor() {
+        this.audioContext = null;
+        this.enabled = true;
+      }
+      
+      init() {
+        if (!this.audioContext) {
+          this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+      }
+      
+      playMove() {
+        if (!this.enabled) return;
+        this.init();
+        
+        const oscillator = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+        
+        oscillator.frequency.value = 400;
+        oscillator.type = 'square';
+        
+        gainNode.gain.setValueAtTime(0.1, this.audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.05);
+        
+        oscillator.start(this.audioContext.currentTime);
+        oscillator.stop(this.audioContext.currentTime + 0.05);
+      }
+      
+      playHit() {
+        if (!this.enabled) return;
+        this.init();
+        
+        const oscillator = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+        
+        oscillator.frequency.value = 150;
+        oscillator.type = 'sawtooth';
+        
+        gainNode.gain.setValueAtTime(0.2, this.audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.15);
+        
+        oscillator.start(this.audioContext.currentTime);
+        oscillator.stop(this.audioContext.currentTime + 0.15);
+      }
+      
+      playScore() {
+        if (!this.enabled) return;
+        this.init();
+        
+        const oscillator = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+        
+        oscillator.frequency.value = 800;
+        oscillator.type = 'sine';
+        
+        gainNode.gain.setValueAtTime(0.15, this.audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.2);
+        
+        oscillator.start(this.audioContext.currentTime);
+        oscillator.stop(this.audioContext.currentTime + 0.2);
+      }
+      
+      playGameOver() {
+        if (!this.enabled) return;
+        this.init();
+        
+        const notes = [392, 330, 262];
+        const noteLength = 0.2;
+        
+        notes.forEach((freq, i) => {
+          const oscillator = this.audioContext.createOscillator();
+          const gainNode = this.audioContext.createGain();
+          
+          oscillator.connect(gainNode);
+          gainNode.connect(this.audioContext.destination);
+          
+          oscillator.frequency.value = freq;
+          oscillator.type = 'sine';
+          
+          const startTime = this.audioContext.currentTime + (i * noteLength);
+          gainNode.gain.setValueAtTime(0.2, startTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + noteLength);
+          
+          oscillator.start(startTime);
+          oscillator.stop(startTime + noteLength);
+        });
+      }
+      
+      toggle() {
+        this.enabled = !this.enabled;
+        return this.enabled;
+      }
+    }
+
+    const gameAudio = new GameAudio();
+
+    // 2. ADD MUTE BUTTON TO HUD
+    // In the #hud div, add:
+    /*
+    <button onclick="toggleSound()" id="soundBtn" style="width:100%;margin:8px 0;padding:8px;background:#2a2f6b;border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:13px;">
+      🔊 Sound ON
+    </button>
+    */
+
+    // 3. ADD TOGGLE FUNCTION
+    function toggleSound() {
+      var enabled = gameAudio.toggle();
+      document.getElementById('soundBtn').textContent = enabled ? '🔊 Sound ON' : '🔇 Sound OFF';
+    }
+
+    // 4. UPDATE KEYDOWN HANDLER (add sound to direction changes)
+    document.addEventListener('keydown', function(e) {
+      if (!gameStarted || gameState.gameOver) return;
+
+      if (e.key === 'Escape') {
+        endGame();
+        return;
+      }
+
+      var key = e.key.toUpperCase();
+      if (key === 'W' || key === 'ARROWUP') {
+        nextDirection = 'UP';
+        gameAudio.playMove(); // ADD THIS
+      }
+      else if (key === 'S' || key === 'ARROWDOWN') {
+        nextDirection = 'DOWN';
+        gameAudio.playMove(); // ADD THIS
+      }
+      else if (key === 'A' || key === 'ARROWLEFT') {
+        nextDirection = 'LEFT';
+        gameAudio.playMove(); // ADD THIS
+      }
+      else if (key === 'D' || key === 'ARROWRIGHT') {
+        nextDirection = 'RIGHT';
+        gameAudio.playMove(); // ADD THIS
+      }
+    });
+
+    // 5. UPDATE updateGame() TO DETECT HITS
+    function updateGame() {
+      currentDirection = nextDirection;
+      gameState.player.direction = currentDirection;
+      
+      var newX = gameState.player.x;
+      var newY = gameState.player.y;
+      
+      if (currentDirection === 'UP') newY--;
+      else if (currentDirection === 'DOWN') newY++;
+      else if (currentDirection === 'LEFT') newX--;
+      else if (currentDirection === 'RIGHT') newX++;
+      
+      if (newX < 0 || newX >= GRID_SIZE || newY < 0 || newY >= GRID_SIZE) {
+        gameState.wallsHit++;
+        gameState.currentScore--;
+        gameAudio.playHit(); // ADD THIS
+        
+        if (gameState.currentScore <= -50) {
+          endGame();
+        }
+        return;
+      }
+      
+      var hitWall = gameState.walls.some(function(w) {
+        return w.x === newX && w.y === newY;
+      });
+      
+      if (hitWall) {
+        gameState.wallsHit++;
+        gameState.currentScore--;
+        gameAudio.playHit(); // ADD THIS
+        
+        if (gameState.currentScore <= -50) {
+          endGame();
+        }
+        return;
+      }
+      
+      gameState.player.x = newX;
+      gameState.player.y = newY;
+    }
+
+    // 6. UPDATE updateCountdownWalls() TO PLAY SCORE SOUND
+    function updateCountdownWalls() {
+      gameState.countdownWalls = gameState.countdownWalls.filter(function(w) {
+        w.secondsLeft--;
+        if (w.secondsLeft <= 0) {
+          gameState.walls.push({
+            x: w.x,
+            y: w.y
+          });
+          gameState.wallsSurvived++;
+          gameState.currentScore++;
+          gameAudio.playScore(); // ADD THIS - wall spawned!
+          return false;
+        }
+        return true;
+      });
+    }
+
+    // 7. UPDATE showGameOver() TO PLAY GAME OVER SOUND
+    function showGameOver() {
+      gameAudio.playGameOver(); // ADD THIS
+      
+      document.getElementById('finalScore').textContent = gameState.currentScore;
+      document.getElementById('finalWalls').textContent = gameState.wallsSurvived;
+      document.getElementById('finalHits').textContent = gameState.wallsHit;
+      var elapsed = Math.floor((Date.now() - gameState.startTime) / 1000);
+      document.getElementById('finalTime').textContent = elapsed + 's';
+      
+      document.getElementById('gameOver').style.display = 'block';
+    }
   </script>
 </body>
 </html>

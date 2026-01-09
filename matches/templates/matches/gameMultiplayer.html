@@ -213,6 +213,9 @@
       <span class="stat-label">Your Color:</span>
       <span class="color-badge" id="yourColorBadge"></span>
     </div>
+    <button onclick="toggleSound()" id="soundBtn" style="width:100%;margin:8px 0;padding:8px;background:#2a2f6b;border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:13px;">
+      🔊 Sound ON
+    </button>
     <hr style="border:1px solid #2a2f6b;margin:12px 0;">
     <div id="playerList"></div>
   </div>
@@ -336,7 +339,6 @@
     }
 
     document.addEventListener('keydown', function(e) {
-      // Prevent escape key
       if (e.key === 'Escape') {
         e.preventDefault();
         return;
@@ -353,6 +355,7 @@
       else if (key === 'D' || key === 'ARROWRIGHT') direction = 'RIGHT';
       
       if (direction) {
+        gameAudio.playMove(); // ADD THIS
         socket.send(JSON.stringify({
           action: 'changeDirection',
           direction: direction
@@ -362,28 +365,101 @@
 
     function render() {
       if (!gameState || !gameState.players) return;
-      
+
+      /* ===============================
+        AUDIO / STATE CHANGE DETECTION
+        =============================== */
+
+      // Init previous state
+      if (!window.prevGameState) {
+        window.prevGameState = JSON.parse(JSON.stringify(gameState));
+      }
+
+      var myPlayerId = null;
+      for (var id in gameState.players) {
+        if (gameState.players[id].playerColor === myPlayerColor) {
+          myPlayerId = id;
+          break;
+        }
+      }
+
+      if (
+        myPlayerId &&
+        window.prevGameState.players &&
+        window.prevGameState.players[myPlayerId]
+      ) {
+        var prevMe = window.prevGameState.players[myPlayerId];
+        var currMe = gameState.players[myPlayerId];
+
+        // Score increase → wall spawned
+        if (currMe.score > prevMe.score) {
+          gameAudio.playScore();
+        }
+
+        // Hit wall
+        if (currMe.hits > prevMe.hits) {
+          gameAudio.playHit();
+        }
+
+        // Killed someone
+        for (var otherId in gameState.players) {
+          if (otherId === myPlayerId) continue;
+
+          var prevOther = window.prevGameState.players[otherId];
+          var currOther = gameState.players[otherId];
+
+          if (
+            prevOther &&
+            prevOther.alive &&
+            !currOther.alive &&
+            currMe.alive
+          ) {
+            gameAudio.playKill();
+          }
+        }
+
+        // We died
+        if (prevMe.alive && !currMe.alive) {
+          gameAudio.playLoss();
+        }
+      }
+
+      // Deep copy state for next frame
+      window.prevGameState = JSON.parse(JSON.stringify(gameState));
+
+      /* ===============================
+        RENDERING
+        =============================== */
+
       var playerCount = Object.keys(gameState.players).length;
-      var gridSize = playerCount > 0 ? Math.max(20, Math.min(40, 15 + playerCount * 2.5)) : 20;
+      var gridSize =
+        playerCount > 0
+          ? Math.max(20, Math.min(40, 15 + playerCount * 2.5))
+          : 20;
+
       CELL_SIZE = canvas.width / gridSize;
-      
+
+      // Background
       ctx.fillStyle = '#121428';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
+
+      // Grid
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
       ctx.lineWidth = 1;
+
       for (var i = 0; i <= gridSize; i++) {
         ctx.beginPath();
         ctx.moveTo(i * CELL_SIZE, 0);
         ctx.lineTo(i * CELL_SIZE, canvas.height);
         ctx.stroke();
-        
+
         ctx.beginPath();
         ctx.moveTo(0, i * CELL_SIZE);
         ctx.lineTo(canvas.width, i * CELL_SIZE);
         ctx.stroke();
       }
-      
+
+      // Border danger zone
       ctx.fillStyle = '#ef4444';
       ctx.globalAlpha = 0.2;
       ctx.fillRect(0, 0, canvas.width, 4);
@@ -391,67 +467,99 @@
       ctx.fillRect(0, 0, 4, canvas.height);
       ctx.fillRect(canvas.width - 4, 0, 4, canvas.height);
       ctx.globalAlpha = 1.0;
-      
+
+      // Solid walls
       ctx.fillStyle = '#ef4444';
       if (gameState.walls) {
-        gameState.walls.forEach(function(w) {
-          ctx.fillRect(w.x * CELL_SIZE + 2, w.y * CELL_SIZE + 2, CELL_SIZE - 4, CELL_SIZE - 4);
+        gameState.walls.forEach(function (w) {
+          ctx.fillRect(
+            w.x * CELL_SIZE + 2,
+            w.y * CELL_SIZE + 2,
+            CELL_SIZE - 4,
+            CELL_SIZE - 4
+          );
         });
       }
-      
+
+      // Countdown walls
       if (gameState.countdownWalls) {
-        gameState.countdownWalls.forEach(function(w) {
-          var alpha = 0.3 + (0.7 * (3 - w.secondsLeft) / 3);
+        gameState.countdownWalls.forEach(function (w) {
+          var alpha = 0.3 + (0.7 * (3 - w.secondsLeft)) / 3;
           ctx.fillStyle = 'rgba(239, 68, 68, ' + alpha + ')';
-          ctx.fillRect(w.x * CELL_SIZE + 2, w.y * CELL_SIZE + 2, CELL_SIZE - 4, CELL_SIZE - 4);
-          
+
+          ctx.fillRect(
+            w.x * CELL_SIZE + 2,
+            w.y * CELL_SIZE + 2,
+            CELL_SIZE - 4,
+            CELL_SIZE - 4
+          );
+
           ctx.fillStyle = '#fff';
           var fontSize = Math.max(12, CELL_SIZE * 0.5);
           ctx.font = 'bold ' + fontSize + 'px system-ui';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(w.secondsLeft, (w.x + 0.5) * CELL_SIZE, (w.y + 0.5) * CELL_SIZE);
+
+          ctx.fillText(
+            w.secondsLeft,
+            (w.x + 0.5) * CELL_SIZE,
+            (w.y + 0.5) * CELL_SIZE
+          );
         });
       }
-      
+
+      // Players
       var playerEntries = Object.entries(gameState.players);
       for (var i = 0; i < playerEntries.length; i++) {
-        var entry = playerEntries[i];
-        var userId = entry[0];
-        var player = entry[1];
-        
+        var userId = playerEntries[i][0];
+        var player = playerEntries[i][1];
+
         if (!player.alive) continue;
-        
+
         var px = player.x * CELL_SIZE + CELL_SIZE / 2;
         var py = player.y * CELL_SIZE + CELL_SIZE / 2;
-        
+
         var botImg = getBotImage(player.playerColor);
-        
+
         ctx.save();
         ctx.translate(px, py);
-        
+
         var angle = 0;
         if (player.direction === 'DOWN') angle = Math.PI;
         else if (player.direction === 'LEFT') angle = -Math.PI / 2;
         else if (player.direction === 'RIGHT') angle = Math.PI / 2;
-        
+
         ctx.rotate(angle);
-        
+
         var drawSize = CELL_SIZE * 0.8;
-        ctx.drawImage(botImg, -drawSize/2, -drawSize/2, drawSize, drawSize);
-        
+        ctx.drawImage(
+          botImg,
+          -drawSize / 2,
+          -drawSize / 2,
+          drawSize,
+          drawSize
+        );
+
         ctx.restore();
-        
+
         var textSize = Math.max(10, CELL_SIZE * 0.4);
         ctx.fillStyle = '#fff';
         ctx.font = textSize + 'px system-ui';
         ctx.textAlign = 'center';
-        ctx.fillText(player.username, px, py - CELL_SIZE/2 - textSize - 4);
-        
-        var scoreColor = player.score >= 0 ? '#10b981' : '#ef4444';
-        ctx.fillStyle = scoreColor;
+
+        ctx.fillText(
+          player.username,
+          px,
+          py - CELL_SIZE / 2 - textSize - 4
+        );
+
+        ctx.fillStyle = player.score >= 0 ? '#10b981' : '#ef4444';
         ctx.font = 'bold ' + textSize + 'px system-ui';
-        ctx.fillText(player.score, px, py - CELL_SIZE/2 - 2);
+        ctx.fillText(
+          player.score,
+          px,
+          py - CELL_SIZE / 2 - 2
+        );
       }
     }
 
@@ -486,57 +594,104 @@
     }
 
     function handleGameOver(data) {
+      /* ===============================
+        VICTORY / LOSS SOUND LOGIC
+        =============================== */
+
+      var myPlayerId = null;
+      for (var id in gameState.players) {
+        if (gameState.players[id].playerColor === myPlayerColor) {
+          myPlayerId = id;
+          break;
+        }
+      }
+
+      // Victory
+      if (data.winnerId && myPlayerId && data.winnerId == myPlayerId) {
+        gameAudio.playVictory(); // WE WON!
+      } else if (!data.isTie) {
+        // Loss sound already handled on elimination in render()
+        // Do nothing here to avoid double audio
+      }
+
+      /* ===============================
+        FINAL SCORES UI
+        =============================== */
+
       var finalScoresDiv = document.getElementById('finalScores');
       var winnerInfoDiv = document.getElementById('winnerInfo');
-      
+
       if (data.finalScores) {
-        var sortedScores = Object.entries(data.finalScores).sort(function(a, b) {
+        var sortedScores = Object.entries(data.finalScores).sort(function (a, b) {
           return b[1] - a[1];
         });
-        
+
         var scoresHTML = '<strong>Final Results:</strong><br>';
+
         for (var i = 0; i < sortedScores.length; i++) {
           var userId = sortedScores[i][0];
           var score = sortedScores[i][1];
           var hits = data.finalHits ? data.finalHits[userId] : 0;
-          var player = gameState && gameState.players ? gameState.players[userId] : null;
+          var player =
+            gameState && gameState.players ? gameState.players[userId] : null;
           var name = player ? player.username : 'Player';
-          scoresHTML += '<div style="margin:6px 0;">' +
-            '<span style="color:#10b981;font-weight:600;">' + name + ': +' + score + ' pts</span>' +
-            '<span style="color:#9ca3af;margin-left:8px;font-size:12px;">(❌ ' + hits + '/50)</span>' +
+
+          scoresHTML +=
+            '<div style="margin:6px 0;">' +
+            '<span style="color:#10b981;font-weight:600;">' +
+            name +
+            ': +' +
+            score +
+            ' pts</span>' +
+            '<span style="color:#9ca3af;margin-left:8px;font-size:12px;">(❌ ' +
+            hits +
+            '/50)</span>' +
             '</div>';
         }
+
         finalScoresDiv.innerHTML = scoresHTML;
       }
-      
+
+      /* ===============================
+        WINNER / POT DISPLAY
+        =============================== */
+
       if (data.isTie) {
         document.getElementById('winnerText').textContent = 'Tie Game!';
-        
-        // Calculate split amount
+
         var potAmount = {{ match.totalPot|floatformat:0 }};
         var playerCount = Object.keys(gameState.players).length;
         var splitAmount = Math.floor(potAmount / playerCount);
-        
-        winnerInfoDiv.innerHTML = '<strong style="color:#f59e0b;">Everyone died!</strong><br>' +
-          '<div style="margin-top:12px;font-size:20px;">💰 +' + splitAmount + ' coins each</div>' +
-          '<div style="font-size:13px;color:#9ca3af;margin-top:4px;">Pot split ' + playerCount + ' ways</div>';
-          
+
+        winnerInfoDiv.innerHTML =
+          '<strong style="color:#f59e0b;">Everyone died!</strong><br>' +
+          '<div style="margin-top:12px;font-size:20px;">💰 +' +
+          splitAmount +
+          ' coins each</div>' +
+          '<div style="font-size:13px;color:#9ca3af;margin-top:4px;">Pot split ' +
+          playerCount +
+          ' ways</div>';
       } else if (data.winnerUsername) {
         document.getElementById('winnerText').textContent = '🏆 Winner!';
-        
+
         var potAmount = {{ match.totalPot|floatformat:0 }};
-        
-        winnerInfoDiv.innerHTML = '<strong style="color:#10b981;font-size:20px;">' + data.winnerUsername + '</strong><br>' +
-          '<div style="margin-top:16px;font-size:32px;font-weight:700;color:#fbbf24;">💰 +' + potAmount + ' coins</div>' +
+
+        winnerInfoDiv.innerHTML =
+          '<strong style="color:#10b981;font-size:20px;">' +
+          data.winnerUsername +
+          '</strong><br>' +
+          '<div style="margin-top:16px;font-size:32px;font-weight:700;color:#fbbf24;">💰 +' +
+          potAmount +
+          ' coins</div>' +
           '<div style="font-size:14px;color:#9ca3af;margin-top:8px;">Winner takes all!</div>';
-          
       } else {
         document.getElementById('winnerText').textContent = 'Game Over';
         winnerInfoDiv.innerHTML = 'Match ended.';
       }
-      
+
       document.getElementById('gameOver').style.display = 'block';
     }
+
 
     connectWebSocket();
 
@@ -554,6 +709,171 @@
         render();
       }
     });
+
+    // Simple Web Audio API sound generator
+class GameAudio {
+  constructor() {
+    this.audioContext = null;
+    this.enabled = true;
+  }
+  
+  init() {
+    if (!this.audioContext) {
+      this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+  }
+  
+  // Move/direction change sound - quick beep
+  playMove() {
+    if (!this.enabled) return;
+    this.init();
+    
+    const oscillator = this.audioContext.createOscillator();
+    const gainNode = this.audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(this.audioContext.destination);
+    
+    oscillator.frequency.value = 400; // Hz
+    oscillator.type = 'square';
+    
+    gainNode.gain.setValueAtTime(0.1, this.audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.05);
+    
+    oscillator.start(this.audioContext.currentTime);
+    oscillator.stop(this.audioContext.currentTime + 0.05);
+  }
+  
+  // Wall hit sound - harsh buzz
+  playHit() {
+    if (!this.enabled) return;
+    this.init();
+    
+    const oscillator = this.audioContext.createOscillator();
+    const gainNode = this.audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(this.audioContext.destination);
+    
+    oscillator.frequency.value = 150; // Low harsh sound
+    oscillator.type = 'sawtooth';
+    
+    gainNode.gain.setValueAtTime(0.2, this.audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.15);
+    
+    oscillator.start(this.audioContext.currentTime);
+    oscillator.stop(this.audioContext.currentTime + 0.15);
+  }
+  
+  // Score point - pleasant chime
+  playScore() {
+    if (!this.enabled) return;
+    this.init();
+    
+    const oscillator = this.audioContext.createOscillator();
+    const gainNode = this.audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(this.audioContext.destination);
+    
+    oscillator.frequency.value = 800; // High pleasant tone
+    oscillator.type = 'sine';
+    
+    gainNode.gain.setValueAtTime(0.15, this.audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.2);
+    
+    oscillator.start(this.audioContext.currentTime);
+    oscillator.stop(this.audioContext.currentTime + 0.2);
+  }
+  
+  // Victory - ascending celebratory notes
+  playVictory() {
+    if (!this.enabled) return;
+    this.init();
+    
+    const notes = [523, 659, 784, 1047]; // C, E, G, C (octave up)
+    const noteLength = 0.15;
+    
+    notes.forEach((freq, i) => {
+      const oscillator = this.audioContext.createOscillator();
+      const gainNode = this.audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(this.audioContext.destination);
+      
+      oscillator.frequency.value = freq;
+      oscillator.type = 'sine';
+      
+      const startTime = this.audioContext.currentTime + (i * noteLength);
+      gainNode.gain.setValueAtTime(0.2, startTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + noteLength);
+      
+      oscillator.start(startTime);
+      oscillator.stop(startTime + noteLength);
+    });
+  }
+  
+  // Loss/elimination - descending sad notes
+  playLoss() {
+    if (!this.enabled) return;
+    this.init();
+    
+    const notes = [392, 330, 262]; // G, E, C (descending)
+    const noteLength = 0.2;
+    
+    notes.forEach((freq, i) => {
+      const oscillator = this.audioContext.createOscillator();
+      const gainNode = this.audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(this.audioContext.destination);
+      
+      oscillator.frequency.value = freq;
+      oscillator.type = 'sine';
+      
+      const startTime = this.audioContext.currentTime + (i * noteLength);
+      gainNode.gain.setValueAtTime(0.2, startTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + noteLength);
+      
+      oscillator.start(startTime);
+      oscillator.stop(startTime + noteLength);
+    });
+  }
+  
+  // Kill/eliminate another player - powerful strike
+  playKill() {
+    if (!this.enabled) return;
+    this.init();
+    
+    const oscillator = this.audioContext.createOscillator();
+    const gainNode = this.audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(this.audioContext.destination);
+    
+    oscillator.frequency.value = 100;
+    oscillator.type = 'sawtooth';
+    
+    gainNode.gain.setValueAtTime(0.3, this.audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.3);
+    
+    oscillator.start(this.audioContext.currentTime);
+    oscillator.stop(this.audioContext.currentTime + 0.3);
+  }
+  
+  toggle() {
+    this.enabled = !this.enabled;
+    return this.enabled;
+  }
+}
+
+// Create global audio instance
+const gameAudio = new GameAudio();
+
+  function toggleSound() {
+    var enabled = gameAudio.toggle();
+    document.getElementById('soundBtn').textContent = enabled ? '🔊 Sound ON' : '🔇 Sound OFF';
+  }
   </script>
 </body>
 </html>
