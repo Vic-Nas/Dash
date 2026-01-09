@@ -276,6 +276,7 @@
       var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       var wsUrl = protocol + '//' + window.location.host + '/ws/match/{{ match.id }}/';
       
+      console.log('Attempting WebSocket connection to:', wsUrl);
       socket = new WebSocket(wsUrl);
       
       socket.onopen = function() {
@@ -310,7 +311,7 @@
       
       socket.onerror = function(error) {
         console.error('WebSocket error:', error);
-        document.getElementById('waitingMsg').innerHTML = '<h2 style="color:#ef4444;">Connection Error</h2><p>Please refresh the page.</p>';
+        document.getElementById('waitingMsg').innerHTML = '<h2 style="color:#ef4444;">Connection Error</h2><p>Unable to connect to game server. Please check your connection and try refreshing.</p><button class="btn" onclick="location.href=\'/matches/multiplayer/\'">Back to Lobby</button>';
       };
       
       socket.onclose = function() {

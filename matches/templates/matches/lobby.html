@@ -95,21 +95,15 @@
 
       {% if match.status == 'WAITING' %}
         <div class="waiting-msg">
-          Waiting for {{ match.playersRequired|add:"-"|add:match.currentPlayers }} more player{{ match.playersRequired|add:"-"|add:match.currentPlayers|pluralize }}...
+          Waiting for <span id="missingPlayers"></span> more player<span id="playerPlural"></span>...
         </div>
 
-        {% if match.currentPlayers|add:"-"|add:match.playersRequired < 0 %}
-        {% with missing=match.playersRequired|add:"-"|add:match.currentPlayers %}
-        {% with forceCost=match.matchType.entryFee|floatformat:0 %}
-        {% with totalCost=missing %}
+        {% if match.currentPlayers < match.playersRequired %}
         <div class="force-start-warning">
           <strong>⚡ Force Start Available</strong>
-          <p style="margin:8px 0;">Don't want to wait? Pay for the missing {{ missing }} player{{ missing|pluralize }} to start immediately.</p>
-          <p style="margin:8px 0;font-size:14px;">Cost: {{ missing }} × {{ forceCost }} = <span id="forceCostTotal"></span> coins</p>
+          <p style="margin:8px 0;">Don't want to wait? Pay for the missing <span id="missingPlayersForce"></span> player<span id="playerPluralForce"></span> to start immediately.</p>
+          <p style="margin:8px 0;font-size:14px;">Cost: <span id="missingPlayersCost"></span> × {{ match.matchType.entryFee|floatformat:0 }} = <span id="forceCostTotal"></span> coins</p>
         </div>
-        {% endwith %}
-        {% endwith %}
-        {% endwith %}
         {% endif %}
 
       {% elif match.status == 'STARTING' %}
@@ -153,6 +147,30 @@
       const missing = playersRequired - currentPlayers;
       const forceCost = {{ match.matchType.entryFee|floatformat:0 }};
       const totalCost = missing * forceCost;
+      
+      // Update waiting message
+      const missingElem = document.getElementById('missingPlayers');
+      if (missingElem) {
+        missingElem.textContent = missing;
+      }
+      const pluralElem = document.getElementById('playerPlural');
+      if (pluralElem) {
+        pluralElem.textContent = missing > 1 ? 's' : '';
+      }
+      
+      // Update force start message
+      const missingForceElem = document.getElementById('missingPlayersForce');
+      if (missingForceElem) {
+        missingForceElem.textContent = missing;
+      }
+      const pluralForceElem = document.getElementById('playerPluralForce');
+      if (pluralForceElem) {
+        pluralForceElem.textContent = missing > 1 ? 's' : '';
+      }
+      const missingCostElem = document.getElementById('missingPlayersCost');
+      if (missingCostElem) {
+        missingCostElem.textContent = missing;
+      }
       const costElement = document.getElementById('forceCostTotal');
       if (costElement) {
         costElement.textContent = totalCost.toFixed(0);
