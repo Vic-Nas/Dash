@@ -3,6 +3,7 @@ import asyncio
 import random
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
+from channels.layers import get_channel_layer
 from django.utils import timezone
 from django.db.models import F
 from decimal import Decimal
@@ -165,7 +166,7 @@ class GameEngine:
     def getState(self):
         return {
             'tick': self.tickNumber,
-            'players': self.players,
+            'players': {str(uid): p for uid, p in self.players.items()},  # Convert int keys to strings
             'walls': self.walls,
             'countdownWalls': self.countdownWalls,
             'aliveCount': sum(1 for p in self.players.values() if p['alive'])
@@ -177,17 +178,27 @@ class GameEngine:
             return alive[0] if alive else None
         return None
     
-    async def start(self, broadcastCallback):
+    async def start(self, roomGroupName, handleGameOverCallback):
         self.running = True
+        channel_layer = get_channel_layer()
         
         async def gameLoop():
             while self.running:
                 self.tick()
-                await broadcastCallback(self.getState())
+                state = self.getState()
+                
+                # Broadcast state
+                await channel_layer.group_send(
+                    roomGroupName,
+                    {
+                        'type': 'gameState',
+                        'state': state
+                    }
+                )
                 
                 winnerId = self.checkGameOver()
                 if winnerId is not None:
-                    await self.endGame(winnerId, broadcastCallback)
+                    await self.endGame(winnerId, roomGroupName, handleGameOverCallback)
                     break
                 
                 await asyncio.sleep(self.tickRate)
@@ -206,20 +217,33 @@ class GameEngine:
         self.wallSpawnTask = asyncio.create_task(spawnLoop())
         asyncio.create_task(countdownLoop())
     
-    async def endGame(self, winnerId, broadcastCallback):
+    async def endGame(self, winnerId, roomGroupName, handleGameOverCallback):
         self.running = False
+        channel_layer = get_channel_layer()
         
         alivePlayers = [uid for uid, p in self.players.items() if p['alive']]
         isTie = len(alivePlayers) == 0
         
-        await broadcastCallback({
+        gameOverState = {
             'type': 'gameOver',
             'winnerId': winnerId if not isTie else None,
             'winnerUsername': self.players[winnerId]['username'] if winnerId and not isTie else None,
             'isTie': isTie,
             'alivePlayers': alivePlayers,
-            'finalScores': {uid: p['score'] for uid, p in self.players.items()}
-        })
+            'finalScores': {str(uid): p['score'] for uid, p in self.players.items()}  # Convert int keys to strings
+        }
+        
+        # Handle rewards
+        await handleGameOverCallback(gameOverState)
+        
+        # Broadcast game over
+        await channel_layer.group_send(
+            roomGroupName,
+            {
+                'type': 'gameState',
+                'state': gameOverState
+            }
+        )
     
     def stop(self):
         self.running = False
@@ -227,6 +251,154 @@ class GameEngine:
             self.task.cancel()
         if self.wallSpawnTask:
             self.wallSpawnTask.cancel()
+
+
+async def startMatchCountdown(matchId, roomGroupName, engine):
+    """Standalone countdown function that doesn't depend on consumer instance"""
+    channel_layer = get_channel_layer()
+    
+    try:
+        print(f"[Match {matchId}] Starting countdown")
+        
+        # Broadcast countdown
+        for i in range(10, 0, -1):
+            print(f"[Match {matchId}] Countdown: {i}")
+            await channel_layer.group_send(
+                roomGroupName,
+                {
+                    'type': 'gameState',
+                    'state': {
+                        'type': 'countdown',
+                        'seconds': i
+                    }
+                }
+            )
+            await asyncio.sleep(1)
+        
+        # Update match status to IN_PROGRESS
+        print(f"[Match {matchId}] Countdown complete, starting match")
+        from django.contrib.auth import get_user_model
+        
+        @database_sync_to_async
+        def setMatchInProgress():
+            match = Match.objects.get(id=matchId)
+            match.status = 'IN_PROGRESS'
+            match.startedAt = timezone.now()
+            match.save()
+        
+        @database_sync_to_async
+        def handleGameOver(state):
+            # This will be called when game ends
+            match = Match.objects.select_related('matchType').get(id=matchId)
+            
+            isTie = state.get('isTie', False)
+            winnerId = state.get('winnerId')
+            
+            if isTie:
+                splitPot(match)
+            elif winnerId:
+                awardPot(match, winnerId)
+            
+            completeMatch(match, winnerId)
+        
+        def splitPot(match):
+            from django.db import transaction as dbTransaction
+            
+            with dbTransaction.atomic():
+                match = Match.objects.select_for_update().get(id=match.id)
+                participants = list(match.participants.select_related('player__profile').all())
+                
+                if not participants:
+                    return
+                
+                share = match.totalPot / len(participants)
+                
+                for participation in participants:
+                    profile = participation.player.profile
+                    profile = type(profile).objects.select_for_update().get(pk=profile.pk)
+                    
+                    balanceBefore = profile.coins
+                    profile.coins = F('coins') + share
+                    profile.save(update_fields=['coins'])
+                    profile.refresh_from_db()
+                    
+                    participation.coinReward = share
+                    participation.placement = 1
+                    participation.save(update_fields=['coinReward', 'placement'])
+                    
+                    Transaction.objects.create(
+                        user=participation.player,
+                        amount=share,
+                        transactionType='MATCH_WIN',
+                        relatedMatch=match,
+                        description=f'Tie - Split pot: {match.matchType.name}',
+                        balanceBefore=balanceBefore,
+                        balanceAfter=profile.coins
+                    )
+        
+        def awardPot(match, winnerId):
+            from django.db import transaction as dbTransaction
+            from django.contrib.auth import get_user_model
+            
+            User = get_user_model()
+            
+            with dbTransaction.atomic():
+                match = Match.objects.select_for_update().get(id=match.id)
+                winner = User.objects.get(id=winnerId)
+                
+                profile = winner.profile
+                profile = type(profile).objects.select_for_update().get(pk=profile.pk)
+                
+                balanceBefore = profile.coins
+                profile.coins = F('coins') + match.totalPot
+                profile.totalWins = F('totalWins') + 1
+                profile.save(update_fields=['coins', 'totalWins'])
+                profile.refresh_from_db()
+                
+                participation = MatchParticipation.objects.get(match=match, player=winner)
+                participation.coinReward = match.totalPot
+                participation.placement = 1
+                participation.save(update_fields=['coinReward', 'placement'])
+                
+                Transaction.objects.create(
+                    user=winner,
+                    amount=match.totalPot,
+                    transactionType='MATCH_WIN',
+                    relatedMatch=match,
+                    description=f'Won match: {match.matchType.name}',
+                    balanceBefore=balanceBefore,
+                    balanceAfter=profile.coins
+                )
+        
+        def completeMatch(match, winnerId):
+            from django.contrib.auth import get_user_model
+            
+            User = get_user_model()
+            
+            match.status = 'COMPLETED'
+            match.completedAt = timezone.now()
+            if winnerId:
+                match.winner = User.objects.get(id=winnerId)
+            match.save(update_fields=['status', 'completedAt', 'winner'])
+            
+            for participation in match.participants.select_related('player__profile').all():
+                profile = participation.player.profile
+                profile.totalMatches = F('totalMatches') + 1
+                profile.save(update_fields=['totalMatches'])
+        
+        await setMatchInProgress()
+        print(f"[Match {matchId}] Match status updated, starting engine")
+        
+        await engine.start(roomGroupName, handleGameOver)
+        print(f"[Match {matchId}] Engine started successfully")
+        
+    except Exception as e:
+        print(f"[Match {matchId}] ERROR in countdown: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        if matchId in ACTIVE_COUNTDOWNS:
+            del ACTIVE_COUNTDOWNS[matchId]
 
 
 class GameConsumer(AsyncWebsocketConsumer):
@@ -281,41 +453,14 @@ class GameConsumer(AsyncWebsocketConsumer):
         # If match is STARTING and countdown hasn't started yet, start it ONCE
         if match.status == 'STARTING' and not engine.running:
             if self.matchId not in ACTIVE_COUNTDOWNS:
-                # Start countdown - only one task for the entire match
                 ACTIVE_COUNTDOWNS[self.matchId] = asyncio.create_task(
-                    self.runMatchCountdown(engine)
+                    startMatchCountdown(self.matchId, self.roomGroupName, engine)
                 )
         
-        # If already IN_PROGRESS but engine not running, start it
+        # If already IN_PROGRESS but engine not running (shouldn't happen but just in case)
         elif match.status == 'IN_PROGRESS' and not engine.running:
-            await self.startMatch()
-            await engine.start(self.broadcastState)
-    
-    async def runMatchCountdown(self, engine):
-        """Single countdown task for the entire match"""
-        try:
-            # Broadcast countdown
-            for i in range(10, 0, -1):
-                await self.channel_layer.group_send(
-                    self.roomGroupName,
-                    {
-                        'type': 'gameState',
-                        'state': {
-                            'type': 'countdown',
-                            'seconds': i
-                        }
-                    }
-                )
-                await asyncio.sleep(1)
-            
-            # Start the match
-            await self.startMatch()
-            await engine.start(self.broadcastState)
-            
-        finally:
-            # Clean up countdown task
-            if self.matchId in ACTIVE_COUNTDOWNS:
-                del ACTIVE_COUNTDOWNS[self.matchId]
+            # This shouldn't happen in normal flow, but handle it
+            pass
     
     async def disconnect(self, closeCode):
         await self.channel_layer.group_discard(
@@ -337,31 +482,6 @@ class GameConsumer(AsyncWebsocketConsumer):
     async def gameState(self, event):
         await self.send(text_data=json.dumps(event['state']))
     
-    async def broadcastState(self, state):
-        if state.get('type') == 'gameOver':
-            await self.handleGameOver(state)
-        
-        await self.channel_layer.group_send(
-            self.roomGroupName,
-            {
-                'type': 'gameState',
-                'state': state
-            }
-        )
-    
-    async def handleGameOver(self, state):
-        match = await self.getMatch()
-        
-        isTie = state.get('isTie', False)
-        winnerId = state.get('winnerId')
-        
-        if isTie:
-            await self.splitPot(match)
-        elif winnerId:
-            await self.awardPot(match, winnerId)
-        
-        await self.completeMatch(match, winnerId)
-    
     @database_sync_to_async
     def getPlayerColor(self):
         match = Match.objects.get(id=self.matchId)
@@ -376,94 +496,6 @@ class GameConsumer(AsyncWebsocketConsumer):
         return colors[playerIndex % len(colors)]
     
     @database_sync_to_async
-    def splitPot(self, match):
-        from django.db import transaction as dbTransaction
-        
-        with dbTransaction.atomic():
-            match = Match.objects.select_for_update().get(id=match.id)
-            participants = list(match.participants.select_related('player__profile').all())
-            
-            if not participants:
-                return
-            
-            share = match.totalPot / len(participants)
-            
-            for participation in participants:
-                profile = participation.player.profile
-                profile = type(profile).objects.select_for_update().get(pk=profile.pk)
-                
-                balanceBefore = profile.coins
-                profile.coins = F('coins') + share
-                profile.save(update_fields=['coins'])
-                profile.refresh_from_db()
-                
-                participation.coinReward = share
-                participation.placement = 1
-                participation.save(update_fields=['coinReward', 'placement'])
-                
-                Transaction.objects.create(
-                    user=participation.player,
-                    amount=share,
-                    transactionType='MATCH_WIN',
-                    relatedMatch=match,
-                    description=f'Tie - Split pot: {match.matchType.name}',
-                    balanceBefore=balanceBefore,
-                    balanceAfter=profile.coins
-                )
-    
-    @database_sync_to_async
-    def awardPot(self, match, winnerId):
-        from django.db import transaction as dbTransaction
-        from django.contrib.auth import get_user_model
-        
-        User = get_user_model()
-        
-        with dbTransaction.atomic():
-            match = Match.objects.select_for_update().get(id=match.id)
-            winner = User.objects.get(id=winnerId)
-            
-            profile = winner.profile
-            profile = type(profile).objects.select_for_update().get(pk=profile.pk)
-            
-            balanceBefore = profile.coins
-            profile.coins = F('coins') + match.totalPot
-            profile.totalWins = F('totalWins') + 1
-            profile.save(update_fields=['coins', 'totalWins'])
-            profile.refresh_from_db()
-            
-            participation = MatchParticipation.objects.get(match=match, player=winner)
-            participation.coinReward = match.totalPot
-            participation.placement = 1
-            participation.save(update_fields=['coinReward', 'placement'])
-            
-            Transaction.objects.create(
-                user=winner,
-                amount=match.totalPot,
-                transactionType='MATCH_WIN',
-                relatedMatch=match,
-                description=f'Won match: {match.matchType.name}',
-                balanceBefore=balanceBefore,
-                balanceAfter=profile.coins
-            )
-    
-    @database_sync_to_async
-    def completeMatch(self, match, winnerId):
-        from django.contrib.auth import get_user_model
-        
-        User = get_user_model()
-        
-        match.status = 'COMPLETED'
-        match.completedAt = timezone.now()
-        if winnerId:
-            match.winner = User.objects.get(id=winnerId)
-        match.save(update_fields=['status', 'completedAt', 'winner'])
-        
-        for participation in match.participants.select_related('player__profile').all():
-            profile = participation.player.profile
-            profile.totalMatches = F('totalMatches') + 1
-            profile.save(update_fields=['totalMatches'])
-    
-    @database_sync_to_async
     def getParticipation(self):
         try:
             return MatchParticipation.objects.get(
@@ -476,10 +508,3 @@ class GameConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def getMatch(self):
         return Match.objects.select_related('matchType').get(id=self.matchId)
-    
-    @database_sync_to_async
-    def startMatch(self):
-        match = Match.objects.get(id=self.matchId)
-        match.status = 'IN_PROGRESS'
-        match.startedAt = timezone.now()
-        match.save()
