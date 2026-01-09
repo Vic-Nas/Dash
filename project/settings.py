@@ -54,12 +54,6 @@ CSRF_TRUSTED_ORIGINS = []
 if domain:
     CSRF_TRUSTED_ORIGINS.append(f"https://{domain}")
 
-# Add itch.io domains
-CSRF_TRUSTED_ORIGINS.extend([
-    'https://vic-nas.itch.io',
-    'https://itch.io',
-    'https://*.itch.io',
-])
 
 # Application definition
 
@@ -211,10 +205,3 @@ else:
     
     
 X_FRAME_OPTIONS = 'ALLOWALL'
-
-# Use session-based CSRF instead of cookies for iframe compatibility
-CSRF_USE_SESSIONS = True  # Store CSRF token in session, not cookie
-
-# But still need session cookies to work in iframe
-SESSION_COOKIE_SAMESITE = 'None'
-SESSION_COOKIE_SECURE = True
