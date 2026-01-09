@@ -10,7 +10,6 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('cosmetics', '0001_initial'),
         ('matches', '0001_initial'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
@@ -52,13 +51,12 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('amount', models.DecimalField(decimal_places=2, max_digits=12)),
-                ('transactionType', models.CharField(choices=[('PURCHASE', 'PURCHASE'), ('MATCH_ENTRY', 'MATCH_ENTRY'), ('MATCH_WIN', 'MATCH_WIN'), ('SKIN_PURCHASE', 'SKIN_PURCHASE'), ('SOLO_REWARD', 'SOLO_REWARD'), ('SOLO_PENALTY', 'SOLO_PENALTY'), ('EXTRA_LIFE', 'EXTRA_LIFE'), ('REFUND', 'REFUND')], max_length=16)),
+                ('transactionType', models.CharField(choices=[('PURCHASE', 'PURCHASE'), ('MATCH_ENTRY', 'MATCH_ENTRY'), ('MATCH_WIN', 'MATCH_WIN'), ('SOLO_REWARD', 'SOLO_REWARD'), ('SOLO_PENALTY', 'SOLO_PENALTY'), ('EXTRA_LIFE', 'EXTRA_LIFE'), ('REFUND', 'REFUND')], max_length=16)),
                 ('description', models.CharField(max_length=255)),
                 ('balanceBefore', models.DecimalField(decimal_places=2, max_digits=12)),
                 ('balanceAfter', models.DecimalField(decimal_places=2, max_digits=12)),
                 ('createdAt', models.DateTimeField(auto_now_add=True)),
                 ('relatedMatch', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='transactions', to='matches.match')),
-                ('relatedSkin', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='transactions', to='cosmetics.botskin')),
                 ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='transactions', to=settings.AUTH_USER_MODEL)),
             ],
         ),

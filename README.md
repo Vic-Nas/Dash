@@ -35,7 +35,6 @@
 - **Coin Purchases:** Buy coins with real money (Stripe)
 - **Coin Sinks:**
   - Multiplayer match entry fees (5-50+ coins)
-  - Bot skins/cosmetics
   - Extra lives for matches (limited per match)
   - Solo mode wall hits (coin penalty)
 - **Coin Sources:**
@@ -57,7 +56,6 @@
 - **soloHighScore** (IntegerField, default=0) - walls survived in best solo run
 - **totalWins** (IntegerField, default=0) - multiplayer wins
 - **totalMatches** (IntegerField, default=0) - matches participated
-- **currentSkin** (ForeignKey to BotSkin, nullable) - equipped skin
 - **createdAt** (DateTimeField, autoNowAdd=True)
 - **isActive** (BooleanField, default=True)
 - **activityLog** (TextField, default="")
@@ -149,30 +147,6 @@ Individual solo mode attempt
 
 ---
 
-### **COSMETICS APP**
-
-#### **BotSkin**
-Purchasable bot appearance
-
-- **name** (CharField, maxLength=50, unique=True)
-- **description** (TextField)
-- **previewImage** (ImageField) - shows what skin looks like
-- **price** (DecimalField) - coins to purchase
-- **isDefault** (BooleanField, default=False) - starter skin (free)
-- **rarity** (CharField, choices: COMMON, RARE, EPIC, LEGENDARY)
-- **displayOrder** (IntegerField, default=0)
-- **createdAt** (DateTimeField, autoNowAdd=True)
-
-#### **OwnedSkin**
-Player's owned skins
-
-- **player** (ForeignKey to User, relatedName='ownedSkins')
-- **skin** (ForeignKey to BotSkin, relatedName='owners')
-- **purchasedAt** (DateTimeField, autoNowAdd=True)
-- **uniqueTogether**: (player, skin)
-
----
-
 ### **SHOP APP**
 
 #### **CoinPackage**
@@ -204,9 +178,8 @@ All coin movements (audit log)
 
 - **user** (ForeignKey to User, relatedName='transactions')
 - **amount** (DecimalField) - positive = gained, negative = spent
-- **transactionType** (CharField, choices: PURCHASE, MATCH_ENTRY, MATCH_WIN, SKIN_PURCHASE, SOLO_REWARD, SOLO_PENALTY, EXTRA_LIFE, REFUND)
+- **transactionType** (CharField, choices: PURCHASE, MATCH_ENTRY, MATCH_WIN, SOLO_REWARD, SOLO_PENALTY, EXTRA_LIFE, REFUND)
 - **relatedMatch** (ForeignKey to Match, nullable, relatedName='transactions')
-- **relatedSkin** (ForeignKey to BotSkin, nullable, relatedName='transactions')
 - **description** (CharField, maxLength=255)
 - **balanceBefore** (DecimalField)
 - **balanceAfter** (DecimalField)
@@ -317,12 +290,6 @@ Players spawn evenly around grid perimeter:
 - Speed: 15 coins
 - Arena: 25 coins
 - High Stakes: 50 coins
-
-**Cosmetics:**
-- Common skins: 20-50 coins
-- Rare skins: 100-200 coins
-- Epic skins: 300-500 coins
-- Legendary skins: 1000+ coins
 
 **Extra Lives:**
 - 5 coins per extra life (max 2 per match)

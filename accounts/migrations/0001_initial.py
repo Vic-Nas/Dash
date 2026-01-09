@@ -11,7 +11,6 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('auth', '0012_alter_user_first_name_max_length'),
-        ('cosmetics', '0001_initial'),
     ]
 
     operations = [
@@ -27,7 +26,6 @@ class Migration(migrations.Migration):
                 ('createdAt', models.DateTimeField(auto_now_add=True)),
                 ('isActive', models.BooleanField(default=True)),
                 ('activityLog', models.TextField(blank=True, default='')),
-                ('currentSkin', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='equippedBy', to='cosmetics.botskin')),
             ],
             options={
                 'verbose_name': 'Profile',
