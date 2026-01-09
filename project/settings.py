@@ -197,3 +197,6 @@ else:
             'BACKEND': 'channels.layers.InMemoryChannelLayer',
         },
     }
+    
+    
+X_FRAME_OPTIONS = 'ALLOWALL'
