@@ -274,7 +274,7 @@
 
     function connectWebSocket() {
       var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      var wsUrl = protocol + '//' + window.location.host + '/ws/match/1/';
+      var wsUrl = protocol + '//' + window.location.host + '/ws/match/{{ match.id }}/';
       
       socket = new WebSocket(wsUrl);
       
