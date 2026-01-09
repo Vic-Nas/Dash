@@ -3,43 +3,181 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <title>Match {{ match.id }} - Dash Arena</title>
+  <title>Match - Dash Arena</title>
   <style>
-    *{box-sizing:border-box;margin:0;padding:0;}
-    body{font-family:system-ui,sans-serif;background:#0d0f1a;color:#e6e6e6;overflow:hidden;}
-    #gameContainer{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;padding:20px;}
-    #gameCanvas{border:2px solid #2a2f6b;box-shadow:0 4px 20px rgba(0,0,0,0.5);}
-    #hud{position:absolute;top:20px;left:20px;background:rgba(18,20,40,0.9);padding:16px;border-radius:8px;border:1px solid #2a2f6b;min-width:200px;max-height:80vh;overflow-y:auto;}
-    .stat{margin-bottom:8px;font-size:14px;}
-    .stat-label{color:#9ca3af;margin-right:8px;}
-    .stat-value{color:#fff;font-weight:600;}
-    .player-item{margin:8px 0;padding:8px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;}
-    .player-name{font-weight:600;}
-    .player-score{font-size:12px;font-weight:600;}
-    .score-positive{color:#10b981;}
-    .score-negative{color:#ef4444;}
-    .player-dead{opacity:0.5;text-decoration:line-through;}
-    .color-badge{display:inline-block;width:16px;height:16px;border-radius:3px;margin-right:8px;vertical-align:middle;border:1px solid #fff;}
-    #gameOver{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(18,20,40,0.98);padding:40px;border-radius:12px;border:2px solid #2a2f6b;text-align:center;min-width:400px;z-index:1000;}
-    #gameOver h2{margin-bottom:16px;font-size:28px;color:#5b7bff;}
-    #gameOver button{background:#2a2f6b;color:#fff;border:none;padding:12px 24px;border-radius:8px;cursor:pointer;font-size:15px;margin:8px;}
-    #gameOver button:hover{background:#3940a3;}
-    #waitingMsg{text-align:center;font-size:18px;color:#9ca3af;}
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0d0f1a;
+      color: #e6e6e6;
+      overflow: hidden;
+    }
+    #gameContainer {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      padding: 20px;
+    }
+    #gameCanvas {
+      border: 2px solid #2a2f6b;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+    #hud {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(18,20,40,0.9);
+      padding: 16px;
+      border-radius: 8px;
+      border: 1px solid #2a2f6b;
+      min-width: 200px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .stat {
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+    .stat-label {
+      color: #9ca3af;
+      margin-right: 8px;
+    }
+    .stat-value {
+      color: #fff;
+      font-weight: 600;
+    }
+    .player-item {
+      margin: 8px 0;
+      padding: 8px;
+      border-radius: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .player-name {
+      font-weight: 600;
+    }
+    .player-score {
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .score-positive {
+      color: #10b981;
+    }
+    .score-negative {
+      color: #ef4444;
+    }
+    .player-dead {
+      opacity: 0.5;
+      text-decoration: line-through;
+    }
+    .color-badge {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border-radius: 3px;
+      margin-right: 8px;
+      vertical-align: middle;
+      border: 1px solid #fff;
+    }
+    #gameOver {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(18,20,40,0.98);
+      padding: 40px;
+      border-radius: 12px;
+      border: 2px solid #2a2f6b;
+      text-align: center;
+      min-width: 400px;
+      z-index: 1000;
+    }
+    #gameOver h2 {
+      margin-bottom: 16px;
+      font-size: 28px;
+      color: #5b7bff;
+    }
+    #gameOver button {
+      background: #2a2f6b;
+      color: #fff;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 15px;
+      margin: 8px;
+    }
+    #gameOver button:hover {
+      background: #3940a3;
+    }
+    #waitingMsg {
+      text-align: center;
+      font-size: 18px;
+      color: #9ca3af;
+    }
     #mobile-controls {
       margin-top: 10px;
       display: grid;
-      grid-template-columns: repeat(3, 64px);
+      grid-template-columns: repeat(3, 70px);
+      grid-template-rows: repeat(2, 70px);
       gap: 8px;
       justify-content: center;
     }
     #mobile-controls button {
-      font-size: 20px;
-      padding: 12px;
+      font-size: 24px;
+      padding: 0;
       border-radius: 10px;
-      border: none;
-      background: rgba(0,0,0,0.6);
+      border: 2px solid #2a2f6b;
+      background: rgba(42, 47, 107, 0.8);
       color: white;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+    #mobile-controls button:active {
+      background: rgba(57, 64, 163, 0.9);
+    }
+    .btn-up {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    .btn-left {
+      grid-column: 1;
+      grid-row: 2;
+    }
+    .btn-down {
+      grid-column: 2;
+      grid-row: 2;
+    }
+    .btn-right {
+      grid-column: 3;
+      grid-row: 2;
+    }
+    @media (max-width: 768px) {
+      #hud {
+        top: 10px;
+        left: 10px;
+        padding: 12px;
+        min-width: 150px;
+        font-size: 12px;
+      }
+      .stat {
+        margin-bottom: 6px;
+        font-size: 12px;
+      }
+      #gameOver {
+        min-width: 90%;
+        padding: 20px;
+      }
     }
   </style>
 </head>
@@ -50,23 +188,19 @@
       <p>Connecting to game server...</p>
     </div>
     <canvas id="gameCanvas" width="800" height="800" style="display:none;"></canvas>
-    <!-- Mobile Controls -->
+    
     <div id="mobile-controls" style="display:none;">
-      <button onmousedown="press('ArrowLeft')"  onmouseup="release('ArrowLeft')"  ontouchstart="press('ArrowLeft')"  ontouchend="release('ArrowLeft')">◀</button>
-      <button onmousedown="press('ArrowRight')" onmouseup="release('ArrowRight')" ontouchstart="press('ArrowRight')" ontouchend="release('ArrowRight')">▶</button>
-      <button onmousedown="press('ArrowUp')"    onmouseup="release('ArrowUp')"    ontouchstart="press('ArrowUp')"    ontouchend="release('ArrowUp')">▲</button>
-      <button onmousedown="press('ArrowDown')"  onmouseup="release('ArrowDown')"  ontouchstart="press('ArrowDown')"  ontouchend="release('ArrowDown')">▼</button>
+      <button class="btn-up" onmousedown="pressKey('ArrowUp')" onmouseup="releaseKey('ArrowUp')" ontouchstart="pressKey('ArrowUp')" ontouchend="releaseKey('ArrowUp')">▲</button>
+      <button class="btn-left" onmousedown="pressKey('ArrowLeft')" onmouseup="releaseKey('ArrowLeft')" ontouchstart="pressKey('ArrowLeft')" ontouchend="releaseKey('ArrowLeft')">◀</button>
+      <button class="btn-down" onmousedown="pressKey('ArrowDown')" onmouseup="releaseKey('ArrowDown')" ontouchstart="pressKey('ArrowDown')" ontouchend="releaseKey('ArrowDown')">▼</button>
+      <button class="btn-right" onmousedown="pressKey('ArrowRight')" onmouseup="releaseKey('ArrowRight')" ontouchstart="pressKey('ArrowRight')" ontouchend="releaseKey('ArrowRight')">▶</button>
     </div>
   </div>
 
   <div id="hud" style="display:none;">
     <div class="stat">
       <span class="stat-label">Match:</span>
-      <span class="stat-value">{{ match.matchType.name }}</span>
-    </div>
-    <div class="stat">
-      <span class="stat-label">Pot:</span>
-      <span class="stat-value">{{ match.totalPot|floatformat:0 }} coins</span>
+      <span class="stat-value">Multiplayer</span>
     </div>
     <div class="stat" id="yourColorStat" style="display:none;">
       <span class="stat-label">Your Color:</span>
@@ -87,26 +221,31 @@
   </div>
 
   <script>
-    const matchId = {{ match.id }};
-    const currentUserId = {{ user.id }};
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
+    var canvas = document.getElementById('gameCanvas');
+    var ctx = canvas.getContext('2d');
 
-    let gameState = null;
-    let socket = null;
-    let CELL_SIZE = 0;
-    let botImages = {};
-    let myPlayerColor = null;
+    var gameState = null;
+    var socket = null;
+    var CELL_SIZE = 0;
+    var botImages = {};
+    var myPlayerColor = null;
 
-    // Create bot image for a specific color
+    function adjustCanvasSize() {
+      var maxWidth = window.innerWidth - 40;
+      var maxHeight = window.innerHeight - 300;
+      var size = Math.min(800, maxWidth, maxHeight);
+      
+      canvas.width = size;
+      canvas.height = size;
+    }
+
     function createBotImage(color) {
-      const size = 64;
-      const img = document.createElement('canvas');
+      var size = 64;
+      var img = document.createElement('canvas');
       img.width = size;
       img.height = size;
-      const c = img.getContext('2d');
+      var c = img.getContext('2d');
       
-      // Draw arrow bot
       c.fillStyle = color;
       c.beginPath();
       c.moveTo(size/2, size*0.2);
@@ -133,23 +272,21 @@
       return botImages[playerColor];
     }
 
-    // Connect to WebSocket
     function connectWebSocket() {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws/match/${matchId}/`;
+      var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      var wsUrl = protocol + '//' + window.location.host + '/ws/match/1/';
       
       socket = new WebSocket(wsUrl);
       
-      socket.onopen = () => {
+      socket.onopen = function() {
         console.log('Connected to game');
         document.getElementById('waitingMsg').innerHTML = '<h2 style="color:#10b981;">Connected!</h2><p>Waiting for game to start...</p>';
       };
       
-      socket.onmessage = (event) => {
-        const data = JSON.parse(event.data);
+      socket.onmessage = function(event) {
+        var data = JSON.parse(event.data);
         
         if (data.type === 'playerColor') {
-          // Receive your assigned color
           myPlayerColor = data.playerColor;
           document.getElementById('yourColorStat').style.display = 'block';
           document.getElementById('yourColorBadge').style.backgroundColor = myPlayerColor;
@@ -161,8 +298,8 @@
           render();
           updateHUD();
           
-          // Show game on first state
           if (canvas.style.display === 'none') {
+            adjustCanvasSize();
             document.getElementById('waitingMsg').style.display = 'none';
             canvas.style.display = 'block';
             document.getElementById('hud').style.display = 'block';
@@ -171,22 +308,21 @@
         }
       };
       
-      socket.onerror = (error) => {
+      socket.onerror = function(error) {
         console.error('WebSocket error:', error);
         document.getElementById('waitingMsg').innerHTML = '<h2 style="color:#ef4444;">Connection Error</h2><p>Please refresh the page.</p>';
       };
       
-      socket.onclose = () => {
+      socket.onclose = function() {
         console.log('Disconnected from game');
       };
     }
 
-    // Handle keyboard input
-    document.addEventListener('keydown', (e) => {
+    document.addEventListener('keydown', function(e) {
       if (!socket || socket.readyState !== WebSocket.OPEN) return;
       
-      let direction = null;
-      const key = e.key.toUpperCase();
+      var direction = null;
+      var key = e.key.toUpperCase();
       
       if (key === 'W' || key === 'ARROWUP') direction = 'UP';
       else if (key === 'S' || key === 'ARROWDOWN') direction = 'DOWN';
@@ -204,20 +340,16 @@
     function render() {
       if (!gameState || !gameState.players) return;
       
-      // Calculate grid size
-      const gridSize = Object.keys(gameState.players).length > 0 
-        ? Math.max(20, Math.min(40, 15 + Object.keys(gameState.players).length * 2.5))
-        : 20;
+      var playerCount = Object.keys(gameState.players).length;
+      var gridSize = playerCount > 0 ? Math.max(20, Math.min(40, 15 + playerCount * 2.5)) : 20;
       CELL_SIZE = canvas.width / gridSize;
       
-      // Clear with default background
       ctx.fillStyle = '#121428';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
-      // Draw grid
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
       ctx.lineWidth = 1;
-      for (let i = 0; i <= gridSize; i++) {
+      for (var i = 0; i <= gridSize; i++) {
         ctx.beginPath();
         ctx.moveTo(i * CELL_SIZE, 0);
         ctx.lineTo(i * CELL_SIZE, canvas.height);
@@ -229,7 +361,6 @@
         ctx.stroke();
       }
       
-      // Draw edge indicators
       ctx.fillStyle = '#ef4444';
       ctx.globalAlpha = 0.2;
       ctx.fillRect(0, 0, canvas.width, 4);
@@ -238,109 +369,118 @@
       ctx.fillRect(canvas.width - 4, 0, 4, canvas.height);
       ctx.globalAlpha = 1.0;
       
-      // Draw walls
       ctx.fillStyle = '#ef4444';
       if (gameState.walls) {
-        gameState.walls.forEach(w => {
+        gameState.walls.forEach(function(w) {
           ctx.fillRect(w.x * CELL_SIZE + 2, w.y * CELL_SIZE + 2, CELL_SIZE - 4, CELL_SIZE - 4);
         });
       }
       
-      // Draw countdown walls
       if (gameState.countdownWalls) {
-        gameState.countdownWalls.forEach(w => {
-          const alpha = 0.3 + (0.7 * (3 - w.secondsLeft) / 3);
-          ctx.fillStyle = `rgba(239, 68, 68, ${alpha})`;
+        gameState.countdownWalls.forEach(function(w) {
+          var alpha = 0.3 + (0.7 * (3 - w.secondsLeft) / 3);
+          ctx.fillStyle = 'rgba(239, 68, 68, ' + alpha + ')';
           ctx.fillRect(w.x * CELL_SIZE + 2, w.y * CELL_SIZE + 2, CELL_SIZE - 4, CELL_SIZE - 4);
           
           ctx.fillStyle = '#fff';
-          ctx.font = 'bold 16px system-ui';
+          var fontSize = Math.max(12, CELL_SIZE * 0.5);
+          ctx.font = 'bold ' + fontSize + 'px system-ui';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(w.secondsLeft, (w.x + 0.5) * CELL_SIZE, (w.y + 0.5) * CELL_SIZE);
         });
       }
       
-      // Draw players
-      Object.entries(gameState.players).forEach(([userId, player]) => {
-        if (!player.alive) return;
+      var playerEntries = Object.entries(gameState.players);
+      for (var i = 0; i < playerEntries.length; i++) {
+        var entry = playerEntries[i];
+        var userId = entry[0];
+        var player = entry[1];
         
-        const px = player.x * CELL_SIZE + CELL_SIZE / 2;
-        const py = player.y * CELL_SIZE + CELL_SIZE / 2;
+        if (!player.alive) continue;
         
-        // Get bot image with player's color
-        const botImg = getBotImage(player.playerColor);
+        var px = player.x * CELL_SIZE + CELL_SIZE / 2;
+        var py = player.y * CELL_SIZE + CELL_SIZE / 2;
+        
+        var botImg = getBotImage(player.playerColor);
         
         ctx.save();
         ctx.translate(px, py);
         
-        // Rotate based on direction
-        let angle = 0;
+        var angle = 0;
         if (player.direction === 'DOWN') angle = Math.PI;
         else if (player.direction === 'LEFT') angle = -Math.PI / 2;
         else if (player.direction === 'RIGHT') angle = Math.PI / 2;
         
         ctx.rotate(angle);
         
-        const drawSize = CELL_SIZE - 8;
+        var drawSize = CELL_SIZE - 8;
         ctx.drawImage(botImg, -drawSize/2, -drawSize/2, drawSize, drawSize);
         
         ctx.restore();
         
-        // Draw username and score above player
+        var textSize = Math.max(10, CELL_SIZE * 0.4);
         ctx.fillStyle = '#fff';
-        ctx.font = '12px system-ui';
+        ctx.font = textSize + 'px system-ui';
         ctx.textAlign = 'center';
-        ctx.fillText(player.username, px, py - CELL_SIZE/2 - 16);
+        ctx.fillText(player.username, px, py - CELL_SIZE/2 - textSize - 4);
         
-        // Draw score with color
-        const scoreColor = player.score >= 0 ? '#10b981' : '#ef4444';
+        var scoreColor = player.score >= 0 ? '#10b981' : '#ef4444';
         ctx.fillStyle = scoreColor;
-        ctx.font = 'bold 12px system-ui';
-        ctx.fillText(player.score, px, py - CELL_SIZE/2 - 4);
-      });
+        ctx.font = 'bold ' + textSize + 'px system-ui';
+        ctx.fillText(player.score, px, py - CELL_SIZE/2 - 2);
+      }
     }
 
     function updateHUD() {
       if (!gameState || !gameState.players) return;
       
-      const playerList = document.getElementById('playerList');
+      var playerList = document.getElementById('playerList');
       playerList.innerHTML = '<strong style="color:#9ca3af;font-size:12px;">PLAYERS</strong>';
       
-      // Sort players by score descending
-      const sortedPlayers = Object.entries(gameState.players).sort((a, b) => b[1].score - a[1].score);
+      var sortedPlayers = Object.entries(gameState.players).sort(function(a, b) {
+        return b[1].score - a[1].score;
+      });
       
-      sortedPlayers.forEach(([userId, player]) => {
-        const div = document.createElement('div');
+      for (var i = 0; i < sortedPlayers.length; i++) {
+        var entry = sortedPlayers[i];
+        var userId = entry[0];
+        var player = entry[1];
+        
+        var div = document.createElement('div');
         div.className = 'player-item' + (player.alive ? '' : ' player-dead');
         
-        const isYou = parseInt(userId) === currentUserId;
+        var colorBadge = '<span class="color-badge" style="background-color:' + player.playerColor + ';"></span>';
         
-        const colorBadge = `<span class="color-badge" style="background-color:${player.playerColor};"></span>`;
+        var scoreClass = player.score >= 0 ? 'score-positive' : 'score-negative';
+        var scoreSign = player.score >= 0 ? '+' : '';
         
-        const scoreClass = player.score >= 0 ? 'score-positive' : 'score-negative';
-        
-        div.innerHTML = `
-          <span>${colorBadge}<span class="player-name">${player.username}${isYou ? ' (You)' : ''}</span></span>
-          <span class="player-score ${scoreClass}">${player.score >= 0 ? '+' : ''}${player.score}</span>
-        `;
+        div.innerHTML = '<span>' + colorBadge + '<span class="player-name">' + player.username + '</span></span>' +
+          '<span class="player-score ' + scoreClass + '">' + scoreSign + player.score + '</span>';
         
         playerList.appendChild(div);
-      });
+      }
     }
 
     function handleGameOver(data) {
-      const finalScoresDiv = document.getElementById('finalScores');
+      var finalScoresDiv = document.getElementById('finalScores');
       
       if (data.finalScores) {
-        const sortedScores = Object.entries(data.finalScores).sort((a, b) => b[1] - a[1]);
-        finalScoresDiv.innerHTML = '<strong>Final Scores:</strong><br>' + 
-          sortedScores.map(([userId, score]) => {
-            const player = gameState?.players?.[userId];
-            const name = player?.username || 'Player';
-            const scoreColor = score >= 0 ? '#10b981' : '#ef4444';
-            return `<div style="margin:4px 0;"><span style="color:${scoreColor}">${name}: ${score >= 0 ? '+' : ''}${score}</span></div>`;
-          }).join('');
+        var sortedScores = Object.entries(data.finalScores).sort(function(a, b) {
+          return b[1] - a[1];
+        });
+        
+        var scoresHTML = '<strong>Final Scores:</strong><br>';
+        for (var i = 0; i < sortedScores.length; i++) {
+          var userId = sortedScores[i][0];
+          var score = sortedScores[i][1];
+          var player = gameState && gameState.players ? gameState.players[userId] : null;
+          var name = player ? player.username : 'Player';
+          var scoreColor = score >= 0 ? '#10b981' : '#ef4444';
+          var scoreSign = score >= 0 ? '+' : '';
+          scoresHTML += '<div style="margin:4px 0;"><span style="color:' + scoreColor + '">' + name + ': ' + scoreSign + score + '</span></div>';
+        }
+        finalScoresDiv.innerHTML = scoresHTML;
       }
       
       if (data.isTie) {
@@ -348,7 +488,7 @@
         document.getElementById('winnerInfo').innerHTML = '<strong style="color:#f59e0b;">Everyone died! Pot will be split.</strong>';
       } else if (data.winnerUsername) {
         document.getElementById('winnerText').textContent = 'Winner!';
-        document.getElementById('winnerInfo').innerHTML = `<strong style="color:#10b981;">${data.winnerUsername}</strong> wins the pot!`;
+        document.getElementById('winnerInfo').innerHTML = '<strong style="color:#10b981;">' + data.winnerUsername + '</strong> wins the pot!';
       } else {
         document.getElementById('winnerText').textContent = 'Game Over';
         document.getElementById('winnerInfo').innerHTML = 'Match ended.';
@@ -357,16 +497,22 @@
       document.getElementById('gameOver').style.display = 'block';
     }
 
-    // Start connection
     connectWebSocket();
 
-    function press(key) {
-      document.dispatchEvent(new KeyboardEvent('keydown', { key }));
-    }
-    function release(key) {
-      document.dispatchEvent(new KeyboardEvent('keyup', { key }));
+    function pressKey(key) {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: key }));
     }
 
+    function releaseKey(key) {
+      document.dispatchEvent(new KeyboardEvent('keyup', { key: key }));
+    }
+
+    window.addEventListener('resize', function() {
+      if (gameState && canvas.style.display !== 'none') {
+        adjustCanvasSize();
+        render();
+      }
+    });
   </script>
 </body>
 </html>
