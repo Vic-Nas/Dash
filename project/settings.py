@@ -50,6 +50,17 @@ if domain:
     CSRF_TRUSTED_ORIGINS.append(f"https://{domain}")
 
 
+CSRF_TRUSTED_ORIGINS = []
+if domain:
+    CSRF_TRUSTED_ORIGINS.append(f"https://{domain}")
+
+# Add itch.io domains
+CSRF_TRUSTED_ORIGINS.extend([
+    'https://vic-nas.itch.io',
+    'https://itch.io',
+    'https://*.itch.io',
+])
+
 # Application definition
 
 INSTALLED_APPS = [
