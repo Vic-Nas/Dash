@@ -27,8 +27,8 @@ def dashboard(request):
     profile = request.user.profile
     matchTypes = MatchType.objects.filter(isActive=True)
     
-    # Leaderboard - use soloHighScore for display
-    topPlayers = Profile.objects.filter(soloHighScore__gt=0).order_by('-soloHighScore')[:10]
+    # Leaderboard - sort by coins earned
+    topPlayers = Profile.objects.filter(coins__gt=0).order_by('-coins')[:10]
     
     context = {
         'profile': profile,

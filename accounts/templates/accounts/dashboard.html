@@ -117,7 +117,7 @@
               </a>
               {% if p.user == user %} (You){% endif %}
             </td>
-            <td>{{ p.soloHighScore }} walls</td>
+            <td>{{ p.coins|floatformat:0 }} coins</td>
             <td>{{ p.totalWins }}</td>
           </tr>
           {% empty %}
