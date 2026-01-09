@@ -89,6 +89,7 @@
     <div class="user">
       <span class="coins">💰 {{ profile.coins|floatformat:0 }}</span>
       <span>{{ user.username }}</span>
+      <button onclick="document.getElementById('rulesModal').style.display='flex'" class="btn">📋 Rules</button>
       <a href="/" class="btn">Dashboard</a>
     </div>
   </header>
@@ -147,7 +148,52 @@
     </div>
   </div>
 
+  <!-- Rules Modal -->
+<div id="rulesModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;align-items:center;justify-content:center;">
+  <div style="background:#121428;border:2px solid #2a2f6b;border-radius:12px;padding:32px;max-width:600px;width:90%;max-height:80vh;overflow-y:auto;">
+    <h2 style="color:#5b7bff;margin-bottom:16px;">📋 Multiplayer Rules</h2>
+    
+    <div style="margin-bottom:24px;">
+      <h3 style="color:#10b981;font-size:18px;margin-bottom:8px;">💰 Entry Fee System</h3>
+      <p style="color:#e6e6e6;line-height:1.6;">Pay once to enter - no additional losses beyond entry fee. Winner takes the entire pot!</p>
+    </div>
+
+    <div style="margin-bottom:24px;">
+      <h3 style="color:#10b981;font-size:18px;margin-bottom:8px;">📈 Scoring</h3>
+      <ul style="color:#e6e6e6;line-height:1.8;padding-left:20px;">
+        <li><strong style="color:#10b981;">+1 point</strong> per wall spawned (all alive players gain points)</li>
+        <li><strong style="color:#9ca3af;">Wall/edge hits DON'T reduce your score</strong></li>
+        <li>Eliminate opponent → <strong style="color:#5b7bff;">gain their points</strong></li>
+      </ul>
+    </div>
+
+    <div style="margin-bottom:24px;">
+      <h3 style="color:#ef4444;font-size:18px;margin-bottom:8px;">☠️ Elimination</h3>
+      <ul style="color:#e6e6e6;line-height:1.8;padding-left:20px;">
+        <li>You're OUT after <strong>50 wall/edge hits</strong></li>
+        <li>Hit by another player from side/back → <strong>eliminated</strong></li>
+        <li>Head-on collision → <strong>both get a hit</strong></li>
+      </ul>
+    </div>
+
+    <div style="margin-bottom:24px;">
+      <h3 style="color:#5b7bff;font-size:18px;margin-bottom:8px;">🏆 Victory</h3>
+      <p style="color:#e6e6e6;line-height:1.6;">Last player standing wins the entire pot. If everyone dies, pot is split equally.</p>
+    </div>
+
+    <div style="text-align:center;margin-top:24px;">
+      <button onclick="document.getElementById('rulesModal').style.display='none'" style="background:#2a2f6b;color:#fff;border:none;padding:12px 32px;border-radius:8px;cursor:pointer;font-size:15px;font-weight:600;">Got it!</button>
+    </div>
+  </div>
+</div>
+
   <script>
+    // Show rules on first visit
+    if (!localStorage.getItem('multiplayerRulesSeen')) {
+      document.getElementById('rulesModal').style.display = 'flex';
+      localStorage.setItem('multiplayerRulesSeen', 'true');
+    }
+
     function getCookie(name) {
       let value = '; ' + document.cookie;
       let parts = value.split('; ' + name + '=');

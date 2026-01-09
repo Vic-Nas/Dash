@@ -493,15 +493,17 @@
           return b[1] - a[1];
         });
         
-        var scoresHTML = '<strong>Final Scores:</strong><br>';
+        var scoresHTML = '<strong>Final Results:</strong><br>';
         for (var i = 0; i < sortedScores.length; i++) {
           var userId = sortedScores[i][0];
           var score = sortedScores[i][1];
+          var hits = data.finalHits ? data.finalHits[userId] : 0;
           var player = gameState && gameState.players ? gameState.players[userId] : null;
           var name = player ? player.username : 'Player';
-          var scoreColor = score >= 0 ? '#10b981' : '#ef4444';
-          var scoreSign = score >= 0 ? '+' : '';
-          scoresHTML += '<div style="margin:4px 0;"><span style="color:' + scoreColor + '">' + name + ': ' + scoreSign + score + '</span></div>';
+          scoresHTML += '<div style="margin:6px 0;">' +
+            '<span style="color:#10b981;font-weight:600;">' + name + ': +' + score + ' pts</span>' +
+            '<span style="color:#9ca3af;margin-left:8px;font-size:12px;">(❌ ' + hits + '/50)</span>' +
+            '</div>';
         }
         finalScoresDiv.innerHTML = scoresHTML;
       }

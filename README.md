@@ -5,24 +5,28 @@
 ### Core Mechanics
 - Bots move continuously in their facing direction
 - Players change direction with arrow keys/WASD
+- Walls spawn periodically with 3-second countdown
 
-### Scoring
-- **+1 point** when a wall spawns (all alive players)
-- **-1 point** when hitting wall or edge
-- **Eliminate player from side/back** → gain their score (min 0)
-- **Game over** at -50 points or when eliminated
+### Solo Mode Scoring
+- **+1 coin** per wall spawned (walls you survive)
+- **-1 coin** per wall/edge hit
+- **Game over** when score reaches -50
+- No entry fee - your final score (positive or negative) is added to your coin balance
+- Can quit anytime to save current score
+- Walls spawn every 3 seconds
 
-### Solo Mode
-- Score = coins gained/lost
-- Game ends at -50 coins
-- No entry fee
-- Walls spawn every 3 seconds with countdown
+### Multiplayer Scoring
+- **Entry fee required** - no additional losses beyond this
+- **+1 point** per wall spawned (all alive players)
+- **Wall/edge hits DON'T reduce score** - they count toward elimination
+- **Eliminated at 50 hits** or when hit by another player
+- **Eliminate another player** → gain their points (minimum 0)
+- **Last player standing** wins entire pot
+- Walls spawn every 5 seconds
 
-### Multiplayer
-- Entry fee required
-- Winner takes full pot
-- Last player standing wins
-- Walls spawn every 5 seconds with countdown
+### Player Interactions
+- **Side/back collision**: Attacker eliminates victim, gains their score
+- **Head-on collision**: Both players get a hit (may eliminate both if at 50 hits)
 
 ---
 
@@ -36,7 +40,6 @@
 ---
 
 ## Setup
-
 ```bash
 # Install dependencies
 pip install -r requirements.txt
@@ -70,10 +73,38 @@ Solo/multiplayer games, matchmaking, scoring
 ### shop
 Coin packages, Stripe integration
 
-### chat (new)
+### chat
 Direct messages + global chat
+
+---
+
+## Game Modes
+
+### Solo Practice
+- 20×20 grid, single player
+- High speed, walls spawn every 3 seconds
+- **Scoring:**
+  - **+1 coin** per wall spawned
+  - **-1 coin** per wall/edge hit
+  - Game ends at **-50 coins**
+- No entry fee
+- Final score (can be negative) added to balance
+- Track high score on leaderboard
+
+### Multiplayer Matchmaking
+- Pre-configured match types with different entry fees
+- Fixed player count per match type (4-8 players)
+- Winner takes entire pot
+- **Scoring:**
+  - **+1 point** per wall spawned (all alive players)
+  - Wall/edge hits **don't reduce score**
+  - Eliminated at **50 hits** total
+  - **+opponent's points** when eliminating them
+- Last player standing wins
+- Players can force-start by paying for empty slots
+
+---
 
 ## Protection
 - Free for personal/educational use
-
 - No commercial use without permission

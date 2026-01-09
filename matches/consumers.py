@@ -53,7 +53,8 @@ class GameEngine:
             'direction': random.choice(['UP', 'DOWN', 'LEFT', 'RIGHT']),
             'alive': True,
             'playerColor': playerColor,
-            'score': 0,
+            'score': 0,  # Points gained from walls spawning
+            'hits': 0,   # Track hits separately
         }
     
     def updateDirection(self, userId, direction):
@@ -85,6 +86,7 @@ class GameEngine:
         for userId, (newX, newY) in newPositions.items():
             player = self.players[userId]
             
+            # Check wall/edge hit
             if newX < 0 or newX >= self.gridSize or newY < 0 or newY >= self.gridSize:
                 self.handleWallHit(userId)
                 continue
@@ -98,12 +100,14 @@ class GameEngine:
                 if otherId != userId and otherPlayer['alive']:
                     if otherId in newPositions:
                         otherNewX, otherNewY = newPositions[otherId]
+                        # Head-on collision
                         if newX == otherNewX and newY == otherNewY:
                             self.handleWallHit(userId)
                             self.handleWallHit(otherId)
                             collision = True
                             break
                     
+                    # Hit another player from side/back
                     if newX == otherPlayer['x'] and newY == otherPlayer['y']:
                         self.handlePlayerCollision(attackerId=userId, victimId=otherId)
                         collision = True
@@ -116,18 +120,22 @@ class GameEngine:
             player['y'] = newY
     
     def handleWallHit(self, userId):
+        """Player hit wall or edge - increment hits counter"""
         player = self.players[userId]
-        player['score'] -= 1
+        player['hits'] += 1  # Track hits
         
-        if player['score'] <= -50:
+        # Eliminate after 50 hits
+        if player['hits'] >= 50:
             player['alive'] = False
     
     def handlePlayerCollision(self, attackerId, victimId):
+        """Attacker eliminates victim and gains their score"""
         attacker = self.players[attackerId]
         victim = self.players[victimId]
         
         victim['alive'] = False
         
+        # Gain victim's positive score (not their hits)
         pointsGained = max(0, victim['score'])
         attacker['score'] += pointsGained
     
@@ -154,6 +162,7 @@ class GameEngine:
             if wall['secondsLeft'] <= 0:
                 self.walls.append({'x': wall['x'], 'y': wall['y']})
                 
+                # All alive players gain +1 point
                 for player in self.players.values():
                     if player['alive']:
                         player['score'] += 1
@@ -166,7 +175,7 @@ class GameEngine:
     def getState(self):
         return {
             'tick': self.tickNumber,
-            'players': {str(uid): p for uid, p in self.players.items()},  # Convert int keys to strings
+            'players': {str(uid): p for uid, p in self.players.items()},
             'walls': self.walls,
             'countdownWalls': self.countdownWalls,
             'aliveCount': sum(1 for p in self.players.values() if p['alive'])
@@ -230,7 +239,8 @@ class GameEngine:
             'winnerUsername': self.players[winnerId]['username'] if winnerId and not isTie else None,
             'isTie': isTie,
             'alivePlayers': alivePlayers,
-            'finalScores': {str(uid): p['score'] for uid, p in self.players.items()}  # Convert int keys to strings
+            'finalScores': {str(uid): p['score'] for uid, p in self.players.items()},
+            'finalHits': {str(uid): p['hits'] for uid, p in self.players.items()}
         }
         
         # Handle rewards
