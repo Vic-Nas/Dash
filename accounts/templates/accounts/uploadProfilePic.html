@@ -1,0 +1,60 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <title>Upload Profile Picture - Dash Arena</title>
+  <style>
+    body{font-family:system-ui,sans-serif;margin:0;background:#0d0f1a;color:#e6e6e6;display:flex;align-items:center;justify-content:center;min-height:100vh;}
+    .card{background:#121428;border:1px solid #23264a;border-radius:12px;padding:32px;width:min(90%,500px);box-shadow:0 4px 20px rgba(0,0,0,0.3);}
+    h1{margin:0 0 8px;font-size:28px;letter-spacing:0.5px;}
+    p{margin:0 0 24px;color:#9ca3af;font-size:14px;}
+    .preview{width:150px;height:150px;border-radius:50%;background:#2a2f6b;display:flex;align-items:center;justify-content:center;font-size:60px;margin:0 auto 24px;overflow:hidden;}
+    .preview img{width:100%;height:100%;object-fit:cover;}
+    .form-group{margin-bottom:16px;}
+    label{display:block;margin-bottom:8px;font-weight:600;color:#e6e6e6;}
+    input[type="file"]{width:100%;padding:12px;background:#1a1d35;border:1px solid #2a2f6b;border-radius:8px;color:#fff;font-size:15px;cursor:pointer;}
+    input[type="file"]::file-selector-button{background:#2a2f6b;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;margin-right:8px;}
+    input[type="file"]::file-selector-button:hover{background:#3940a3;}
+    button,a{width:100%;padding:12px;background:#2a2f6b;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;margin-top:8px;text-decoration:none;text-align:center;display:inline-block;}
+    button:hover,a:hover{background:#3940a3;}
+    .btn-secondary{background:#6b6f8f;}
+    .btn-secondary:hover{background:#7b7fa0;}
+    .button-group{display:flex;gap:8px;}
+    .button-group button,.button-group a{flex:1;margin:0;}
+    .center{text-align:center;color:#9ca3af;font-size:14px;}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Upload Profile Picture</h1>
+    <p>Change how you appear to other players</p>
+    
+    <div class="preview">
+      {% if profile.profilePic %}
+        <img src="{{ profile.profilePic.url }}" alt="Profile Picture">
+      {% else %}
+        {{ user.username|first|upper }}
+      {% endif %}
+    </div>
+
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div class="form-group">
+        <label for="{{ form.profilePic.id_for_label }}">Select Image</label>
+        {{ form.profilePic }}
+      </div>
+      
+      <div class="button-group">
+        <button type="submit">Upload Picture</button>
+        <a href="/" class="btn-secondary">Cancel</a>
+      </div>
+    </form>
+
+    <div class="center" style="margin-top:16px;">
+      <p>Recommended: Square image (JPG, PNG, GIF)</p>
+    </div>
+  </div>
+</body>
+</html>

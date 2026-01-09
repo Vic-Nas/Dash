@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login, get_user_model, logout
 from django.http import JsonResponse
-from .forms import SignUpForm
+from .forms import SignUpForm, ProfilePictureForm
 from matches.models import MatchType
 from accounts.models import Profile
 
@@ -43,6 +43,24 @@ def customLogout(request):
     """Custom logout view that accepts GET requests"""
     logout(request)
     return redirect('login')
+
+
+@login_required
+def uploadProfilePicture(request):
+    """Handle profile picture upload"""
+    if request.method == 'POST':
+        form = ProfilePictureForm(request.POST, request.FILES, instance=request.user.profile)
+        if form.is_valid():
+            form.save()
+            return redirect('dashboard')
+    else:
+        form = ProfilePictureForm(instance=request.user.profile)
+    
+    context = {
+        'form': form,
+        'profile': request.user.profile,
+    }
+    return render(request, 'accounts/uploadProfilePic.html', context)
 
 
 @login_required
