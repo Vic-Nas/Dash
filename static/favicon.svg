@@ -1,5 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <rect width="100" height="100" fill="#0d0f1a"/>
-  <circle cx="50" cy="50" r="35" fill="#5b7bff"/>
-  <text x="50" y="65" font-size="48" font-weight="bold" fill="#fff" text-anchor="middle" font-family="system-ui">D</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Background -->
+  <rect width="64" height="64" rx="12" fill="#0b0f1a"/>
+
+  <!-- Arena diamond -->
+  <rect
+    x="18" y="18" width="28" height="28"
+    transform="rotate(45 32 32)"
+    fill="none"
+    stroke="#3de0ff"
+    stroke-width="4"
+  />
+
+  <!-- Motion cut -->
+  <path
+    d="M14 36 L30 20"
+    stroke="#ff4fd8"
+    stroke-width="5"
+    stroke-linecap="round"
+  />
+
+  <!-- Player core -->
+  <circle cx="36" cy="28" r="5" fill="#ffffff"/>
 </svg>
