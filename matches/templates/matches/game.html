@@ -23,11 +23,34 @@
     #gameOver button{background:#2a2f6b;color:#fff;border:none;padding:12px 24px;border-radius:8px;cursor:pointer;font-size:15px;margin:0 8px;}
     #gameOver button:hover{background:#3940a3;}
     .controls{margin-top:16px;color:#9ca3af;font-size:13px;}
+    #mobile-controls {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: repeat(3, 64px);
+      gap: 8px;
+      justify-content: center;
+    }
+    #mobile-controls button {
+      font-size: 20px;
+      padding: 12px;
+      border-radius: 10px;
+      border: none;
+      background: rgba(0,0,0,0.6);
+      color: white;
+    }
   </style>
 </head>
 <body>
   <div id="gameContainer">
     <canvas id="gameCanvas" width="600" height="600" style="display:none;"></canvas>
+    <!-- Mobile Controls -->
+    <div id="mobile-controls" style="display:none;">
+      <button onmousedown="press('ArrowLeft')"  onmouseup="release('ArrowLeft')"  ontouchstart="press('ArrowLeft')"  ontouchend="release('ArrowLeft')">◀</button>
+      <button onmousedown="press('ArrowRight')" onmouseup="release('ArrowRight')" ontouchstart="press('ArrowRight')" ontouchend="release('ArrowRight')">▶</button>
+      <button onmousedown="press('ArrowUp')"    onmouseup="release('ArrowUp')"    ontouchstart="press('ArrowUp')"    ontouchend="release('ArrowUp')">▲</button>
+      <button onmousedown="press('ArrowDown')"  onmouseup="release('ArrowDown')"  ontouchstart="press('ArrowDown')"  ontouchend="release('ArrowDown')">▼</button>
+    </div>
+
     <div id="startScreen" style="text-align:center;">
       <h1 style="font-size:48px;margin-bottom:16px;color:#5b7bff;">Solo Mode</h1>
       <p style="color:#9ca3af;margin-bottom:32px;font-size:18px;">Use Arrow Keys or WASD to move • Press ESC to quit and save</p>
@@ -440,6 +463,13 @@
       document.getElementById('controls').style.display = 'block';
       document.getElementById('hud').style.display = 'block';
       initGame();
+    }
+    document.getElementById('mobile-controls').style.display = 'grid';
+    function press(key) {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key }));
+    }
+    function release(key) {
+      document.dispatchEvent(new KeyboardEvent('keyup', { key }));
     }
   </script>
 </body>
