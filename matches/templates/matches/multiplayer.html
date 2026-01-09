@@ -71,10 +71,6 @@
             <span class="stat-label">Speed</span>
             <span class="stat-value">{{ mt.speed }}</span>
           </div>
-          <div class="stat">
-            <span class="stat-label">Lives</span>
-            <span class="stat-value">{% if mt.livesPerPlayer %}{{ mt.livesPerPlayer }}{% else %}∞{% endif %}</span>
-          </div>
         </div>
         <button class="join-btn" onclick="joinMatch({{ mt.id }}, {{ mt.entryFee }}, '{{ mt.name }}')" {% if profile.coins < mt.entryFee %}disabled{% endif %}>
           {% if profile.coins < mt.entryFee %}

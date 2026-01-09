@@ -101,11 +101,11 @@
         {% if match.currentPlayers|add:"-"|add:match.playersRequired < 0 %}
         {% with missing=match.playersRequired|add:"-"|add:match.currentPlayers %}
         {% with forceCost=match.matchType.entryFee|floatformat:0 %}
-        {% with totalCost=missing|add:0 %}
+        {% with totalCost=missing %}
         <div class="force-start-warning">
           <strong>⚡ Force Start Available</strong>
           <p style="margin:8px 0;">Don't want to wait? Pay for the missing {{ missing }} player{{ missing|pluralize }} to start immediately.</p>
-          <p style="margin:8px 0;font-size:14px;">Cost: {{ missing }} × {{ forceCost }} = {{ missing|add:forceCost|floatformat:0 }} coins</p>
+          <p style="margin:8px 0;font-size:14px;">Cost: {{ missing }} × {{ forceCost }} = <span id="forceCostTotal"></span> coins</p>
         </div>
         {% endwith %}
         {% endwith %}
@@ -141,6 +141,17 @@
       let parts = value.split('; ' + name + '=');
       if (parts.length === 2) return parts.pop().split(';').shift();
     }
+
+    // Calculate and display force cost
+    window.addEventListener('DOMContentLoaded', function() {
+      const missing = {{ match.playersRequired|add:"-"|add:match.currentPlayers }};
+      const forceCost = {{ match.matchType.entryFee|floatformat:0 }};
+      const totalCost = missing * forceCost;
+      const costElement = document.getElementById('forceCostTotal');
+      if (costElement) {
+        costElement.textContent = totalCost.toFixed(0);
+      }
+    });
 
     async function leaveLobby() {
       if (!confirm('Leave lobby and get refunded?')) return;

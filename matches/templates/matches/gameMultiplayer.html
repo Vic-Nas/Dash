@@ -319,6 +319,12 @@
     }
 
     document.addEventListener('keydown', function(e) {
+      // Prevent escape key
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        return;
+      }
+
       if (!socket || socket.readyState !== WebSocket.OPEN) return;
       
       var direction = null;

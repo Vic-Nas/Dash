@@ -14,7 +14,7 @@ class MatchAdmin(admin.ModelAdmin):
 
 @admin.register(MatchParticipation)
 class MatchParticipationAdmin(admin.ModelAdmin):
-    list_display = ("match", "player", "entryFeePaid", "livesRemaining", "placement")
+    list_display = ("match", "player", "entryFeePaid", "placement")
     list_filter = ("placement",)
 
 @admin.register(GameState)

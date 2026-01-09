@@ -13,17 +13,16 @@ from shop.models import Transaction
 ACTIVE_GAMES = {}
 
 class GameEngine:
-    def __init__(self, matchId, gridSize, speed, livesPerPlayer):
+    def __init__(self, matchId, gridSize, speed):
         self.matchId = matchId
         self.gridSize = gridSize
         self.speed = speed
-        self.livesPerPlayer = livesPerPlayer
         
         # Speed to tick rate mapping (ms)
         speedMap = {'SLOW': 200, 'MEDIUM': 150, 'FAST': 100, 'EXTREME': 75}
         self.tickRate = speedMap.get(speed, 150) / 1000  # Convert to seconds
         
-        self.players = {}  # {userId: {x, y, direction, alive, lives, username, playerColor, score}}
+        self.players = {}  # {userId: {x, y, direction, alive, username, playerColor, score}}
         self.walls = []
         self.countdownWalls = []
         self.tickNumber = 0
@@ -51,7 +50,6 @@ class GameEngine:
             'y': y,
             'direction': random.choice(['UP', 'DOWN', 'LEFT', 'RIGHT']),
             'alive': True,
-            'lives': self.livesPerPlayer,
             'playerColor': playerColor,
             'score': 0,  # NEW: Track score
         }
@@ -289,8 +287,7 @@ class GameConsumer(AsyncWebsocketConsumer):
             engine = GameEngine(
                 self.matchId,
                 match.gridSize,
-                match.speed,
-                match.matchType.livesPerPlayer
+                match.speed
             )
             ACTIVE_GAMES[self.matchId] = engine
         

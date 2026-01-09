@@ -199,8 +199,7 @@ def joinMatch(request):
             participation = MatchParticipation.objects.create(
                 match=match,
                 player=request.user,
-                entryFeePaid=matchType.entryFee,
-                livesRemaining=matchType.livesPerPlayer
+                entryFeePaid=matchType.entryFee
             )
             
             # Create transaction
