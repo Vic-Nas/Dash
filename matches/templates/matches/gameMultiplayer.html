@@ -432,10 +432,7 @@
         =============================== */
 
       var playerCount = Object.keys(gameState.players).length;
-      var gridSize =
-        playerCount > 0
-          ? Math.max(20, Math.min(40, 15 + playerCount * 2.5))
-          : 20;
+      var gridSize = gameState.gridSize || 25;
 
       CELL_SIZE = canvas.width / gridSize;
 

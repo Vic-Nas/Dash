@@ -186,6 +186,7 @@ class GameEngine:
     def getState(self):
         return {
             'tick': self.tickNumber,
+            'gridSize': self.gridSize,  # ADD THIS LINE
             'players': {str(uid): p for uid, p in self.players.items()},
             'walls': self.walls,
             'countdownWalls': self.countdownWalls,
