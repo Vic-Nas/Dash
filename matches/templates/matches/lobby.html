@@ -114,16 +114,10 @@
 
       <div class="actions">
         {% if match.status == 'WAITING' and match.currentPlayers < match.playersRequired %}
-          {% with missing=match.playersRequired %}
-          {% with current=match.currentPlayers %}
-          {% with entryFee=match.matchType.entryFee %}
-          <button class="btn btn-success" onclick="forceStart({{ missing }} - {{ current }}, {{ entryFee }})" 
-                  {% if profile.coins < entryFee %}disabled{% endif %}>
+          <button class="btn btn-success" onclick="forceStart()" 
+                  {% if profile.coins < match.matchType.entryFee %}disabled{% endif %}>
             Force Start
           </button>
-          {% endwith %}
-          {% endwith %}
-          {% endwith %}
         {% endif %}
         
         <button class="btn btn-danger" onclick="leaveLobby()">Leave Lobby</button>
@@ -214,8 +208,11 @@
       }
     }
 
-    async function forceStart(playersRequired, currentPlayers, entryFee) {
+    async function forceStart() {
+      const playersRequired = {{ match.playersRequired }};
+      const currentPlayers = {{ match.currentPlayers }};
       const missingPlayers = playersRequired - currentPlayers;
+      const entryFee = {{ match.matchType.entryFee|floatformat:0 }};
       const totalCost = missingPlayers * entryFee;
       
       if (!confirm(`Force start by paying for ${missingPlayers} missing player${missingPlayers > 1 ? 's' : ''}?\n\nCost: ${totalCost.toFixed(0)} coins`)) {
