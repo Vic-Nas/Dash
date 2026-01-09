@@ -29,15 +29,16 @@
     <canvas id="gameCanvas" width="600" height="600" style="display:none;"></canvas>
     <div id="startScreen" style="text-align:center;">
       <h1 style="font-size:48px;margin-bottom:16px;color:#5b7bff;">Solo Mode</h1>
-      <p style="color:#9ca3af;margin-bottom:32px;font-size:18px;">Use Arrow Keys or WASD to move • Survive as long as possible!</p>
+      <p style="color:#9ca3af;margin-bottom:32px;font-size:18px;">Use Arrow Keys or WASD to move • Press ESC to quit and save</p>
       <button onclick="startGame()" style="background:#2a2f6b;color:#fff;border:none;padding:16px 48px;border-radius:8px;cursor:pointer;font-size:20px;font-weight:600;margin-top:16px;">Start Game</button>
       <div style="margin-top:32px;color:#9ca3af;font-size:14px;">
-        <div style="margin:8px 0;color:#10b981;">✅ Each wall spawned: +1 coin</div>
-        <div style="margin:8px 0;color:#ef4444;">❌ Each wall/edge hit: -1 coin</div>
-        <div style="margin:16px 0;color:#ef4444;font-weight:600;">⚠️ Game Over at -50 coins</div>
+        <div style="margin:8px 0;color:#10b981;">✅ Each wall spawned: +1 point</div>
+        <div style="margin:8px 0;color:#ef4444;">❌ Each wall/edge hit: -1 point</div>
+        <div style="margin:16px 0;color:#ef4444;font-weight:600;">⚠️ Game Over at -50 points</div>
+        <div style="margin:16px 0;color:#fbbf24;">🎮 Press ESC anytime to quit and save your score</div>
       </div>
     </div>
-    <div class="controls" style="display:none;" id="controls">Arrow Keys or WASD to change direction • ESC to quit</div>
+    <div class="controls" style="display:none;" id="controls">Arrow Keys or WASD to change direction • ESC to quit and save</div>
   </div>
 
   <div id="hud" style="display:none;">

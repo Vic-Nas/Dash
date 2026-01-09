@@ -21,6 +21,26 @@ def globalChat(request):
 
 
 @login_required
+def pollGlobalMessages(request):
+    """Poll for new messages after a given ID"""
+    afterId = int(request.GET.get('after', 0))
+    
+    messages = GlobalChatMessage.objects.filter(id__gt=afterId).select_related('user').order_by('id')[:50]
+    
+    messagesList = [{
+        'id': msg.id,
+        'username': msg.user.username,
+        'message': msg.message,
+        'time': msg.createdAt.strftime('%H:%M')
+    } for msg in messages]
+    
+    return JsonResponse({
+        'success': True,
+        'messages': messagesList
+    })
+
+
+@login_required
 @require_POST
 def sendGlobalMessage(request):
     """Send message to global chat"""
