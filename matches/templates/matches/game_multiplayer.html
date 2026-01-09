@@ -1,0 +1,293 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Match {{ match.id }} - Dash Arena</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:system-ui,sans-serif;background:#0d0f1a;color:#e6e6e6;overflow:hidden;}
+    #gameContainer{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;padding:20px;}
+    #gameCanvas{border:2px solid #2a2f6b;box-shadow:0 4px 20px rgba(0,0,0,0.5);}
+    #hud{position:absolute;top:20px;left:20px;background:rgba(18,20,40,0.9);padding:16px;border-radius:8px;border:1px solid #2a2f6b;min-width:200px;max-height:80vh;overflow-y:auto;}
+    .stat{margin-bottom:8px;font-size:14px;}
+    .stat-label{color:#9ca3af;margin-right:8px;}
+    .stat-value{color:#fff;font-weight:600;}
+    .player-item{margin:8px 0;padding:8px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;}
+    .player-name{font-weight:600;}
+    .player-lives{font-size:12px;color:#9ca3af;}
+    .player-dead{opacity:0.5;text-decoration:line-through;}
+    #gameOver{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(18,20,40,0.98);padding:40px;border-radius:12px;border:2px solid #2a2f6b;text-align:center;min-width:400px;z-index:1000;}
+    #gameOver h2{margin-bottom:16px;font-size:28px;color:#5b7bff;}
+    #gameOver button{background:#2a2f6b;color:#fff;border:none;padding:12px 24px;border-radius:8px;cursor:pointer;font-size:15px;margin:8px;}
+    #gameOver button:hover{background:#3940a3;}
+    #waitingMsg{text-align:center;font-size:18px;color:#9ca3af;}
+  </style>
+</head>
+<body>
+  <div id="gameContainer">
+    <div id="waitingMsg">
+      <h2 style="color:#5b7bff;margin-bottom:16px;">Match Starting...</h2>
+      <p>Connecting to game server...</p>
+    </div>
+    <canvas id="gameCanvas" width="800" height="800" style="display:none;"></canvas>
+  </div>
+
+  <div id="hud" style="display:none;">
+    <div class="stat">
+      <span class="stat-label">Match:</span>
+      <span class="stat-value">{{ match.matchType.name }}</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Pot:</span>
+      <span class="stat-value">{{ match.totalPot|floatformat:0 }} coins</span>
+    </div>
+    <hr style="border:1px solid #2a2f6b;margin:12px 0;">
+    <div id="playerList"></div>
+  </div>
+
+  <div id="gameOver">
+    <h2 id="winnerText">Game Over</h2>
+    <div id="winnerInfo" style="margin:24px 0;font-size:18px;"></div>
+    <div>
+      <button onclick="location.href='/matches/multiplayer/'">Find Another Match</button>
+      <button onclick="location.href='/'">Dashboard</button>
+    </div>
+  </div>
+
+  <script>
+    const matchId = {{ match.id }};
+    const currentUserId = {{ user.id }};
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    let gameState = null;
+    let socket = null;
+    let CELL_SIZE = 0;
+    let botImages = {};
+
+    // Create bot image for a player (arrow pointing UP)
+    function createBotImage(color) {
+      const size = 64;
+      const img = document.createElement('canvas');
+      img.width = size;
+      img.height = size;
+      const c = img.getContext('2d');
+      
+      c.fillStyle = color;
+      c.beginPath();
+      c.moveTo(size/2, size*0.2);
+      c.lineTo(size*0.8, size*0.5);
+      c.lineTo(size*0.6, size*0.5);
+      c.lineTo(size*0.6, size*0.8);
+      c.lineTo(size*0.4, size*0.8);
+      c.lineTo(size*0.4, size*0.5);
+      c.lineTo(size*0.2, size*0.5);
+      c.closePath();
+      c.fill();
+      
+      c.strokeStyle = '#fff';
+      c.lineWidth = 2;
+      c.stroke();
+      
+      return img;
+    }
+
+    // Connect to WebSocket
+    function connectWebSocket() {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws/match/${matchId}/`;
+      
+      socket = new WebSocket(wsUrl);
+      
+      socket.onopen = () => {
+        console.log('Connected to game');
+        document.getElementById('waitingMsg').innerHTML = '<h2 style="color:#10b981;">Connected!</h2><p>Waiting for game to start...</p>';
+      };
+      
+      socket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        
+        if (data.type === 'game_over') {
+          handleGameOver(data);
+        } else {
+          gameState = data;
+          render();
+          updateHUD();
+          
+          // Show game on first state
+          if (canvas.style.display === 'none') {
+            document.getElementById('waitingMsg').style.display = 'none';
+            canvas.style.display = 'block';
+            document.getElementById('hud').style.display = 'block';
+          }
+        }
+      };
+      
+      socket.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        document.getElementById('waitingMsg').innerHTML = '<h2 style="color:#ef4444;">Connection Error</h2><p>Please refresh the page.</p>';
+      };
+      
+      socket.onclose = () => {
+        console.log('Disconnected from game');
+      };
+    }
+
+    // Handle keyboard input
+    document.addEventListener('keydown', (e) => {
+      if (!socket || socket.readyState !== WebSocket.OPEN) return;
+      
+      let direction = null;
+      const key = e.key.toUpperCase();
+      
+      if (key === 'W' || key === 'ARROWUP') direction = 'UP';
+      else if (key === 'S' || key === 'ARROWDOWN') direction = 'DOWN';
+      else if (key === 'A' || key === 'ARROWLEFT') direction = 'LEFT';
+      else if (key === 'D' || key === 'ARROWRIGHT') direction = 'RIGHT';
+      
+      if (direction) {
+        socket.send(JSON.stringify({
+          action: 'change_direction',
+          direction: direction
+        }));
+      }
+    });
+
+    function render() {
+      if (!gameState || !gameState.players) return;
+      
+      // Get current player's background color
+      const currentPlayer = gameState.players[currentUserId];
+      const bgColor = currentPlayer ? currentPlayer.color : '#121428';
+      
+      // Calculate cell size based on grid
+      const gridSize = Object.keys(gameState.players).length > 0 
+        ? Math.max(20, Math.min(40, 15 + Object.keys(gameState.players).length * 2.5))
+        : 20;
+      CELL_SIZE = canvas.width / gridSize;
+      
+      // Clear with player's background color
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw grid
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= gridSize; i++) {
+        ctx.beginPath();
+        ctx.moveTo(i * CELL_SIZE, 0);
+        ctx.lineTo(i * CELL_SIZE, canvas.height);
+        ctx.stroke();
+        
+        ctx.beginPath();
+        ctx.moveTo(0, i * CELL_SIZE);
+        ctx.lineTo(canvas.width, i * CELL_SIZE);
+        ctx.stroke();
+      }
+      
+      // Draw edge indicators
+      ctx.fillStyle = '#ef4444';
+      ctx.globalAlpha = 0.2;
+      ctx.fillRect(0, 0, canvas.width, 4);
+      ctx.fillRect(0, canvas.height - 4, canvas.width, 4);
+      ctx.fillRect(0, 0, 4, canvas.height);
+      ctx.fillRect(canvas.width - 4, 0, 4, canvas.height);
+      ctx.globalAlpha = 1.0;
+      
+      // Draw walls
+      ctx.fillStyle = '#ef4444';
+      if (gameState.walls) {
+        gameState.walls.forEach(w => {
+          ctx.fillRect(w.x * CELL_SIZE + 2, w.y * CELL_SIZE + 2, CELL_SIZE - 4, CELL_SIZE - 4);
+        });
+      }
+      
+      // Draw countdown walls
+      if (gameState.countdown_walls) {
+        gameState.countdown_walls.forEach(w => {
+          const alpha = 0.3 + (0.7 * (3 - w.seconds_left) / 3);
+          ctx.fillStyle = `rgba(239, 68, 68, ${alpha})`;
+          ctx.fillRect(w.x * CELL_SIZE + 2, w.y * CELL_SIZE + 2, CELL_SIZE - 4, CELL_SIZE - 4);
+          
+          ctx.fillStyle = '#fff';
+          ctx.font = 'bold 16px system-ui';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(w.seconds_left, (w.x + 0.5) * CELL_SIZE, (w.y + 0.5) * CELL_SIZE);
+        });
+      }
+      
+      // Draw players
+      Object.entries(gameState.players).forEach(([userId, player]) => {
+        if (!player.alive) return;
+        
+        // Create bot image if not cached
+        if (!botImages[userId]) {
+          // Use a color based on player - could use player.color or a variation
+          const colors = ['#5b7bff', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4'];
+          const colorIndex = parseInt(userId) % colors.length;
+          botImages[userId] = createBotImage(colors[colorIndex]);
+        }
+        
+        const px = player.x * CELL_SIZE + CELL_SIZE / 2;
+        const py = player.y * CELL_SIZE + CELL_SIZE / 2;
+        
+        ctx.save();
+        ctx.translate(px, py);
+        
+        let angle = 0;
+        if (player.direction === 'DOWN') angle = Math.PI;
+        else if (player.direction === 'LEFT') angle = -Math.PI / 2;
+        else if (player.direction === 'RIGHT') angle = Math.PI / 2;
+        
+        ctx.rotate(angle);
+        
+        const drawSize = CELL_SIZE - 8;
+        ctx.drawImage(botImages[userId], -drawSize/2, -drawSize/2, drawSize, drawSize);
+        
+        ctx.restore();
+        
+        // Draw username above player
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText(player.username, px, py - CELL_SIZE/2 - 8);
+      });
+    }
+
+    function updateHUD() {
+      if (!gameState || !gameState.players) return;
+      
+      const playerList = document.getElementById('playerList');
+      playerList.innerHTML = '<strong style="color:#9ca3af;font-size:12px;">PLAYERS</strong>';
+      
+      Object.entries(gameState.players).forEach(([userId, player]) => {
+        const div = document.createElement('div');
+        div.className = 'player-item' + (player.alive ? '' : ' player-dead');
+        div.style.backgroundColor = player.color;
+        
+        const isYou = parseInt(userId) === currentUserId;
+        
+        div.innerHTML = `
+          <span class="player-name">${player.username}${isYou ? ' (You)' : ''}</span>
+          <span class="player-lives">${player.lives > 0 ? player.lives + ' lives' : (player.alive ? 'Alive' : 'Dead')}</span>
+        `;
+        
+        playerList.appendChild(div);
+      });
+    }
+
+    function handleGameOver(data) {
+      document.getElementById('winnerText').textContent = data.winner_username ? 'Winner!' : 'Draw!';
+      document.getElementById('winnerInfo').innerHTML = data.winner_username 
+        ? `<strong style="color:#10b981;">${data.winner_username}</strong> wins the pot!`
+        : 'No winners this round.';
+      document.getElementById('gameOver').style.display = 'block';
+    }
+
+    // Start connection
+    connectWebSocket();
+  </script>
+</body>
+</html>

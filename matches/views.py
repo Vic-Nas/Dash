@@ -264,6 +264,15 @@ def lobby(request, matchId):
     if not participation:
         return redirect('multiplayer')
     
+    # If match is IN_PROGRESS or STARTING, redirect to game
+    if match.status in ['STARTING', 'IN_PROGRESS']:
+        return render(request, 'matches/game_multiplayer.html', {
+            'match': match,
+            'participation': participation,
+            'profile': request.user.profile,
+        })
+    
+    # Otherwise show lobby
     participants = match.participants.select_related('player').all()
     
     context = {
