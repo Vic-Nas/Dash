@@ -136,6 +136,8 @@
   </div>
 
   <script>
+    let autoRefreshInterval = null;
+
     function getCookie(name) {
       let value = '; ' + document.cookie;
       let parts = value.split('; ' + name + '=');
@@ -151,10 +153,22 @@
       if (costElement) {
         costElement.textContent = totalCost.toFixed(0);
       }
+
+      // Start auto-refresh only if in WAITING or STARTING status
+      {% if match.status == 'WAITING' or match.status == 'STARTING' %}
+      autoRefreshInterval = setInterval(() => {
+        location.reload();
+      }, 3000);
+      {% endif %}
     });
 
     async function leaveLobby() {
       if (!confirm('Leave lobby and get refunded?')) return;
+
+      // Cancel auto-refresh before leaving
+      if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+      }
 
       try {
         const response = await fetch('/matches/leave-lobby/', {
@@ -169,7 +183,6 @@
         const data = await response.json();
 
         if (data.success) {
-          alert(data.message);
           window.location.href = '/matches/multiplayer/';
         } else {
           alert('Error: ' + data.error);
@@ -186,6 +199,11 @@
         return;
       }
 
+      // Cancel auto-refresh during force start
+      if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+      }
+
       try {
         const response = await fetch('/matches/force-start/', {
           method: 'POST',
@@ -199,22 +217,26 @@
         const data = await response.json();
 
         if (data.success) {
-          alert(data.message);
-          location.reload();
+          window.location.href = '/matches/lobby/{{ match.id }}/';
         } else {
           alert('Error: ' + data.error);
+          // Restart auto-refresh on error
+          {% if match.status == 'WAITING' or match.status == 'STARTING' %}
+          autoRefreshInterval = setInterval(() => {
+            location.reload();
+          }, 3000);
+          {% endif %}
         }
       } catch (error) {
         alert('Error: ' + error.message);
+        // Restart auto-refresh on error
+        {% if match.status == 'WAITING' or match.status == 'STARTING' %}
+        autoRefreshInterval = setInterval(() => {
+          location.reload();
+        }, 3000);
+        {% endif %}
       }
     }
-
-    // Auto-refresh to check match status
-    {% if match.status == 'WAITING' or match.status == 'STARTING' %}
-    setInterval(() => {
-      location.reload();
-    }, 3000);
-    {% endif %}
   </script>
 </body>
 </html>
