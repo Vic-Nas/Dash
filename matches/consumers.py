@@ -11,19 +11,21 @@ from shop.models import Transaction
 
 # Active games {matchId: GameEngine instance}
 ACTIVE_GAMES = {}
+# Active countdowns {matchId: asyncio.Task}
+ACTIVE_COUNTDOWNS = {}
 
 class GameEngine:
     def __init__(self, matchId, gridSize, speed, wallSpawnInterval):
         self.matchId = matchId
         self.gridSize = gridSize
         self.speed = speed
-        self.wallSpawnInterval = wallSpawnInterval  # Use match type's interval
+        self.wallSpawnInterval = wallSpawnInterval
         
         # Speed to tick rate mapping (ms)
         speedMap = {'SLOW': 200, 'MEDIUM': 150, 'FAST': 100, 'EXTREME': 75}
-        self.tickRate = speedMap.get(speed, 150) / 1000  # Convert to seconds
+        self.tickRate = speedMap.get(speed, 150) / 1000
         
-        self.players = {}  # {userId: {x, y, direction, alive, username, playerColor, score}}
+        self.players = {}
         self.walls = []
         self.countdownWalls = []
         self.tickNumber = 0
@@ -31,7 +33,6 @@ class GameEngine:
         self.task = None
         self.wallSpawnTask = None
         
-        # Player identification colors
         self.availableColors = [
             '#5b7bff', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6',
             '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#14b8a6',
@@ -41,7 +42,6 @@ class GameEngine:
         if userId in self.players:
             return
         
-        # Spawn at random position
         x = random.randint(1, self.gridSize - 2)
         y = random.randint(1, self.gridSize - 2)
         
@@ -62,10 +62,8 @@ class GameEngine:
     def tick(self):
         self.tickNumber += 1
         
-        # Track movements for collision detection
         newPositions = {}
         
-        # Calculate all new positions first
         for userId, player in self.players.items():
             if not player['alive']:
                 continue
@@ -83,37 +81,29 @@ class GameEngine:
             
             newPositions[userId] = (newX, newY)
         
-        # Process all movements and collisions
         for userId, (newX, newY) in newPositions.items():
             player = self.players[userId]
             
-            # Check edge collision
             if newX < 0 or newX >= self.gridSize or newY < 0 or newY >= self.gridSize:
                 self.handleWallHit(userId)
                 continue
             
-            # Check wall collision
             if any(w['x'] == newX and w['y'] == newY for w in self.walls):
                 self.handleWallHit(userId)
                 continue
             
-            # Check player-to-player collision
             collision = False
             for otherId, otherPlayer in self.players.items():
                 if otherId != userId and otherPlayer['alive']:
-                    # Head-on collision (both moving to same spot)
                     if otherId in newPositions:
                         otherNewX, otherNewY = newPositions[otherId]
                         if newX == otherNewX and newY == otherNewY:
-                            # Both players die in head-on collision
                             self.handleWallHit(userId)
                             self.handleWallHit(otherId)
                             collision = True
                             break
                     
-                    # Hit from side/back (colliding with other player's current position)
                     if newX == otherPlayer['x'] and newY == otherPlayer['y']:
-                        # Other player gets hit and eliminated
                         self.handlePlayerCollision(attackerId=userId, victimId=otherId)
                         collision = True
                         break
@@ -121,39 +111,31 @@ class GameEngine:
             if collision:
                 continue
             
-            # Valid move
             player['x'] = newX
             player['y'] = newY
     
     def handleWallHit(self, userId):
-        """Handle wall/edge collision - lose 1 point"""
         player = self.players[userId]
         player['score'] -= 1
         
-        # Check if score reached -50 (game over for this player)
         if player['score'] <= -50:
             player['alive'] = False
     
     def handlePlayerCollision(self, attackerId, victimId):
-        """Handle player hitting another player from side/back"""
         attacker = self.players[attackerId]
         victim = self.players[victimId]
         
-        # Victim is eliminated
         victim['alive'] = False
         
-        # Attacker gains victim's score (minimum 0)
         pointsGained = max(0, victim['score'])
         attacker['score'] += pointsGained
     
     def spawnWall(self):
-        """Spawn countdown wall - when it solidifies, all alive players get +1 score"""
         attempts = 0
         while attempts < 100:
             x = random.randint(0, self.gridSize - 1)
             y = random.randint(0, self.gridSize - 1)
             
-            # Check if position is occupied
             occupied = any(w['x'] == x and w['y'] == y for w in self.walls)
             occupied = occupied or any(w['x'] == x and w['y'] == y for w in self.countdownWalls)
             occupied = occupied or any(p['x'] == x and p['y'] == y and p['alive'] for p in self.players.values())
@@ -165,14 +147,12 @@ class GameEngine:
             attempts += 1
     
     def updateCountdownWalls(self):
-        """Update countdown walls - when wall spawns, give all alive players +1 score"""
         toRemove = []
         for wall in self.countdownWalls:
             wall['secondsLeft'] -= 1
             if wall['secondsLeft'] <= 0:
                 self.walls.append({'x': wall['x'], 'y': wall['y']})
                 
-                # Award +1 score to all alive players
                 for player in self.players.values():
                     if player['alive']:
                         player['score'] += 1
@@ -192,7 +172,6 @@ class GameEngine:
         }
     
     def checkGameOver(self):
-        """Game ends when 1 or 0 players remain"""
         alive = [uid for uid, p in self.players.items() if p['alive']]
         if len(alive) <= 1:
             return alive[0] if alive else None
@@ -201,7 +180,6 @@ class GameEngine:
     async def start(self, broadcastCallback):
         self.running = True
         
-        # Main game loop
         async def gameLoop():
             while self.running:
                 self.tick()
@@ -214,13 +192,11 @@ class GameEngine:
                 
                 await asyncio.sleep(self.tickRate)
         
-        # Wall countdown loop
         async def countdownLoop():
             while self.running:
                 await asyncio.sleep(1)
                 self.updateCountdownWalls()
         
-        # Wall spawn loop - use match's wallSpawnInterval
         async def spawnLoop():
             while self.running:
                 await asyncio.sleep(self.wallSpawnInterval)
@@ -233,7 +209,6 @@ class GameEngine:
     async def endGame(self, winnerId, broadcastCallback):
         self.running = False
         
-        # Determine if it's a tie
         alivePlayers = [uid for uid, p in self.players.items() if p['alive']]
         isTie = len(alivePlayers) == 0
         
@@ -264,7 +239,6 @@ class GameConsumer(AsyncWebsocketConsumer):
             await self.close()
             return
         
-        # Join room group
         await self.channel_layer.group_add(
             self.roomGroupName,
             self.channel_name
@@ -272,79 +246,76 @@ class GameConsumer(AsyncWebsocketConsumer):
         
         await self.accept()
         
-        # Check if player is in this match
         participation = await self.getParticipation()
         if not participation:
             await self.close()
             return
         
-        # Get player's assigned color
         playerColor = await self.getPlayerColor()
         
-        # Get or create game engine
         if self.matchId not in ACTIVE_GAMES:
             match = await self.getMatch()
             engine = GameEngine(
                 self.matchId,
                 match.gridSize,
                 match.speed,
-                match.matchType.wallSpawnInterval  # Pass the interval from match type
+                match.matchType.wallSpawnInterval
             )
             ACTIVE_GAMES[self.matchId] = engine
         
         engine = ACTIVE_GAMES[self.matchId]
         
-        # Add player with their color
         engine.addPlayer(
             self.user.id,
             self.user.username,
             playerColor
         )
         
-        # Send player their assigned color
         await self.send(text_data=json.dumps({
             'type': 'playerColor',
             'playerColor': playerColor
         }))
         
-        # Check match status
         match = await self.getMatch()
         
-        # If match is STARTING and game hasn't started yet, wait for countdown
+        # If match is STARTING and countdown hasn't started yet, start it ONCE
         if match.status == 'STARTING' and not engine.running:
-            # Send countdown message
-            await self.send(text_data=json.dumps({
-                'type': 'countdown',
-                'seconds': 10
-            }))
-            
-            # Schedule game start after 10 seconds
-            asyncio.create_task(self.startGameAfterCountdown(engine))
+            if self.matchId not in ACTIVE_COUNTDOWNS:
+                # Start countdown - only one task for the entire match
+                ACTIVE_COUNTDOWNS[self.matchId] = asyncio.create_task(
+                    self.runMatchCountdown(engine)
+                )
         
-        # If match is already IN_PROGRESS, start immediately
+        # If already IN_PROGRESS but engine not running, start it
         elif match.status == 'IN_PROGRESS' and not engine.running:
             await self.startMatch()
             await engine.start(self.broadcastState)
     
-    async def startGameAfterCountdown(self, engine):
-        """Wait 10 seconds then start the game"""
-        # Broadcast countdown
-        for i in range(10, 0, -1):
-            await self.channel_layer.group_send(
-                self.roomGroupName,
-                {
-                    'type': 'gameState',
-                    'state': {
-                        'type': 'countdown',
-                        'seconds': i
+    async def runMatchCountdown(self, engine):
+        """Single countdown task for the entire match"""
+        try:
+            # Broadcast countdown
+            for i in range(10, 0, -1):
+                await self.channel_layer.group_send(
+                    self.roomGroupName,
+                    {
+                        'type': 'gameState',
+                        'state': {
+                            'type': 'countdown',
+                            'seconds': i
+                        }
                     }
-                }
-            )
-            await asyncio.sleep(1)
-        
-        # Start the match
-        await self.startMatch()
-        await engine.start(self.broadcastState)
+                )
+                await asyncio.sleep(1)
+            
+            # Start the match
+            await self.startMatch()
+            await engine.start(self.broadcastState)
+            
+        finally:
+            # Clean up countdown task
+            if self.matchId in ACTIVE_COUNTDOWNS:
+                del ACTIVE_COUNTDOWNS[self.matchId]
     
     async def disconnect(self, closeCode):
         await self.channel_layer.group_discard(
@@ -367,7 +338,6 @@ class GameConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps(event['state']))
     
     async def broadcastState(self, state):
-        # Handle game over
         if state.get('type') == 'gameOver':
             await self.handleGameOver(state)
         
@@ -380,7 +350,6 @@ class GameConsumer(AsyncWebsocketConsumer):
         )
     
     async def handleGameOver(self, state):
-        """Handle game over - award pot based on final scores"""
         match = await self.getMatch()
         
         isTie = state.get('isTie', False)
@@ -395,7 +364,6 @@ class GameConsumer(AsyncWebsocketConsumer):
     
     @database_sync_to_async
     def getPlayerColor(self):
-        """Get player's assigned color based on join order"""
         match = Match.objects.get(id=self.matchId)
         allParticipants = list(match.participants.order_by('joinedAt').values_list('player_id', flat=True))
         playerIndex = allParticipants.index(self.user.id)
@@ -409,7 +377,6 @@ class GameConsumer(AsyncWebsocketConsumer):
     
     @database_sync_to_async
     def splitPot(self, match):
-        """Split pot equally among all participants"""
         from django.db import transaction as dbTransaction
         
         with dbTransaction.atomic():
@@ -446,7 +413,6 @@ class GameConsumer(AsyncWebsocketConsumer):
     
     @database_sync_to_async
     def awardPot(self, match, winnerId):
-        """Award full pot to winner"""
         from django.db import transaction as dbTransaction
         from django.contrib.auth import get_user_model
         
@@ -482,7 +448,6 @@ class GameConsumer(AsyncWebsocketConsumer):
     
     @database_sync_to_async
     def completeMatch(self, match, winnerId):
-        """Mark match as completed"""
         from django.contrib.auth import get_user_model
         
         User = get_user_model()
