@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Sign Up - Dash Arena</title>
+  <style>
+    body{font-family:system-ui,sans-serif;margin:0;background:#0d0f1a;color:#e6e6e6;display:flex;align-items:center;justify-content:center;min-height:100vh;}
+    .card{background:#121428;border:1px solid #23264a;border-radius:12px;padding:32px;width:min(90%,380px);box-shadow:0 4px 20px rgba(0,0,0,0.3);}
+    h1{margin:0 0 8px;font-size:28px;letter-spacing:0.5px;}
+    p{margin:0 0 24px;color:#9ca3af;font-size:14px;}
+    input{width:100%;padding:12px;margin-bottom:16px;background:#1a1d35;border:1px solid #2a2f6b;border-radius:8px;color:#fff;font-size:15px;}
+    input:focus{outline:none;border-color:#3940a3;}
+    button{width:100%;padding:12px;background:#2a2f6b;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;margin-top:8px;}
+    button:hover{background:#3940a3;}
+    .link{text-align:center;margin-top:16px;font-size:14px;}
+    .link a{color:#5b7bff;text-decoration:none;}
+    .link a:hover{text-decoration:underline;}
+    .error{background:#991b1b;padding:8px 12px;border-radius:6px;margin-bottom:8px;font-size:13px;}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Dash Arena</h1>
+    <p>Create your account</p>
+    {% if form.errors %}
+      {% for field, errors in form.errors.items %}
+        {% for error in errors %}
+          <div class="error">{{ error }}</div>
+        {% endfor %}
+      {% endfor %}
+    {% endif %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="text" name="username" placeholder="Username" required autofocus>
+      <input type="password" name="password1" placeholder="Password" required>
+      <input type="password" name="password2" placeholder="Confirm Password" required>
+      <button type="submit">Sign Up</button>
+    </form>
+    <div class="link">
+      Have an account? <a href="{% url 'login' %}">Login</a>
+    </div>
+  </div>
+</body>
+</html>

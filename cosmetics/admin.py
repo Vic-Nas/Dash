@@ -1,12 +1,12 @@
 from django.contrib import admin
-from .models import botSkin, ownedSkin
+from .models import BotSkin, OwnedSkin
 
-@admin.register(botSkin)
-class botSkinAdmin(admin.ModelAdmin):
+@admin.register(BotSkin)
+class BotSkinAdmin(admin.ModelAdmin):
     list_display = ("name", "price", "rarity", "isDefault", "displayOrder")
     list_filter = ("rarity", "isDefault")
     search_fields = ("name",)
 
-@admin.register(ownedSkin)
-class ownedSkinAdmin(admin.ModelAdmin):
+@admin.register(OwnedSkin)
+class OwnedSkinAdmin(admin.ModelAdmin):
     list_display = ("player", "skin", "purchasedAt")

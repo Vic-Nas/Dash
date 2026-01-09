@@ -1,0 +1,40 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Login - Dash Arena</title>
+  <style>
+    body{font-family:system-ui,sans-serif;margin:0;background:#0d0f1a;color:#e6e6e6;display:flex;align-items:center;justify-content:center;min-height:100vh;}
+    .card{background:#121428;border:1px solid #23264a;border-radius:12px;padding:32px;width:min(90%,380px);box-shadow:0 4px 20px rgba(0,0,0,0.3);}
+    h1{margin:0 0 8px;font-size:28px;letter-spacing:0.5px;}
+    p{margin:0 0 24px;color:#9ca3af;font-size:14px;}
+    input{width:100%;padding:12px;margin-bottom:16px;background:#1a1d35;border:1px solid #2a2f6b;border-radius:8px;color:#fff;font-size:15px;}
+    input:focus{outline:none;border-color:#3940a3;}
+    button{width:100%;padding:12px;background:#2a2f6b;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;margin-top:8px;}
+    button:hover{background:#3940a3;}
+    .link{text-align:center;margin-top:16px;font-size:14px;}
+    .link a{color:#5b7bff;text-decoration:none;}
+    .link a:hover{text-decoration:underline;}
+    .error{background:#991b1b;padding:12px;border-radius:8px;margin-bottom:16px;font-size:14px;}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Dash Arena</h1>
+    <p>Login to play</p>
+    {% if form.errors %}
+    <div class="error">Invalid username or password</div>
+    {% endif %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="text" name="username" placeholder="Username" required autofocus>
+      <input type="password" name="password" placeholder="Password" required>
+      <button type="submit">Login</button>
+    </form>
+    <div class="link">
+      No account? <a href="{% url 'signup' %}">Sign up</a>
+    </div>
+  </div>
+</body>
+</html>
