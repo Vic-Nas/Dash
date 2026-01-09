@@ -8,7 +8,6 @@ from django.db.models import F
 from django.utils import timezone
 from decimal import Decimal
 from .models import CoinPackage, CoinPurchase, Transaction
-from cosmetics.models import BotSkin, OwnedSkin
 import json
 import os
 
@@ -16,103 +15,13 @@ import os
 @login_required
 def shop(request):
     packages = CoinPackage.objects.filter(isActive=True)
-    skins = BotSkin.objects.all()
-    ownedSkins = request.user.ownedSkins.values_list('skin_id', flat=True)
     
     context = {
         'packages': packages,
-        'skins': skins,
-        'ownedSkins': list(ownedSkins),
         'profile': request.user.profile,
         'stripePublicKey': os.environ.get('STRIPE_PUBLIC_KEY', ''),
     }
     return render(request, 'shop/shop.html', context)
-
-
-@login_required
-@require_POST
-def buySkin(request):
-    try:
-        data = json.loads(request.body)
-        skinId = data.get('skinId')
-        
-        skin = get_object_or_404(BotSkin, id=skinId)
-        
-        # Check if already owned
-        if OwnedSkin.objects.filter(player=request.user, skin=skin).exists():
-            return JsonResponse({'success': False, 'error': 'Skin already owned'})
-        
-        # Check if default (free)
-        if skin.isDefault:
-            OwnedSkin.objects.create(player=request.user, skin=skin)
-            return JsonResponse({'success': True, 'message': 'Free skin claimed!'})
-        
-        profile = request.user.profile
-        
-        # Check balance
-        if profile.coins < skin.price:
-            return JsonResponse({'success': False, 'error': 'Insufficient coins'})
-        
-        # Atomic transaction
-        with transaction.atomic():
-            # Lock profile row
-            profile = request.user.profile
-            profile = type(profile).objects.select_for_update().get(pk=profile.pk)
-            
-            balanceBefore = profile.coins
-            profile.coins = F('coins') - skin.price
-            profile.save(update_fields=['coins'])
-            profile.refresh_from_db()
-            balanceAfter = profile.coins
-            
-            # Create ownership
-            OwnedSkin.objects.create(player=request.user, skin=skin)
-            
-            # Create transaction record
-            Transaction.objects.create(
-                user=request.user,
-                amount=-skin.price,
-                transactionType='SKIN_PURCHASE',
-                relatedSkin=skin,
-                description=f'Purchased skin: {skin.name}',
-                balanceBefore=balanceBefore,
-                balanceAfter=balanceAfter
-            )
-        
-        return JsonResponse({
-            'success': True,
-            'newBalance': float(balanceAfter),
-            'message': f'Purchased {skin.name}!'
-        })
-        
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
-
-
-@login_required
-@require_POST
-def equipSkin(request):
-    try:
-        data = json.loads(request.body)
-        skinId = data.get('skinId')
-        
-        skin = get_object_or_404(BotSkin, id=skinId)
-        
-        # Check ownership
-        if not OwnedSkin.objects.filter(player=request.user, skin=skin).exists():
-            return JsonResponse({'success': False, 'error': 'Skin not owned'})
-        
-        profile = request.user.profile
-        profile.currentSkin = skin
-        profile.save(update_fields=['currentSkin'])
-        
-        return JsonResponse({
-            'success': True,
-            'message': f'Equipped {skin.name}!'
-        })
-        
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
 
 
 @login_required
@@ -177,7 +86,7 @@ def stripeWebhook(request):
         import stripe
         
         payload = request.body
-        sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
+        sigHeader = request.META.get('HTTP_STRIPE_SIGNATURE')
         
         stripeWebhookSecret = os.environ.get('STRIPE_WEBHOOK_SECRET')
         if not stripeWebhookSecret:
@@ -185,7 +94,7 @@ def stripeWebhook(request):
         
         try:
             event = stripe.Webhook.construct_event(
-                payload, sig_header, stripeWebhookSecret
+                payload, sigHeader, stripeWebhookSecret
             )
         except ValueError:
             return JsonResponse({'error': 'Invalid payload'}, status=400)

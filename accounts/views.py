@@ -2,8 +2,7 @@ from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login
 from .forms import SignUpForm
-from matches.models import MatchType, SoloRun
-from cosmetics.models import BotSkin
+from matches.models import MatchType
 from accounts.models import Profile
 
 
@@ -26,8 +25,6 @@ def signup(request):
 def dashboard(request):
     profile = request.user.profile
     matchTypes = MatchType.objects.filter(isActive=True)
-    skins = BotSkin.objects.all()
-    ownedSkins = request.user.ownedSkins.values_list('skin_id', flat=True)
     
     # Leaderboard
     topPlayers = Profile.objects.filter(soloHighScore__gt=0).order_by('-soloHighScore')[:10]
@@ -35,8 +32,6 @@ def dashboard(request):
     context = {
         'profile': profile,
         'matchTypes': matchTypes,
-        'skins': skins,
-        'ownedSkins': list(ownedSkins),
         'topPlayers': topPlayers,
     }
     return render(request, 'accounts/dashboard.html', context)

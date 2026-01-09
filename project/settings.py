@@ -65,7 +65,6 @@ INSTALLED_APPS = [
     'channels',
     'accounts',
     'matches',
-    'cosmetics',
     'shop',
 ]
 

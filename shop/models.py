@@ -38,11 +38,10 @@ class Transaction(models.Model):
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     transactionType = models.CharField(max_length=16, choices=[
         ('PURCHASE','PURCHASE'), ('MATCH_ENTRY','MATCH_ENTRY'), ('MATCH_WIN','MATCH_WIN'),
-        ('SKIN_PURCHASE','SKIN_PURCHASE'), ('SOLO_REWARD','SOLO_REWARD'), ('SOLO_PENALTY','SOLO_PENALTY'),
+        ('SOLO_REWARD','SOLO_REWARD'), ('SOLO_PENALTY','SOLO_PENALTY'),
         ('EXTRA_LIFE','EXTRA_LIFE'), ('REFUND','REFUND')
     ])
     relatedMatch = models.ForeignKey('matches.Match', on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions')
-    relatedSkin = models.ForeignKey('cosmetics.BotSkin', on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions')
     description = models.CharField(max_length=255)
     balanceBefore = models.DecimalField(max_digits=12, decimal_places=2)
     balanceAfter = models.DecimalField(max_digits=12, decimal_places=2)

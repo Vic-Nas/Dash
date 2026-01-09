@@ -9,103 +9,110 @@ from decimal import Decimal
 from .models import Match, MatchParticipation
 from shop.models import Transaction
 
-# Active games {match_id: GameEngine instance}
+# Active games {matchId: GameEngine instance}
 ACTIVE_GAMES = {}
 
 class GameEngine:
-    def __init__(self, match_id, grid_size, speed, lives_per_player):
-        self.match_id = match_id
-        self.grid_size = grid_size
+    def __init__(self, matchId, gridSize, speed, livesPerPlayer):
+        self.matchId = matchId
+        self.gridSize = gridSize
         self.speed = speed
-        self.lives_per_player = lives_per_player
+        self.livesPerPlayer = livesPerPlayer
         
         # Speed to tick rate mapping (ms)
-        speed_map = {'SLOW': 200, 'MEDIUM': 150, 'FAST': 100, 'EXTREME': 75}
-        self.tick_rate = speed_map.get(speed, 150) / 1000  # Convert to seconds
+        speedMap = {'SLOW': 200, 'MEDIUM': 150, 'FAST': 100, 'EXTREME': 75}
+        self.tickRate = speedMap.get(speed, 150) / 1000  # Convert to seconds
         
-        self.players = {}  # {user_id: {x, y, direction, alive, lives, username, playerColor, skinName}}
+        self.players = {}  # {userId: {x, y, direction, alive, lives, username, playerColor}}
         self.walls = []
-        self.countdown_walls = []
-        self.tick_number = 0
+        self.countdownWalls = []
+        self.tickNumber = 0
         self.running = False
         self.task = None
-        self.wall_spawn_task = None
+        self.wallSpawnTask = None
         
-        # Player identification colors
-        self.available_colors = [
-            '#5b7bff', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', 
-            '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#14b8a6'
+        # Player identification colors (well-spaced on color wheel)
+        self.availableColors = [
+            '#5b7bff',  # Blue
+            '#10b981',  # Green
+            '#f59e0b',  # Orange
+            '#ec4899',  # Pink
+            '#8b5cf6',  # Purple
+            '#06b6d4',  # Cyan
+            '#ef4444',  # Red
+            '#84cc16',  # Lime
+            '#f97316',  # Deep Orange
+            '#14b8a6',  # Teal
         ]
     
-    def add_player(self, user_id, username, skin_name, player_color):
-        if user_id in self.players:
+    def addPlayer(self, userId, username, playerColor):
+        if userId in self.players:
             return
         
         # Spawn at random position
-        x = random.randint(1, self.grid_size - 2)
-        y = random.randint(1, self.grid_size - 2)
+        x = random.randint(1, self.gridSize - 2)
+        y = random.randint(1, self.gridSize - 2)
         
-        self.players[user_id] = {
+        self.players[userId] = {
             'username': username,
             'x': x,
             'y': y,
             'direction': random.choice(['UP', 'DOWN', 'LEFT', 'RIGHT']),
             'alive': True,
-            'lives': self.lives_per_player,
-            'playerColor': player_color,  # Color for player identification
-            'skinName': skin_name  # Which skin asset to use
+            'lives': self.livesPerPlayer,
+            'playerColor': playerColor,
         }
     
-    def update_direction(self, user_id, direction):
-        if user_id in self.players and self.players[user_id]['alive']:
-            self.players[user_id]['direction'] = direction
+    def updateDirection(self, userId, direction):
+        if userId in self.players and self.players[userId]['alive']:
+            self.players[userId]['direction'] = direction
     
     def tick(self):
-        self.tick_number += 1
+        self.tickNumber += 1
         
         # Move all alive players
-        for user_id, player in self.players.items():
+        for userId, player in self.players.items():
             if not player['alive']:
                 continue
             
-            new_x, new_y = player['x'], player['y']
+            newX, newY = player['x'], player['y']
             
             if player['direction'] == 'UP':
-                new_y -= 1
+                newY -= 1
             elif player['direction'] == 'DOWN':
-                new_y += 1
+                newY += 1
             elif player['direction'] == 'LEFT':
-                new_x -= 1
+                newX -= 1
             elif player['direction'] == 'RIGHT':
-                new_x += 1
+                newX += 1
             
             # Check edge collision - treat as wall hit
-            if new_x < 0 or new_x >= self.grid_size or new_y < 0 or new_y >= self.grid_size:
-                self.handle_collision(user_id)
+            if newX < 0 or newX >= self.gridSize or newY < 0 or newY >= self.gridSize:
+                self.handleCollision(userId)
                 continue
             
             # Check wall collision
-            if any(w['x'] == new_x and w['y'] == new_y for w in self.walls):
-                self.handle_collision(user_id)
+            if any(w['x'] == newX and w['y'] == newY for w in self.walls):
+                self.handleCollision(userId)
                 continue
             
             # Check player collision (from side/back = other dies, head-on = both die)
-            for other_id, other in self.players.items():
-                if other_id != user_id and other['alive']:
-                    if other['x'] == new_x and other['y'] == new_y:
+            for otherId, other in self.players.items():
+                if otherId != userId and other['alive']:
+                    if other['x'] == newX and other['y'] == newY:
                         # Both players collide head-on
-                        self.handle_collision(user_id)
-                        self.handle_collision(other_id)
+                        self.handleCollision(userId)
+                        self.handleCollision(otherId)
                         continue
             
             # Valid move
-            player['x'] = new_x
-            player['y'] = new_y
+            player['x'] = newX
+            player['y'] = newY
     
-    def handle_collision(self, user_id):
-        player = self.players[user_id]
+    def handleCollision(self, userId):
+        player = self.players[userId]
         
-        if self.lives_per_player == 0:
+        if self.livesPerPlayer == 0:
             # Instant death mode
             player['alive'] = False
         else:
@@ -114,108 +121,108 @@ class GameEngine:
             if player['lives'] <= 0:
                 player['alive'] = False
     
-    def spawn_wall(self):
+    def spawnWall(self):
         attempts = 0
         while attempts < 100:
-            x = random.randint(0, self.grid_size - 1)
-            y = random.randint(0, self.grid_size - 1)
+            x = random.randint(0, self.gridSize - 1)
+            y = random.randint(0, self.gridSize - 1)
             
             # Check if position is occupied
             occupied = any(w['x'] == x and w['y'] == y for w in self.walls)
-            occupied = occupied or any(w['x'] == x and w['y'] == y for w in self.countdown_walls)
+            occupied = occupied or any(w['x'] == x and w['y'] == y for w in self.countdownWalls)
             occupied = occupied or any(p['x'] == x and p['y'] == y and p['alive'] for p in self.players.values())
             
             if not occupied:
-                self.countdown_walls.append({'x': x, 'y': y, 'seconds_left': 3})
+                self.countdownWalls.append({'x': x, 'y': y, 'secondsLeft': 3})
                 break
             
             attempts += 1
     
-    def update_countdown_walls(self):
-        to_remove = []
-        for wall in self.countdown_walls:
-            wall['seconds_left'] -= 1
-            if wall['seconds_left'] <= 0:
+    def updateCountdownWalls(self):
+        toRemove = []
+        for wall in self.countdownWalls:
+            wall['secondsLeft'] -= 1
+            if wall['secondsLeft'] <= 0:
                 self.walls.append({'x': wall['x'], 'y': wall['y']})
-                to_remove.append(wall)
+                toRemove.append(wall)
         
-        for wall in to_remove:
-            self.countdown_walls.remove(wall)
+        for wall in toRemove:
+            self.countdownWalls.remove(wall)
     
-    def get_state(self):
+    def getState(self):
         return {
-            'tick': self.tick_number,
+            'tick': self.tickNumber,
             'players': self.players,
             'walls': self.walls,
-            'countdown_walls': self.countdown_walls,
-            'alive_count': sum(1 for p in self.players.values() if p['alive'])
+            'countdownWalls': self.countdownWalls,
+            'aliveCount': sum(1 for p in self.players.values() if p['alive'])
         }
     
-    def check_game_over(self):
+    def checkGameOver(self):
         alive = [uid for uid, p in self.players.items() if p['alive']]
         if len(alive) <= 1:
             return alive[0] if alive else None
         return None
     
-    async def start(self, broadcast_callback):
+    async def start(self, broadcastCallback):
         self.running = True
         
         # Main game loop
-        async def game_loop():
+        async def gameLoop():
             while self.running:
                 self.tick()
-                await broadcast_callback(self.get_state())
+                await broadcastCallback(self.getState())
                 
-                winner_id = self.check_game_over()
-                if winner_id is not None:
-                    await self.end_game(winner_id, broadcast_callback)
+                winnerId = self.checkGameOver()
+                if winnerId is not None:
+                    await self.endGame(winnerId, broadcastCallback)
                     break
                 
-                await asyncio.sleep(self.tick_rate)
+                await asyncio.sleep(self.tickRate)
         
         # Wall countdown loop
-        async def countdown_loop():
+        async def countdownLoop():
             while self.running:
                 await asyncio.sleep(1)
-                self.update_countdown_walls()
+                self.updateCountdownWalls()
         
         # Wall spawn loop
-        async def spawn_loop():
+        async def spawnLoop():
             while self.running:
                 await asyncio.sleep(3)
-                self.spawn_wall()
+                self.spawnWall()
         
-        self.task = asyncio.create_task(game_loop())
-        self.wall_spawn_task = asyncio.create_task(spawn_loop())
-        asyncio.create_task(countdown_loop())
+        self.task = asyncio.create_task(gameLoop())
+        self.wallSpawnTask = asyncio.create_task(spawnLoop())
+        asyncio.create_task(countdownLoop())
     
-    async def end_game(self, winner_id, broadcast_callback):
+    async def endGame(self, winnerId, broadcastCallback):
         self.running = False
         
         # Determine if it's a tie
-        alive_players = [uid for uid, p in self.players.items() if p['alive']]
-        is_tie = len(alive_players) == 0
+        alivePlayers = [uid for uid, p in self.players.items() if p['alive']]
+        isTie = len(alivePlayers) == 0
         
-        await broadcast_callback({
-            'type': 'game_over',
-            'winner_id': winner_id if not is_tie else None,
-            'winner_username': self.players[winner_id]['username'] if winner_id and not is_tie else None,
-            'is_tie': is_tie,
-            'alive_players': alive_players
+        await broadcastCallback({
+            'type': 'gameOver',
+            'winnerId': winnerId if not isTie else None,
+            'winnerUsername': self.players[winnerId]['username'] if winnerId and not isTie else None,
+            'isTie': isTie,
+            'alivePlayers': alivePlayers
         })
     
     def stop(self):
         self.running = False
         if self.task:
             self.task.cancel()
-        if self.wall_spawn_task:
-            self.wall_spawn_task.cancel()
+        if self.wallSpawnTask:
+            self.wallSpawnTask.cancel()
 
 
 class GameConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        self.match_id = self.scope['url_route']['kwargs']['match_id']
-        self.room_group_name = f'match_{self.match_id}'
+        self.matchId = self.scope['url_route']['kwargs']['matchId']
+        self.roomGroupName = f'match_{self.matchId}'
         self.user = self.scope['user']
         
         if not self.user.is_authenticated:
@@ -224,57 +231,56 @@ class GameConsumer(AsyncWebsocketConsumer):
         
         # Join room group
         await self.channel_layer.group_add(
-            self.room_group_name,
+            self.roomGroupName,
             self.channel_name
         )
         
         await self.accept()
         
         # Check if player is in this match
-        participation = await self.get_participation()
+        participation = await self.getParticipation()
         if not participation:
             await self.close()
             return
         
-        # Get player's skin and assigned color
-        player_data = await self.get_player_data()
+        # Get player's assigned color
+        playerColor = await self.getPlayerColor()
         
         # Get or create game engine
-        if self.match_id not in ACTIVE_GAMES:
-            match = await self.get_match()
+        if self.matchId not in ACTIVE_GAMES:
+            match = await self.getMatch()
             engine = GameEngine(
-                self.match_id,
+                self.matchId,
                 match.gridSize,
                 match.speed,
                 match.matchType.livesPerPlayer
             )
-            ACTIVE_GAMES[self.match_id] = engine
+            ACTIVE_GAMES[self.matchId] = engine
         
-        engine = ACTIVE_GAMES[self.match_id]
+        engine = ACTIVE_GAMES[self.matchId]
         
-        # Add player with their skin and color
-        engine.add_player(
+        # Add player with their color
+        engine.addPlayer(
             self.user.id,
             self.user.username,
-            player_data['skinName'],
-            player_data['playerColor']
+            playerColor
         )
         
         # Send player their assigned color
         await self.send(text_data=json.dumps({
-            'type': 'player_color',
-            'playerColor': player_data['playerColor']
+            'type': 'playerColor',
+            'playerColor': playerColor
         }))
         
         # If match should start, start it
-        match = await self.get_match()
+        match = await self.getMatch()
         if match.status == 'STARTING' and not engine.running:
-            await self.start_match()
-            await engine.start(self.broadcast_state)
+            await self.startMatch()
+            await engine.start(self.broadcastState)
     
-    async def disconnect(self, close_code):
+    async def disconnect(self, closeCode):
         await self.channel_layer.group_discard(
-            self.room_group_name,
+            self.roomGroupName,
             self.channel_name
         )
     
@@ -282,86 +288,71 @@ class GameConsumer(AsyncWebsocketConsumer):
         data = json.loads(text_data)
         action = data.get('action')
         
-        if action == 'change_direction':
+        if action == 'changeDirection':
             direction = data.get('direction')
             if direction in ['UP', 'DOWN', 'LEFT', 'RIGHT']:
-                engine = ACTIVE_GAMES.get(self.match_id)
+                engine = ACTIVE_GAMES.get(self.matchId)
                 if engine:
-                    engine.update_direction(self.user.id, direction)
+                    engine.updateDirection(self.user.id, direction)
     
-    async def game_state(self, event):
+    async def gameState(self, event):
         await self.send(text_data=json.dumps(event['state']))
     
-    async def broadcast_state(self, state):
+    async def broadcastState(self, state):
         # Handle game over
-        if state.get('type') == 'game_over':
-            await self.handle_game_over(state)
+        if state.get('type') == 'gameOver':
+            await self.handleGameOver(state)
         
         await self.channel_layer.group_send(
-            self.room_group_name,
+            self.roomGroupName,
             {
-                'type': 'game_state',
+                'type': 'gameState',
                 'state': state
             }
         )
     
-    async def handle_game_over(self, state):
+    async def handleGameOver(self, state):
         """Handle game over - award pot to winner(s)"""
-        match = await self.get_match()
+        match = await self.getMatch()
         
-        is_tie = state.get('is_tie', False)
-        winner_id = state.get('winner_id')
+        isTie = state.get('isTie', False)
+        winnerId = state.get('winnerId')
         
-        if is_tie:
-            await self.split_pot(match)
-        elif winner_id:
-            await self.award_pot(match, winner_id)
+        if isTie:
+            await self.splitPot(match)
+        elif winnerId:
+            await self.awardPot(match, winnerId)
         
-        await self.complete_match(match, winner_id)
+        await self.completeMatch(match, winnerId)
     
     @database_sync_to_async
-    def get_player_data(self):
-        """Get player's equipped skin and assign a color"""
-        from cosmetics.models import BotSkin
-        
-        profile = self.user.profile
-        
-        # Get skin name
-        if profile.currentSkin:
-            skin_name = profile.currentSkin.name
-        else:
-            # Get default skin
-            default_skin = BotSkin.objects.filter(isDefault=True).first()
-            skin_name = default_skin.name if default_skin else 'Default'
-        
-        # Get participation to find/assign color
-        participation = MatchParticipation.objects.get(
-            match_id=self.match_id,
-            player=self.user
-        )
-        
-        # Assign color based on join order
-        match = Match.objects.get(id=self.match_id)
-        all_participants = list(match.participants.order_by('joinedAt').values_list('player_id', flat=True))
-        player_index = all_participants.index(self.user.id)
+    def getPlayerColor(self):
+        """Get player's assigned color based on join order"""
+        match = Match.objects.get(id=self.matchId)
+        allParticipants = list(match.participants.order_by('joinedAt').values_list('player_id', flat=True))
+        playerIndex = allParticipants.index(self.user.id)
         
         colors = [
-            '#5b7bff', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', 
-            '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#14b8a6'
+            '#5b7bff',  # Blue
+            '#10b981',  # Green
+            '#f59e0b',  # Orange
+            '#ec4899',  # Pink
+            '#8b5cf6',  # Purple
+            '#06b6d4',  # Cyan
+            '#ef4444',  # Red
+            '#84cc16',  # Lime
+            '#f97316',  # Deep Orange
+            '#14b8a6',  # Teal
         ]
-        player_color = colors[player_index % len(colors)]
         
-        return {
-            'skinName': skin_name,
-            'playerColor': player_color
-        }
+        return colors[playerIndex % len(colors)]
     
     @database_sync_to_async
-    def split_pot(self, match):
+    def splitPot(self, match):
         """Split pot equally among all participants"""
-        from django.db import transaction as db_transaction
+        from django.db import transaction as dbTransaction
         
-        with db_transaction.atomic():
+        with dbTransaction.atomic():
             match = Match.objects.select_for_update().get(id=match.id)
             participants = list(match.participants.select_related('player__profile').all())
             
@@ -394,16 +385,16 @@ class GameConsumer(AsyncWebsocketConsumer):
                 )
     
     @database_sync_to_async
-    def award_pot(self, match, winner_id):
+    def awardPot(self, match, winnerId):
         """Award full pot to winner"""
-        from django.db import transaction as db_transaction
+        from django.db import transaction as dbTransaction
         from django.contrib.auth import get_user_model
         
         User = get_user_model()
         
-        with db_transaction.atomic():
+        with dbTransaction.atomic():
             match = Match.objects.select_for_update().get(id=match.id)
-            winner = User.objects.get(id=winner_id)
+            winner = User.objects.get(id=winnerId)
             
             profile = winner.profile
             profile = type(profile).objects.select_for_update().get(pk=profile.pk)
@@ -430,7 +421,7 @@ class GameConsumer(AsyncWebsocketConsumer):
             )
     
     @database_sync_to_async
-    def complete_match(self, match, winner_id):
+    def completeMatch(self, match, winnerId):
         """Mark match as completed"""
         from django.contrib.auth import get_user_model
         
@@ -438,8 +429,8 @@ class GameConsumer(AsyncWebsocketConsumer):
         
         match.status = 'COMPLETED'
         match.completedAt = timezone.now()
-        if winner_id:
-            match.winner = User.objects.get(id=winner_id)
+        if winnerId:
+            match.winner = User.objects.get(id=winnerId)
         match.save(update_fields=['status', 'completedAt', 'winner'])
         
         for participation in match.participants.select_related('player__profile').all():
@@ -448,22 +439,22 @@ class GameConsumer(AsyncWebsocketConsumer):
             profile.save(update_fields=['totalMatches'])
     
     @database_sync_to_async
-    def get_participation(self):
+    def getParticipation(self):
         try:
             return MatchParticipation.objects.get(
-                match_id=self.match_id,
+                match_id=self.matchId,
                 player=self.user
             )
         except MatchParticipation.DoesNotExist:
             return None
     
     @database_sync_to_async
-    def get_match(self):
-        return Match.objects.select_related('matchType').get(id=self.match_id)
+    def getMatch(self):
+        return Match.objects.select_related('matchType').get(id=self.matchId)
     
     @database_sync_to_async
-    def start_match(self):
-        match = Match.objects.get(id=self.match_id)
+    def startMatch(self):
+        match = Match.objects.get(id=self.matchId)
         match.status = 'IN_PROGRESS'
         match.startedAt = timezone.now()
         match.save()

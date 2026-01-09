@@ -11,7 +11,6 @@ class Profile(models.Model):
     soloHighScore = models.IntegerField(default=0)
     totalWins = models.IntegerField(default=0)
     totalMatches = models.IntegerField(default=0)
-    currentSkin = models.ForeignKey('cosmetics.BotSkin', on_delete=models.SET_NULL, null=True, blank=True, related_name='equippedBy')
     createdAt = models.DateTimeField(auto_now_add=True)
     isActive = models.BooleanField(default=True)
     activityLog = models.TextField(default="", blank=True)
