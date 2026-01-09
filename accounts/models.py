@@ -6,7 +6,7 @@ from django.dispatch import receiver
 
 class Profile(models.Model):
     user = models.OneToOneField(get_user_model(), on_delete=models.CASCADE, primary_key=True, related_name='profile')
-    profilePic = models.ImageField(upload_to='profiles/', null=True, blank=True)
+    profilePic = models.ImageField(upload_to='dash/profiles/', null=True, blank=True)
     coins = models.DecimalField(max_digits=12, decimal_places=2, default=100)
     soloHighScore = models.IntegerField(default=0)
     totalWins = models.IntegerField(default=0)
