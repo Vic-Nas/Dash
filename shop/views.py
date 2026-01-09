@@ -133,32 +133,29 @@ def createPaymentIntent(request):
             })
         
         # In production, create Stripe payment intent:
-        # import stripe
-        # stripe.api_key = stripeSecretKey
-        # intent = stripe.PaymentIntent.create(
-        #     amount=int(package.price * 100),
-        #     currency='usd',
-        #     metadata={'packageId': package.id, 'userId': request.user.id}
-        # )
-        # 
-        # CoinPurchase.objects.create(
-        #     user=request.user,
-        #     package=package,
-        #     stripePaymentIntentId=intent.id,
-        #     status='PENDING',
-        #     coinAmount=package.coins,
-        #     pricePaid=package.price
-        # )
-        # 
-        # return JsonResponse({
-        #     'success': True,
-        #     'clientSecret': intent.client_secret
-        # })
+        import stripe
+        stripe.api_key = stripeSecretKey
+        intent = stripe.PaymentIntent.create(
+            amount=int(package.price * 100),
+            currency='usd',
+            metadata={'packageId': package.id, 'userId': request.user.id}
+        )
+        
+        CoinPurchase.objects.create(
+            user=request.user,
+            package=package,
+            stripePaymentIntentId=intent.id,
+            status='PENDING',
+            coinAmount=package.coins,
+            pricePaid=package.price
+        )
         
         return JsonResponse({
-            'success': False,
-            'error': 'Stripe integration pending'
+            'success': True,
+            'clientSecret': intent.client_secret
         })
+        
+
         
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
