@@ -53,8 +53,8 @@ class GameEngine:
             'direction': random.choice(['UP', 'DOWN', 'LEFT', 'RIGHT']),
             'alive': True,
             'playerColor': playerColor,
-            'score': 0,  # Points gained from walls spawning
-            'hits': 0,   # Track hits separately
+            'score': 0,
+            'hits': 0,
         }
     
     def updateDirection(self, userId, direction):
@@ -86,7 +86,7 @@ class GameEngine:
         for userId, (newX, newY) in newPositions.items():
             player = self.players[userId]
             
-            # Check wall/edge hit
+            # FIXED: Check wall/edge hit - boundaries are 0 to gridSize-1
             if newX < 0 or newX >= self.gridSize or newY < 0 or newY >= self.gridSize:
                 self.handleWallHit(userId)
                 continue
@@ -122,7 +122,7 @@ class GameEngine:
     def handleWallHit(self, userId):
         """Player hit wall or edge - increment hits counter"""
         player = self.players[userId]
-        player['hits'] += 1  # Track hits
+        player['hits'] += 1
         
         # Eliminate after 50 hits
         if player['hits'] >= 50:

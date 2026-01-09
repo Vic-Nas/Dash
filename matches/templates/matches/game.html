@@ -151,19 +151,34 @@
     }
     @media (max-width: 768px) {
       #hud {
-        top: 10px;
-        left: 10px;
+        /* Move HUD below canvas on mobile */
+        position: static;
+        margin-top: 10px;
         padding: 12px;
         min-width: 150px;
         font-size: 12px;
+        /* Make it horizontal layout */
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-around;
+        gap: 8px;
+      }
+      #hud > * {
+        flex: 0 1 auto;
       }
       .stat {
-        margin-bottom: 6px;
+        margin-bottom: 0;
         font-size: 12px;
+      }
+      #soundBtn {
+        flex: 1 1 100%;
       }
       #gameOver {
         min-width: 90%;
         padding: 20px;
+      }
+      #gameContainer {
+        padding: 10px;
       }
     }
   </style>
@@ -172,6 +187,44 @@
   <div id="gameContainer">
     <canvas id="gameCanvas" width="600" height="600" style="display:none;"></canvas>
     
+    <div id="hud" style="display:none;">
+      <div class="stat">
+        <span class="stat-label">Score:</span>
+        <span class="stat-value" id="currentScore">0</span>
+      </div>
+
+      <button
+        onclick="toggleSound()"
+        id="soundBtn"
+        style="
+          padding:8px 12px;
+          background:#2a2f6b;
+          border:none;
+          border-radius:6px;
+          color:#fff;
+          cursor:pointer;
+          font-size:13px;
+        "
+      >
+        🔊 Sound ON
+      </button>
+
+      <div class="stat">
+        <span class="stat-label">Walls:</span>
+        <span class="stat-value" id="wallsSurvived">0</span>
+      </div>
+
+      <div class="stat">
+        <span class="stat-label">Hits:</span>
+        <span class="stat-value" id="wallsHit">0</span>
+      </div>
+
+      <div class="stat">
+        <span class="stat-label">Time:</span>
+        <span class="stat-value" id="time">0s</span>
+      </div>
+    </div>
+
     <div id="mobile-controls" style="display:none;">
       <button class="btn-up" onmousedown="pressKey('ArrowUp')" onmouseup="releaseKey('ArrowUp')" ontouchstart="pressKey('ArrowUp')" ontouchend="releaseKey('ArrowUp')">▲</button>
       <button class="btn-left" onmousedown="pressKey('ArrowLeft')" onmouseup="releaseKey('ArrowLeft')" ontouchstart="pressKey('ArrowLeft')" ontouchend="releaseKey('ArrowLeft')">◀</button>
@@ -192,47 +245,6 @@
       </div>
     </div>
     <div class="controls" style="display:none;" id="controls">Arrow Keys or WASD to change direction</div>
-  </div>
-
-  <div id="hud" style="display:none;">
-    <div class="stat">
-      <span class="stat-label">Current Score:</span>
-      <span class="stat-value" id="currentScore">0</span>
-    </div>
-
-    <!-- Sound toggle -->
-    <button
-      onclick="toggleSound()"
-      id="soundBtn"
-      style="
-        width:100%;
-        margin:8px 0;
-        padding:8px;
-        background:#2a2f6b;
-        border:none;
-        border-radius:6px;
-        color:#fff;
-        cursor:pointer;
-        font-size:13px;
-      "
-    >
-      🔊 Sound ON
-    </button>
-
-    <div class="stat">
-      <span class="stat-label">Walls Survived:</span>
-      <span class="stat-value" id="wallsSurvived">0</span>
-    </div>
-
-    <div class="stat">
-      <span class="stat-label">Walls Hit:</span>
-      <span class="stat-value" id="wallsHit">0</span>
-    </div>
-
-    <div class="stat">
-      <span class="stat-label">Time:</span>
-      <span class="stat-value" id="time">0s</span>
-    </div>
   </div>
 
   <div id="gameOver">
@@ -279,7 +291,7 @@
 
     function adjustCanvasSize() {
       var maxWidth = window.innerWidth - 40;
-      var maxHeight = window.innerHeight - 300;
+      var maxHeight = window.innerHeight - 400; // More space for controls below
       var size = Math.min(600, maxWidth, maxHeight);
       
       canvas.width = size;
@@ -331,10 +343,22 @@
       }
 
       var key = e.key.toUpperCase();
-      if (key === 'W' || key === 'ARROWUP') nextDirection = 'UP';
-      else if (key === 'S' || key === 'ARROWDOWN') nextDirection = 'DOWN';
-      else if (key === 'A' || key === 'ARROWLEFT') nextDirection = 'LEFT';
-      else if (key === 'D' || key === 'ARROWRIGHT') nextDirection = 'RIGHT';
+      if (key === 'W' || key === 'ARROWUP') {
+        nextDirection = 'UP';
+        gameAudio.playMove();
+      }
+      else if (key === 'S' || key === 'ARROWDOWN') {
+        nextDirection = 'DOWN';
+        gameAudio.playMove();
+      }
+      else if (key === 'A' || key === 'ARROWLEFT') {
+        nextDirection = 'LEFT';
+        gameAudio.playMove();
+      }
+      else if (key === 'D' || key === 'ARROWRIGHT') {
+        nextDirection = 'RIGHT';
+        gameAudio.playMove();
+      }
     });
 
     function initGame() {
@@ -406,6 +430,7 @@
       if (newX < 0 || newX >= GRID_SIZE || newY < 0 || newY >= GRID_SIZE) {
         gameState.wallsHit++;
         gameState.currentScore--;
+        gameAudio.playHit();
         
         if (gameState.currentScore <= -50) {
           endGame();
@@ -420,6 +445,7 @@
       if (hitWall) {
         gameState.wallsHit++;
         gameState.currentScore--;
+        gameAudio.playHit();
         
         if (gameState.currentScore <= -50) {
           endGame();
@@ -463,6 +489,7 @@
           });
           gameState.wallsSurvived++;
           gameState.currentScore++;
+          gameAudio.playScore();
           return false;
         }
         return true;
@@ -566,6 +593,8 @@
     }
 
     function showGameOver() {
+      gameAudio.playGameOver();
+      
       document.getElementById('finalScore').textContent = gameState.currentScore;
       document.getElementById('finalWalls').textContent = gameState.wallsSurvived;
       document.getElementById('finalHits').textContent = gameState.wallsHit;
@@ -580,7 +609,7 @@
       document.getElementById('startScreen').style.display = 'none';
       document.getElementById('gameCanvas').style.display = 'block';
       document.getElementById('controls').style.display = 'block';
-      document.getElementById('hud').style.display = 'block';
+      document.getElementById('hud').style.display = 'flex'; // Changed to flex
       document.getElementById('mobile-controls').style.display = 'grid';
       initGame();
     }
@@ -600,8 +629,6 @@
       }
     });
 
-
-    // 1. ADD GAMEAUDIO CLASS (same as multiplayer - paste entire class here)
     class GameAudio {
       constructor() {
         this.audioContext = null;
@@ -708,120 +735,9 @@
 
     const gameAudio = new GameAudio();
 
-    // 2. ADD MUTE BUTTON TO HUD
-    // In the #hud div, add:
-    /*
-    <button onclick="toggleSound()" id="soundBtn" style="width:100%;margin:8px 0;padding:8px;background:#2a2f6b;border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:13px;">
-      🔊 Sound ON
-    </button>
-    */
-
-    // 3. ADD TOGGLE FUNCTION
     function toggleSound() {
       var enabled = gameAudio.toggle();
       document.getElementById('soundBtn').textContent = enabled ? '🔊 Sound ON' : '🔇 Sound OFF';
-    }
-
-    // 4. UPDATE KEYDOWN HANDLER (add sound to direction changes)
-    document.addEventListener('keydown', function(e) {
-      if (!gameStarted || gameState.gameOver) return;
-
-      if (e.key === 'Escape') {
-        endGame();
-        return;
-      }
-
-      var key = e.key.toUpperCase();
-      if (key === 'W' || key === 'ARROWUP') {
-        nextDirection = 'UP';
-        gameAudio.playMove(); // ADD THIS
-      }
-      else if (key === 'S' || key === 'ARROWDOWN') {
-        nextDirection = 'DOWN';
-        gameAudio.playMove(); // ADD THIS
-      }
-      else if (key === 'A' || key === 'ARROWLEFT') {
-        nextDirection = 'LEFT';
-        gameAudio.playMove(); // ADD THIS
-      }
-      else if (key === 'D' || key === 'ARROWRIGHT') {
-        nextDirection = 'RIGHT';
-        gameAudio.playMove(); // ADD THIS
-      }
-    });
-
-    // 5. UPDATE updateGame() TO DETECT HITS
-    function updateGame() {
-      currentDirection = nextDirection;
-      gameState.player.direction = currentDirection;
-      
-      var newX = gameState.player.x;
-      var newY = gameState.player.y;
-      
-      if (currentDirection === 'UP') newY--;
-      else if (currentDirection === 'DOWN') newY++;
-      else if (currentDirection === 'LEFT') newX--;
-      else if (currentDirection === 'RIGHT') newX++;
-      
-      if (newX < 0 || newX >= GRID_SIZE || newY < 0 || newY >= GRID_SIZE) {
-        gameState.wallsHit++;
-        gameState.currentScore--;
-        gameAudio.playHit(); // ADD THIS
-        
-        if (gameState.currentScore <= -50) {
-          endGame();
-        }
-        return;
-      }
-      
-      var hitWall = gameState.walls.some(function(w) {
-        return w.x === newX && w.y === newY;
-      });
-      
-      if (hitWall) {
-        gameState.wallsHit++;
-        gameState.currentScore--;
-        gameAudio.playHit(); // ADD THIS
-        
-        if (gameState.currentScore <= -50) {
-          endGame();
-        }
-        return;
-      }
-      
-      gameState.player.x = newX;
-      gameState.player.y = newY;
-    }
-
-    // 6. UPDATE updateCountdownWalls() TO PLAY SCORE SOUND
-    function updateCountdownWalls() {
-      gameState.countdownWalls = gameState.countdownWalls.filter(function(w) {
-        w.secondsLeft--;
-        if (w.secondsLeft <= 0) {
-          gameState.walls.push({
-            x: w.x,
-            y: w.y
-          });
-          gameState.wallsSurvived++;
-          gameState.currentScore++;
-          gameAudio.playScore(); // ADD THIS - wall spawned!
-          return false;
-        }
-        return true;
-      });
-    }
-
-    // 7. UPDATE showGameOver() TO PLAY GAME OVER SOUND
-    function showGameOver() {
-      gameAudio.playGameOver(); // ADD THIS
-      
-      document.getElementById('finalScore').textContent = gameState.currentScore;
-      document.getElementById('finalWalls').textContent = gameState.wallsSurvived;
-      document.getElementById('finalHits').textContent = gameState.wallsHit;
-      var elapsed = Math.floor((Date.now() - gameState.startTime) / 1000);
-      document.getElementById('finalTime').textContent = elapsed + 's';
-      
-      document.getElementById('gameOver').style.display = 'block';
     }
   </script>
 </body>
