@@ -24,6 +24,9 @@ let gameState = {
 let currentDirection = 'UP';
 let nextDirection = 'UP';
 let gameStarted = false;
+let gameLoopInterval = null;
+let wallSpawnInterval = null;
+let countdownInterval = null;
 
 // Input handling
 document.addEventListener('keydown', (e) => {
@@ -62,7 +65,12 @@ function initGame() {
 
 // Game loop
 function startGameLoop() {
-  setInterval(() => {
+  // Clear any existing intervals
+  if (gameLoopInterval) clearInterval(gameLoopInterval);
+  if (wallSpawnInterval) clearInterval(wallSpawnInterval);
+  if (countdownInterval) clearInterval(countdownInterval);
+  
+  gameLoopInterval = setInterval(() => {
     if (!gameState.gameOver) {
       updateGame();
       render();
@@ -71,14 +79,14 @@ function startGameLoop() {
   }, TICK_RATE);
   
   // Wall spawn timer
-  setInterval(() => {
+  wallSpawnInterval = setInterval(() => {
     if (!gameState.gameOver) {
       spawnWall();
     }
   }, WALL_SPAWN_INTERVAL);
   
   // Countdown wall timer
-  setInterval(() => {
+  countdownInterval = setInterval(() => {
     if (!gameState.gameOver) {
       updateCountdownWalls();
     }
@@ -237,6 +245,11 @@ async function endGame() {
   if (gameState.gameOver) return;
   gameState.gameOver = true;
   
+  // Stop all intervals
+  if (gameLoopInterval) clearInterval(gameLoopInterval);
+  if (wallSpawnInterval) clearInterval(wallSpawnInterval);
+  if (countdownInterval) clearInterval(countdownInterval);
+  
   const survivalTime = Math.floor((Date.now() - gameState.startTime) / 1000);
   
   // Save to backend
@@ -296,6 +309,7 @@ function getCookie(name) {
 }
 
 function startGame() {
+  console.log('Start game clicked!');
   gameStarted = true;
   document.getElementById('startScreen').style.display = 'none';
   document.getElementById('gameCanvas').style.display = 'block';
@@ -304,5 +318,5 @@ function startGame() {
   initGame();
 }
 
-// Don't auto-start - wait for button click
-// initGame();
+// Make startGame globally accessible
+window.startGame = startGame;
