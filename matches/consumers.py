@@ -64,6 +64,7 @@ class GameEngine:
     def tick(self):
         self.tickNumber += 1
         
+        # Calculate new positions for all players
         newPositions = {}
         
         for userId, player in self.players.items():
@@ -83,39 +84,49 @@ class GameEngine:
             
             newPositions[userId] = (newX, newY)
         
+        # Process each player's move
         for userId, (newX, newY) in newPositions.items():
             player = self.players[userId]
             
-            # FIXED: Check wall/edge hit - boundaries are 0 to gridSize-1
+            # CRITICAL FIX: Check boundaries FIRST before any other collision
+            # Grid boundaries are 0 to gridSize-1 (inclusive)
             if newX < 0 or newX >= self.gridSize or newY < 0 or newY >= self.gridSize:
                 self.handleWallHit(userId)
+                # Don't update position - player stays where they are
                 continue
             
+            # Check wall collision
             if any(w['x'] == newX and w['y'] == newY for w in self.walls):
                 self.handleWallHit(userId)
+                # Don't update position
                 continue
             
+            # Check player-to-player collisions
             collision = False
             for otherId, otherPlayer in self.players.items():
-                if otherId != userId and otherPlayer['alive']:
-                    if otherId in newPositions:
-                        otherNewX, otherNewY = newPositions[otherId]
-                        # Head-on collision
-                        if newX == otherNewX and newY == otherNewY:
-                            self.handleWallHit(userId)
-                            self.handleWallHit(otherId)
-                            collision = True
-                            break
-                    
-                    # Hit another player from side/back
-                    if newX == otherPlayer['x'] and newY == otherPlayer['y']:
-                        self.handlePlayerCollision(attackerId=userId, victimId=otherId)
+                if otherId == userId or not otherPlayer['alive']:
+                    continue
+                
+                if otherId in newPositions:
+                    otherNewX, otherNewY = newPositions[otherId]
+                    # Head-on collision (both moving to same spot)
+                    if newX == otherNewX and newY == otherNewY:
+                        self.handleWallHit(userId)
+                        self.handleWallHit(otherId)
                         collision = True
                         break
+                
+                # Hit another player from side/back (moving into their current position)
+                if newX == otherPlayer['x'] and newY == otherPlayer['y']:
+                    self.handlePlayerCollision(attackerId=userId, victimId=otherId)
+                    collision = True
+                    break
             
             if collision:
+                # Don't update position
                 continue
             
+            # ONLY update position if no collision occurred
             player['x'] = newX
             player['y'] = newY
     
