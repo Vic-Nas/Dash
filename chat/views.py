@@ -11,7 +11,7 @@ import json
 @login_required
 def globalChat(request):
     """Global chat room"""
-    messages = GlobalChatMessage.objects.select_related('user').all()[:100]
+    messages = GlobalChatMessage.objects.select_related('user').order_by('createdAt')[:100]
     
     context = {
         'messages': messages,
@@ -23,21 +23,29 @@ def globalChat(request):
 @login_required
 def pollGlobalMessages(request):
     """Poll for new messages after a given ID"""
-    afterId = int(request.GET.get('after', 0))
-    
-    messages = GlobalChatMessage.objects.filter(id__gt=afterId).select_related('user').order_by('id')[:50]
-    
-    messagesList = [{
-        'id': msg.id,
-        'username': msg.user.username,
-        'message': msg.message,
-        'time': msg.createdAt.strftime('%H:%M')
-    } for msg in messages]
-    
-    return JsonResponse({
-        'success': True,
-        'messages': messagesList
-    })
+    try:
+        afterId = int(request.GET.get('after', 0))
+        
+        messages = GlobalChatMessage.objects.filter(
+            id__gt=afterId
+        ).select_related('user').order_by('id')[:50]
+        
+        messagesList = [{
+            'id': msg.id,
+            'username': msg.user.username,
+            'message': msg.message,
+            'time': msg.createdAt.strftime('%H:%M')
+        } for msg in messages]
+        
+        return JsonResponse({
+            'success': True,
+            'messages': messagesList
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
 
 
 @login_required
@@ -48,8 +56,11 @@ def sendGlobalMessage(request):
         data = json.loads(request.body)
         message = data.get('message', '').strip()
         
-        if not message or len(message) > 500:
-            return JsonResponse({'success': False, 'error': 'Invalid message'}, status=400)
+        if not message:
+            return JsonResponse({'success': False, 'error': 'Empty message'}, status=400)
+            
+        if len(message) > 500:
+            return JsonResponse({'success': False, 'error': 'Message too long'}, status=400)
         
         chatMessage = GlobalChatMessage.objects.create(
             user=request.user,
@@ -94,7 +105,7 @@ def directMessages(request):
         lastMessage = DirectMessage.objects.filter(
             Q(sender=request.user, recipient=user) | 
             Q(sender=user, recipient=request.user)
-        ).first()
+        ).order_by('-createdAt').first()
         
         conversations.append({
             'user': user,
@@ -142,28 +153,42 @@ def conversation(request, userId):
 @login_required
 def pollConversationMessages(request, userId):
     """Poll for new messages after a given ID"""
-    User = get_user_model()
-    otherUser = get_object_or_404(User, id=userId)
-    afterId = int(request.GET.get('after', 0))
-    
-    messages = DirectMessage.objects.filter(
-        Q(sender=request.user, recipient=otherUser) |
-        Q(sender=otherUser, recipient=request.user),
-        id__gt=afterId
-    ).select_related('sender').order_by('id')[:50]
-    
-    messagesList = [{
-        'id': msg.id,
-        'sender': msg.sender.username,
-        'message': msg.message,
-        'time': msg.createdAt.strftime('%H:%M'),
-        'isSent': msg.sender == request.user
-    } for msg in messages]
-    
-    return JsonResponse({
-        'success': True,
-        'messages': messagesList
-    })
+    try:
+        User = get_user_model()
+        otherUser = get_object_or_404(User, id=userId)
+        afterId = int(request.GET.get('after', 0))
+        
+        messages = DirectMessage.objects.filter(
+            Q(sender=request.user, recipient=otherUser) |
+            Q(sender=otherUser, recipient=request.user),
+            id__gt=afterId
+        ).select_related('sender').order_by('id')[:50]
+        
+        # Mark new messages from other user as read
+        DirectMessage.objects.filter(
+            sender=otherUser,
+            recipient=request.user,
+            isRead=False,
+            id__gt=afterId
+        ).update(isRead=True)
+        
+        messagesList = [{
+            'id': msg.id,
+            'sender': msg.sender.username,
+            'message': msg.message,
+            'time': msg.createdAt.strftime('%H:%M'),
+            'isSent': msg.sender == request.user
+        } for msg in messages]
+        
+        return JsonResponse({
+            'success': True,
+            'messages': messagesList
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
 
 
 @login_required
@@ -175,8 +200,11 @@ def sendDirectMessage(request):
         recipientId = data.get('recipientId')
         message = data.get('message', '').strip()
         
-        if not message or len(message) > 1000:
-            return JsonResponse({'success': False, 'error': 'Invalid message'}, status=400)
+        if not message:
+            return JsonResponse({'success': False, 'error': 'Empty message'}, status=400)
+            
+        if len(message) > 1000:
+            return JsonResponse({'success': False, 'error': 'Message too long'}, status=400)
         
         User = get_user_model()
         recipient = get_object_or_404(User, id=recipientId)

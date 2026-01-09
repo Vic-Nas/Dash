@@ -11,7 +11,7 @@ class GlobalChatMessage(models.Model):
     createdAt = models.DateTimeField(auto_now_add=True)
     
     class Meta:
-        ordering = ['-createdAt']
+        ordering = ['createdAt']  # FIXED: Ascending order (oldest first)
     
     def __str__(self):
         return f"{self.user.username}: {self.message[:50]}"
@@ -26,7 +26,7 @@ class DirectMessage(models.Model):
     createdAt = models.DateTimeField(auto_now_add=True)
     
     class Meta:
-        ordering = ['-createdAt']
+        ordering = ['createdAt']  # FIXED: Ascending order (oldest first)
     
     def __str__(self):
         return f"{self.sender.username} → {self.recipient.username}"
@@ -38,11 +38,19 @@ def sendWelcomeMessage(sender, instance, created, **kwargs):
     if created:
         try:
             adminUser = get_user_model().objects.get(username='admin')
-            DirectMessage.objects.create(
+            # Only create if welcome message doesn't already exist
+            existingWelcome = DirectMessage.objects.filter(
                 sender=adminUser,
                 recipient=instance,
-                message='Hello! Welcome to Dash Arena. Feel free to ask questions and make suggestions here.'
-            )
+                message__icontains='Welcome to Dash Arena'
+            ).exists()
+            
+            if not existingWelcome:
+                DirectMessage.objects.create(
+                    sender=adminUser,
+                    recipient=instance,
+                    message='Hello! Welcome to Dash Arena. Feel free to ask questions and make suggestions here.'
+                )
         except get_user_model().DoesNotExist:
             # Admin doesn't exist yet
             pass
