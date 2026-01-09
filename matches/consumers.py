@@ -13,10 +13,11 @@ from shop.models import Transaction
 ACTIVE_GAMES = {}
 
 class GameEngine:
-    def __init__(self, matchId, gridSize, speed):
+    def __init__(self, matchId, gridSize, speed, wallSpawnInterval):
         self.matchId = matchId
         self.gridSize = gridSize
         self.speed = speed
+        self.wallSpawnInterval = wallSpawnInterval  # Use match type's interval
         
         # Speed to tick rate mapping (ms)
         speedMap = {'SLOW': 200, 'MEDIUM': 150, 'FAST': 100, 'EXTREME': 75}
@@ -51,7 +52,7 @@ class GameEngine:
             'direction': random.choice(['UP', 'DOWN', 'LEFT', 'RIGHT']),
             'alive': True,
             'playerColor': playerColor,
-            'score': 0,  # NEW: Track score
+            'score': 0,
         }
     
     def updateDirection(self, userId, direction):
@@ -113,7 +114,6 @@ class GameEngine:
                     # Hit from side/back (colliding with other player's current position)
                     if newX == otherPlayer['x'] and newY == otherPlayer['y']:
                         # Other player gets hit and eliminated
-                        # Hitter gets other player's score (min 0)
                         self.handlePlayerCollision(attackerId=userId, victimId=otherId)
                         collision = True
                         break
@@ -220,10 +220,10 @@ class GameEngine:
                 await asyncio.sleep(1)
                 self.updateCountdownWalls()
         
-        # Wall spawn loop
+        # Wall spawn loop - use match's wallSpawnInterval
         async def spawnLoop():
             while self.running:
-                await asyncio.sleep(3)
+                await asyncio.sleep(self.wallSpawnInterval)
                 self.spawnWall()
         
         self.task = asyncio.create_task(gameLoop())
@@ -287,7 +287,8 @@ class GameConsumer(AsyncWebsocketConsumer):
             engine = GameEngine(
                 self.matchId,
                 match.gridSize,
-                match.speed
+                match.speed,
+                match.matchType.wallSpawnInterval  # Pass the interval from match type
             )
             ACTIVE_GAMES[self.matchId] = engine
         
@@ -306,11 +307,44 @@ class GameConsumer(AsyncWebsocketConsumer):
             'playerColor': playerColor
         }))
         
-        # If match should start, start it
+        # Check match status
         match = await self.getMatch()
+        
+        # If match is STARTING and game hasn't started yet, wait for countdown
         if match.status == 'STARTING' and not engine.running:
+            # Send countdown message
+            await self.send(text_data=json.dumps({
+                'type': 'countdown',
+                'seconds': 10
+            }))
+            
+            # Schedule game start after 10 seconds
+            asyncio.create_task(self.startGameAfterCountdown(engine))
+        
+        # If match is already IN_PROGRESS, start immediately
+        elif match.status == 'IN_PROGRESS' and not engine.running:
             await self.startMatch()
             await engine.start(self.broadcastState)
+    
+    async def startGameAfterCountdown(self, engine):
+        """Wait 10 seconds then start the game"""
+        # Broadcast countdown
+        for i in range(10, 0, -1):
+            await self.channel_layer.group_send(
+                self.roomGroupName,
+                {
+                    'type': 'gameState',
+                    'state': {
+                        'type': 'countdown',
+                        'seconds': i
+                    }
+                }
+            )
+            await asyncio.sleep(1)
+        
+        # Start the match
+        await self.startMatch()
+        await engine.start(self.broadcastState)
     
     async def disconnect(self, closeCode):
         await self.channel_layer.group_discard(

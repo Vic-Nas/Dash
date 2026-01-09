@@ -123,6 +123,12 @@
       font-size: 18px;
       color: #9ca3af;
     }
+    #countdownDisplay {
+      font-size: 72px;
+      font-weight: 700;
+      color: #5b7bff;
+      margin: 20px 0;
+    }
     #mobile-controls {
       margin-top: 10px;
       display: grid;
@@ -186,6 +192,7 @@
     <div id="waitingMsg">
       <h2 style="color:#5b7bff;margin-bottom:16px;">Match Starting...</h2>
       <p>Connecting to game server...</p>
+      <div id="countdownDisplay" style="display:none;"></div>
     </div>
     <canvas id="gameCanvas" width="800" height="800" style="display:none;"></canvas>
     
@@ -229,6 +236,7 @@
     var CELL_SIZE = 0;
     var botImages = {};
     var myPlayerColor = null;
+    var isGameStarted = false;
 
     function adjustCanvasSize() {
       var maxWidth = window.innerWidth - 40;
@@ -281,7 +289,7 @@
       
       socket.onopen = function() {
         console.log('Connected to game');
-        document.getElementById('waitingMsg').innerHTML = '<h2 style="color:#10b981;">Connected!</h2><p>Waiting for game to start...</p>';
+        document.getElementById('waitingMsg').innerHTML = '<h2 style="color:#10b981;">Connected!</h2><p>Waiting for game to start...</p><div id="countdownDisplay" style="display:none;"></div>';
       };
       
       socket.onmessage = function(event) {
@@ -292,14 +300,22 @@
           document.getElementById('yourColorStat').style.display = 'block';
           document.getElementById('yourColorBadge').style.backgroundColor = myPlayerColor;
           console.log('Your color:', myPlayerColor);
+        } else if (data.type === 'countdown') {
+          // Show countdown
+          var countdownEl = document.getElementById('countdownDisplay');
+          countdownEl.style.display = 'block';
+          countdownEl.textContent = data.seconds;
+          document.getElementById('waitingMsg').querySelector('p').textContent = 'Game starting in...';
         } else if (data.type === 'gameOver') {
           handleGameOver(data);
         } else {
+          // Regular game state
           gameState = data;
           render();
           updateHUD();
           
-          if (canvas.style.display === 'none') {
+          if (!isGameStarted) {
+            isGameStarted = true;
             adjustCanvasSize();
             document.getElementById('waitingMsg').style.display = 'none';
             canvas.style.display = 'block';
@@ -311,7 +327,7 @@
       
       socket.onerror = function(error) {
         console.error('WebSocket error:', error);
-        document.getElementById('waitingMsg').innerHTML = '<h2 style="color:#ef4444;">Connection Error</h2><p>Unable to connect to game server. Please check your connection and try refreshing.</p><button class="btn" onclick="location.href=\'/matches/multiplayer/\'">Back to Lobby</button>';
+        document.getElementById('waitingMsg').innerHTML = '<h2 style="color:#ef4444;">Connection Error</h2><p>Unable to connect to game server. Please check your connection and try refreshing.</p><button style="margin-top:16px;padding:12px 24px;background:#2a2f6b;color:#fff;border:none;border-radius:8px;cursor:pointer;" onclick="location.href=\'/matches/multiplayer/\'">Back to Lobby</button>';
       };
       
       socket.onclose = function() {
@@ -326,7 +342,7 @@
         return;
       }
 
-      if (!socket || socket.readyState !== WebSocket.OPEN) return;
+      if (!socket || socket.readyState !== WebSocket.OPEN || !isGameStarted) return;
       
       var direction = null;
       var key = e.key.toUpperCase();
