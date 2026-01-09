@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth import login, get_user_model
+from django.contrib.auth import login, get_user_model, logout
 from django.http import JsonResponse
 from .forms import SignUpForm
 from matches.models import MatchType
@@ -36,6 +36,13 @@ def dashboard(request):
         'topPlayers': topPlayers,
     }
     return render(request, 'accounts/dashboard.html', context)
+
+
+@login_required
+def customLogout(request):
+    """Custom logout view that accepts GET requests"""
+    logout(request)
+    return redirect('login')
 
 
 @login_required
