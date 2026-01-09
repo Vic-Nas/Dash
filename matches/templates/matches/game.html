@@ -90,16 +90,6 @@
     const TICK_RATE = 150;
     const WALL_SPAWN_INTERVAL = 3000;
 
-    // Random color palette for this game session
-    const COLOR_PALETTES = [
-      { bg: '#1a1d35', grid: '#2a2f6b', wall: '#ef4444', player: '#5b7bff' },
-      { bg: '#1a2332', grid: '#2d4356', wall: '#f59e0b', player: '#10b981' },
-      { bg: '#2d1b2e', grid: '#4a2f4d', wall: '#ec4899', player: '#8b5cf6' },
-      { bg: '#1f2937', grid: '#374151', wall: '#dc2626', player: '#3b82f6' },
-      { bg: '#172430', grid: '#2c4456', wall: '#f97316', player: '#06b6d4' },
-    ];
-    const PALETTE = COLOR_PALETTES[Math.floor(Math.random() * COLOR_PALETTES.length)];
-
     let gameState = {
       player: { x: 10, y: 10, direction: 'UP', alive: true },
       walls: [],
@@ -117,9 +107,9 @@
     let gameLoopInterval = null;
     let wallSpawnInterval = null;
     let countdownInterval = null;
-
-    // Bot skin image (default arrow pointing up)
     let botImage = null;
+
+    // Create default bot skin (arrow pointing UP)
     function createBotImage() {
       const size = 64;
       const img = document.createElement('canvas');
@@ -128,7 +118,7 @@
       const c = img.getContext('2d');
       
       // Draw arrow pointing UP
-      c.fillStyle = PALETTE.player;
+      c.fillStyle = '#5b7bff';
       c.beginPath();
       c.moveTo(size/2, size*0.2);
       c.lineTo(size*0.8, size*0.5);
@@ -219,19 +209,17 @@
       else if (currentDirection === 'LEFT') newX--;
       else if (currentDirection === 'RIGHT') newX++;
       
-      // Check boundaries - treat as wall hit, deduct coins
+      // FIXED: Edges act like walls - deduct coins and bounce back
       if (newX < 0 || newX >= GRID_SIZE || newY < 0 || newY >= GRID_SIZE) {
         gameState.wallsHit++;
-        // Bounce back - don't move
-        return;
+        return; // Don't move, just bounce
       }
       
-      // Check wall collision - deduct coins
+      // FIXED: Wall collision - deduct coins and bounce back
       const hitWall = gameState.walls.some(w => w.x === newX && w.y === newY);
       if (hitWall) {
         gameState.wallsHit++;
-        // Bounce back - don't move
-        return;
+        return; // Don't move, just bounce
       }
       
       // Update position only if valid
@@ -274,12 +262,12 @@
     }
 
     function render() {
-      // Clear with palette background
-      ctx.fillStyle = PALETTE.bg;
+      // Clear canvas
+      ctx.fillStyle = '#121428';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
       // Draw grid
-      ctx.strokeStyle = PALETTE.grid;
+      ctx.strokeStyle = '#23264a';
       ctx.lineWidth = 1;
       for (let i = 0; i <= GRID_SIZE; i++) {
         ctx.beginPath();
@@ -293,21 +281,17 @@
         ctx.stroke();
       }
       
-      // Draw edge walls (visual indicator)
-      ctx.fillStyle = PALETTE.wall;
-      ctx.globalAlpha = 0.3;
-      // Top edge
+      // Draw edge indicators (so players know edges are walls)
+      ctx.fillStyle = '#ef4444';
+      ctx.globalAlpha = 0.2;
       ctx.fillRect(0, 0, canvas.width, 4);
-      // Bottom edge
       ctx.fillRect(0, canvas.height - 4, canvas.width, 4);
-      // Left edge
       ctx.fillRect(0, 0, 4, canvas.height);
-      // Right edge
       ctx.fillRect(canvas.width - 4, 0, 4, canvas.height);
       ctx.globalAlpha = 1.0;
       
       // Draw walls
-      ctx.fillStyle = PALETTE.wall;
+      ctx.fillStyle = '#ef4444';
       gameState.walls.forEach(w => {
         ctx.fillRect(w.x * CELL_SIZE + 2, w.y * CELL_SIZE + 2, CELL_SIZE - 4, CELL_SIZE - 4);
       });
@@ -315,8 +299,7 @@
       // Draw countdown walls
       gameState.countdownWalls.forEach(w => {
         const alpha = 0.3 + (0.7 * (3 - w.secondsLeft) / 3);
-        const rgb = hexToRgb(PALETTE.wall);
-        ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+        ctx.fillStyle = `rgba(239, 68, 68, ${alpha})`;
         ctx.fillRect(w.x * CELL_SIZE + 2, w.y * CELL_SIZE + 2, CELL_SIZE - 4, CELL_SIZE - 4);
         
         ctx.fillStyle = '#fff';
@@ -326,14 +309,14 @@
         ctx.fillText(w.secondsLeft, (w.x + 0.5) * CELL_SIZE, (w.y + 0.5) * CELL_SIZE);
       });
       
-      // Draw player with rotation
+      // FIXED: Draw player with rotation based on direction
       const px = gameState.player.x * CELL_SIZE + CELL_SIZE / 2;
       const py = gameState.player.y * CELL_SIZE + CELL_SIZE / 2;
       
       ctx.save();
       ctx.translate(px, py);
       
-      // Rotate based on direction
+      // Rotate image based on direction
       let angle = 0;
       if (currentDirection === 'DOWN') angle = Math.PI;
       else if (currentDirection === 'LEFT') angle = -Math.PI / 2;
@@ -341,20 +324,11 @@
       
       ctx.rotate(angle);
       
-      // Draw bot image centered
+      // Draw bot image (centered and rotated)
       const drawSize = CELL_SIZE - 8;
       ctx.drawImage(botImage, -drawSize/2, -drawSize/2, drawSize, drawSize);
       
       ctx.restore();
-    }
-
-    function hexToRgb(hex) {
-      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-      return result ? {
-        r: parseInt(result[1], 16),
-        g: parseInt(result[2], 16),
-        b: parseInt(result[3], 16)
-      } : {r: 255, g: 255, b: 255};
     }
 
     function updateHUD() {
