@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login, get_user_model
+from django.http import JsonResponse
 from .forms import SignUpForm
 from matches.models import MatchType
 from accounts.models import Profile
@@ -53,3 +54,12 @@ def publicProfile(request, username):
         'currentUserProfile': request.user.profile,
     }
     return render(request, 'accounts/public_profile.html', context)
+
+
+@login_required
+def profileSearch(request):
+    """Search for a user by username and redirect to profile"""
+    username = request.GET.get('username', '').strip()
+    if username:
+        return redirect('publicProfile', username=username)
+    return redirect('dashboard')

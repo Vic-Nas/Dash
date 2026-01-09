@@ -7,6 +7,7 @@ urlpatterns = [
     path('global/send/', views.sendGlobalMessage, name='sendGlobalMessage'),
     path('messages/', views.directMessages, name='directMessages'),
     path('messages/<int:userId>/', views.conversation, name='conversation'),
+    path('messages/<int:userId>/poll/', views.pollConversationMessages, name='pollConversationMessages'),
     path('messages/send/', views.sendDirectMessage, name='sendDirectMessage'),
     path('messages/unread/', views.unreadCount, name='unreadCount'),
 ]

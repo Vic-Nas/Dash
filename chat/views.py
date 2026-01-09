@@ -140,6 +140,33 @@ def conversation(request, userId):
 
 
 @login_required
+def pollConversationMessages(request, userId):
+    """Poll for new messages after a given ID"""
+    User = get_user_model()
+    otherUser = get_object_or_404(User, id=userId)
+    afterId = int(request.GET.get('after', 0))
+    
+    messages = DirectMessage.objects.filter(
+        Q(sender=request.user, recipient=otherUser) |
+        Q(sender=otherUser, recipient=request.user),
+        id__gt=afterId
+    ).select_related('sender').order_by('id')[:50]
+    
+    messagesList = [{
+        'id': msg.id,
+        'sender': msg.sender.username,
+        'message': msg.message,
+        'time': msg.createdAt.strftime('%H:%M'),
+        'isSent': msg.sender == request.user
+    } for msg in messages]
+    
+    return JsonResponse({
+        'success': True,
+        'messages': messagesList
+    })
+
+
+@login_required
 @require_POST
 def sendDirectMessage(request):
     """Send direct message to user"""

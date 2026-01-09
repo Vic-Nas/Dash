@@ -49,7 +49,7 @@
 
       <div class="messages" id="messageList">
         {% for msg in messages %}
-        <div class="message {% if msg.sender == user %}sent{% else %}received{% endif %}">
+        <div class="message {% if msg.sender == user %}sent{% else %}received{% endif %}" data-msgId="{{ msg.id }}">
           <div class="message-sender">
             {% if msg.sender == user %}You{% else %}{{ msg.sender.username }}{% endif %}
           </div>
@@ -115,6 +115,7 @@
           // Add message to UI
           const msgDiv = document.createElement('div');
           msgDiv.className = 'message sent';
+          msgDiv.dataset.msgId = data.message.id;
           msgDiv.innerHTML = `
             <div class="message-sender">You</div>
             <div class="message-bubble">
@@ -134,10 +135,38 @@
       }
     }
 
-    // Poll for new messages every 3 seconds
-    setInterval(() => {
-      location.reload();
-    }, 3000);
+    // Poll for new messages without reloading page
+    async function pollMessages() {
+      const lastMsgElement = document.querySelector('.message:last-child');
+      const lastMsgId = lastMsgElement ? parseInt(lastMsgElement.dataset.msgId || 0) : 0;
+      
+      try {
+        const response = await fetch(`/chat/messages/${recipientId}/poll/?after=${lastMsgId}`);
+        const data = await response.json();
+        
+        if (data.success && data.messages && data.messages.length > 0) {
+          for (const msg of data.messages) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'message ' + (msg.isSent ? 'sent' : 'received');
+            msgDiv.dataset.msgId = msg.id;
+            msgDiv.innerHTML = `
+              <div class="message-sender">${msg.isSent ? 'You' : msg.sender}</div>
+              <div class="message-bubble">
+                <div class="message-text">${msg.message}</div>
+                <div class="message-time">${msg.time}</div>
+              </div>
+            `;
+            messageList.appendChild(msgDiv);
+          }
+          messageList.scrollTop = messageList.scrollHeight;
+        }
+      } catch (error) {
+        console.error('Error polling messages:', error);
+      }
+    }
+    
+    // Poll every 2 seconds instead of reloading
+    setInterval(pollMessages, 2000);
   </script>
 </body>
 </html>

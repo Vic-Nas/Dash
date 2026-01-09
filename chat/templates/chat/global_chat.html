@@ -43,7 +43,7 @@
     <div class="chat-container">
       <div class="messages" id="messageList">
         {% for msg in messages reversed %}
-        <div class="message" data-msg-id="{{ msg.id }}">
+        <div class="message" data-msgId="{{ msg.id }}">
           <div class="message-header">
             <a href="/profile/{{ msg.user.username }}/" class="username">{{ msg.user.username }}</a>
             <span class="timestamp">{{ msg.createdAt|date:"H:i" }}</span>
