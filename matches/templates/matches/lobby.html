@@ -146,7 +146,9 @@
 
     // Calculate and display force cost
     window.addEventListener('DOMContentLoaded', function() {
-      const missing = {{ match.playersRequired|add:"-"|add:match.currentPlayers }};
+      const playersRequired = {{ match.playersRequired }};
+      const currentPlayers = {{ match.currentPlayers }};
+      const missing = playersRequired - currentPlayers;
       const forceCost = {{ match.matchType.entryFee|floatformat:0 }};
       const totalCost = missing * forceCost;
       const costElement = document.getElementById('forceCostTotal');
