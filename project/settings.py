@@ -212,8 +212,9 @@ else:
     
 X_FRAME_OPTIONS = 'ALLOWALL'
 
-# Cookie settings for cross-site iframe (itch.io)
-CSRF_COOKIE_SAMESITE = 'None'
-CSRF_COOKIE_SECURE = True
+# Use session-based CSRF instead of cookies for iframe compatibility
+CSRF_USE_SESSIONS = True  # Store CSRF token in session, not cookie
+
+# But still need session cookies to work in iframe
 SESSION_COOKIE_SAMESITE = 'None'
 SESSION_COOKIE_SECURE = True
