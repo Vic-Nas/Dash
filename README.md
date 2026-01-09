@@ -5,7 +5,6 @@
 ### Core Mechanics
 - Bots move continuously in their facing direction
 - Players change direction with arrow keys/WASD
-- Walls spawn every 3 seconds with countdown
 
 ### Scoring
 - **+1 point** when a wall spawns (all alive players)
@@ -17,11 +16,13 @@
 - Score = coins gained/lost
 - Game ends at -50 coins
 - No entry fee
+- Walls spawn every 3 seconds with countdown
 
 ### Multiplayer
 - Entry fee required
 - Winner takes full pot
 - Last player standing wins
+- Walls spawn every 5 seconds with countdown
 
 ---
 
