@@ -23,10 +23,11 @@ let gameState = {
 
 let currentDirection = 'UP';
 let nextDirection = 'UP';
+let gameStarted = false;
 
 // Input handling
 document.addEventListener('keydown', (e) => {
-  if (gameState.gameOver) return;
+  if (!gameStarted || gameState.gameOver) return;
 
   // ESC to quit
   if (e.key === 'Escape') {
@@ -294,5 +295,14 @@ function getCookie(name) {
   if (parts.length === 2) return parts.pop().split(';').shift();
 }
 
-// Start game when page loads
-initGame();
+function startGame() {
+  gameStarted = true;
+  document.getElementById('startScreen').style.display = 'none';
+  document.getElementById('gameCanvas').style.display = 'block';
+  document.getElementById('controls').style.display = 'block';
+  document.getElementById('hud').style.display = 'block';
+  initGame();
+}
+
+// Don't auto-start - wait for button click
+// initGame();

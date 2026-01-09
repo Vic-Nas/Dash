@@ -24,8 +24,21 @@
 </head>
 <body>
   <div id="gameContainer">
-    <canvas id="gameCanvas" width="600" height="600"></canvas>
-    <div class="controls">Arrow Keys or WASD to change direction • ESC to quit</div>
+    <canvas id="gameCanvas" width="600" height="600" style="display:none;"></canvas>
+    <div id="startScreen" style="text-align:center;">
+      <h1 style="font-size:48px;margin-bottom:16px;color:#5b7bff;">Solo Mode</h1>
+      <p style="color:#9ca3af;margin-bottom:32px;font-size:18px;">Use Arrow Keys or WASD to move • Survive as long as possible!</p>
+      <button onclick="startGame()" style="background:#2a2f6b;color:#fff;border:none;padding:16px 48px;border-radius:8px;cursor:pointer;font-size:20px;font-weight:600;">Start Game</button>
+      <div style="margin-top:32px;color:#9ca3af;font-size:14px;">
+        <div style="margin:8px 0;">🎯 10 walls: +5 coins</div>
+        <div style="margin:8px 0;">🎯 20 walls: +15 coins</div>
+        <div style="margin:8px 0;">🎯 30 walls: +30 coins</div>
+        <div style="margin:8px 0;">🎯 40 walls: +50 coins</div>
+        <div style="margin:8px 0;">🎯 50+ walls: +75 coins</div>
+        <div style="margin:16px 0;color:#ef4444;">⚠️ Wall hit: -3 coins</div>
+      </div>
+    </div>
+    <div class="controls" style="display:none;" id="controls">Arrow Keys or WASD to change direction • ESC to quit</div>
   </div>
 
   <div id="hud">

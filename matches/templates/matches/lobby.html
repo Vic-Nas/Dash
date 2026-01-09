@@ -98,12 +98,44 @@
       {% endif %}
 
       <div class="actions">
-        <a href="/matches/multiplayer/" class="btn">Leave Lobby</a>
+        <button class="btn" onclick="leaveLobby()" style="background:#991b1b;">Leave Lobby</button>
       </div>
     </div>
   </div>
 
   <script>
+    function getCookie(name) {
+      let value = '; ' + document.cookie;
+      let parts = value.split('; ' + name + '=');
+      if (parts.length === 2) return parts.pop().split(';').shift();
+    }
+
+    async function leaveLobby() {
+      if (!confirm('Leave lobby and get refunded?')) return;
+
+      try {
+        const response = await fetch('/matches/leave-lobby/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+          },
+          body: JSON.stringify({ matchId: {{ match.id }} })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          alert(data.message);
+          window.location.href = '/matches/multiplayer/';
+        } else {
+          alert('Error: ' + data.error);
+        }
+      } catch (error) {
+        alert('Error: ' + error.message);
+      }
+    }
+
     // Auto-refresh to check match status
     {% if match.status == 'WAITING' or match.status == 'STARTING' %}
     setInterval(() => {

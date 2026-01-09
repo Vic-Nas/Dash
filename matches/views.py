@@ -249,3 +249,71 @@ def lobby(request, matchId):
         'profile': request.user.profile,
     }
     return render(request, 'matches/lobby.html', context)
+
+
+@login_required
+@require_POST
+def leaveLobby(request):
+    try:
+        data = json.loads(request.body)
+        matchId = data.get('matchId')
+        
+        match = get_object_or_404(Match, id=matchId)
+        
+        # Only allow leaving WAITING matches
+        if match.status != 'WAITING':
+            return JsonResponse({
+                'success': False,
+                'error': 'Cannot leave match that has already started'
+            })
+        
+        participation = get_object_or_404(
+            MatchParticipation,
+            match=match,
+            player=request.user
+        )
+        
+        with transaction.atomic():
+            # Lock profile
+            profile = request.user.profile
+            profile = type(profile).objects.select_for_update().get(pk=profile.pk)
+            
+            # Refund entry fee
+            balanceBefore = profile.coins
+            profile.coins = F('coins') + participation.entryFeePaid
+            profile.save(update_fields=['coins'])
+            profile.refresh_from_db()
+            balanceAfter = profile.coins
+            
+            # Update match
+            match.totalPot = F('totalPot') - participation.entryFeePaid
+            match.currentPlayers = F('currentPlayers') - 1
+            match.save(update_fields=['totalPot', 'currentPlayers'])
+            match.refresh_from_db()
+            
+            # Create refund transaction
+            Transaction.objects.create(
+                user=request.user,
+                amount=participation.entryFeePaid,
+                transactionType='REFUND',
+                relatedMatch=match,
+                description=f'Left lobby: {match.matchType.name}',
+                balanceBefore=balanceBefore,
+                balanceAfter=balanceAfter
+            )
+            
+            # Delete participation
+            participation.delete()
+            
+            # If match is now empty, delete it
+            if match.currentPlayers == 0:
+                match.delete()
+        
+        return JsonResponse({
+            'success': True,
+            'newBalance': float(balanceAfter),
+            'message': 'Left lobby and refunded'
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})

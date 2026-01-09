@@ -22,7 +22,7 @@
     .match-title{font-size:20px;font-weight:600;}
     .entry-fee{background:#2a2f6b;padding:6px 12px;border-radius:6px;font-size:14px;font-weight:600;}
     .match-desc{color:#9ca3af;font-size:14px;margin-bottom:16px;line-height:1.5;}
-    .match-stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;}
+    .match-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;}
     .stat{background:#1a1d35;padding:10px;border-radius:6px;text-align:center;}
     .stat-label{font-size:12px;color:#9ca3af;display:block;margin-bottom:4px;}
     .stat-value{font-size:16px;font-weight:600;}
@@ -57,6 +57,10 @@
           <div class="stat">
             <span class="stat-label">Players</span>
             <span class="stat-value">{{ mt.playersRequired }}-{{ mt.maxPlayers }}</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">In Lobby</span>
+            <span class="stat-value">{{ mt.waitingCount|default:0 }}</span>
           </div>
           <div class="stat">
             <span class="stat-label">Grid</span>
