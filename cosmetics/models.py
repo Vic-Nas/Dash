@@ -8,9 +8,6 @@ class BotSkin(models.Model):
     previewImage = models.ImageField(upload_to='skins/previews/', null=True, blank=True)
     colorPrimary = models.CharField(max_length=7)
     colorSecondary = models.CharField(max_length=7, null=True, blank=True)
-    trailEffect = models.CharField(max_length=16, null=True, blank=True, choices=[
-        ('NONE', 'NONE'), ('GLOW', 'GLOW'), ('SPARKLE', 'SPARKLE'), ('FIRE', 'FIRE'), ('ICE', 'ICE')
-    ])
     price = models.DecimalField(max_digits=12, decimal_places=2)
     isDefault = models.BooleanField(default=False)
     rarity = models.CharField(max_length=16, choices=[

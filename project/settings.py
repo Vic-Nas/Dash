@@ -65,7 +65,6 @@ INSTALLED_APPS = [
     'matches',
     'cosmetics',
     'shop',
-    'core',
 ]
 
 MIDDLEWARE = [
