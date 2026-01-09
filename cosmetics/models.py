@@ -6,8 +6,6 @@ class BotSkin(models.Model):
     name = models.CharField(max_length=50, unique=True)
     description = models.TextField()
     previewImage = models.ImageField(upload_to='skins/previews/', null=True, blank=True)
-    colorPrimary = models.CharField(max_length=7)
-    colorSecondary = models.CharField(max_length=7, null=True, blank=True)
     price = models.DecimalField(max_digits=12, decimal_places=2)
     isDefault = models.BooleanField(default=False)
     rarity = models.CharField(max_length=16, choices=[

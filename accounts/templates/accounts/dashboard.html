@@ -75,7 +75,6 @@
           {% if skin.id in ownedSkins %}
           <div class="owned">OWNED</div>
           {% endif %}
-          <div class="skin-color" style="background:linear-gradient(135deg,{{ skin.colorPrimary }},{{ skin.colorSecondary|default:skin.colorPrimary }});"></div>
           <div class="card-title">{{ skin.name }}</div>
           <div class="card-desc">{{ skin.rarity }}</div>
           <div class="card-info">

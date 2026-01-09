@@ -157,9 +157,6 @@ Purchasable bot appearance
 - **name** (CharField, maxLength=50, unique=True)
 - **description** (TextField)
 - **previewImage** (ImageField) - shows what skin looks like
-- **colorPrimary** (CharField, maxLength=7) - hex color for bot body
-- **colorSecondary** (CharField, maxLength=7, nullable) - accent color
-- **trailEffect** (CharField, nullable, choices: NONE, GLOW, SPARKLE, FIRE, ICE) - visual trail
 - **price** (DecimalField) - coins to purchase
 - **isDefault** (BooleanField, default=False) - starter skin (free)
 - **rarity** (CharField, choices: COMMON, RARE, EPIC, LEGENDARY)
