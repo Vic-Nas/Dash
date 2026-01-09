@@ -7,5 +7,5 @@ urlpatterns = [
     path('multiplayer/', views.multiplayer, name='multiplayer'),
     path('join-match/', views.joinMatch, name='joinMatch'),
     path('lobby/<int:matchId>/', views.lobby, name='lobby'),
-    path('leave-lobby/', views.leaveLobby, name='leaveLobby'),  # ADDED THIS LINE
+    path('leave-lobby/', views.leaveLobby, name='leaveLobby'),
 ]

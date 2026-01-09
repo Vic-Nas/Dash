@@ -282,7 +282,14 @@ def leaveLobby(request):
         data = json.loads(request.body)
         matchId = data.get('matchId')
         
-        match = get_object_or_404(Match, id=matchId)
+        # Use filter().first() instead of get() to avoid exception
+        match = Match.objects.filter(id=matchId).first()
+        
+        if not match:
+            return JsonResponse({
+                'success': False,
+                'error': 'Match not found or already deleted'
+            }, status=404)
         
         # Only allow leaving WAITING matches
         if match.status != 'WAITING':
@@ -347,4 +354,9 @@ def leaveLobby(request):
     except json.JSONDecodeError:
         return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+        import traceback
+        return JsonResponse({
+            'success': False, 
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=500)
