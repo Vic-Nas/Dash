@@ -102,7 +102,12 @@
           {% for p in topPlayers %}
           <tr {% if p.user == user %}style="background:#1a1d35;"{% endif %}>
             <td class="rank">#{{ forloop.counter }}</td>
-            <td>{{ p.user.username }}{% if p.user == user %} (You){% endif %}</td>
+            <td>
+              <a href="{% url 'publicProfile' p.user.username %}" style="color:#5b7bff;text-decoration:none;">
+                {{ p.user.username }}
+              </a>
+              {% if p.user == user %} (You){% endif %}
+            </td>
             <td>{{ p.soloHighScore }} walls</td>
             <td>{{ p.totalWins }}</td>
           </tr>
