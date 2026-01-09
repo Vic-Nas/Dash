@@ -487,6 +487,7 @@
 
     function handleGameOver(data) {
       var finalScoresDiv = document.getElementById('finalScores');
+      var winnerInfoDiv = document.getElementById('winnerInfo');
       
       if (data.finalScores) {
         var sortedScores = Object.entries(data.finalScores).sort(function(a, b) {
@@ -510,13 +511,28 @@
       
       if (data.isTie) {
         document.getElementById('winnerText').textContent = 'Tie Game!';
-        document.getElementById('winnerInfo').innerHTML = '<strong style="color:#f59e0b;">Everyone died! Pot will be split.</strong>';
+        
+        // Calculate split amount
+        var potAmount = {{ match.totalPot|floatformat:0 }};
+        var playerCount = Object.keys(gameState.players).length;
+        var splitAmount = Math.floor(potAmount / playerCount);
+        
+        winnerInfoDiv.innerHTML = '<strong style="color:#f59e0b;">Everyone died!</strong><br>' +
+          '<div style="margin-top:12px;font-size:20px;">💰 +' + splitAmount + ' coins each</div>' +
+          '<div style="font-size:13px;color:#9ca3af;margin-top:4px;">Pot split ' + playerCount + ' ways</div>';
+          
       } else if (data.winnerUsername) {
-        document.getElementById('winnerText').textContent = 'Winner!';
-        document.getElementById('winnerInfo').innerHTML = '<strong style="color:#10b981;">' + data.winnerUsername + '</strong> wins the pot!';
+        document.getElementById('winnerText').textContent = '🏆 Winner!';
+        
+        var potAmount = {{ match.totalPot|floatformat:0 }};
+        
+        winnerInfoDiv.innerHTML = '<strong style="color:#10b981;font-size:20px;">' + data.winnerUsername + '</strong><br>' +
+          '<div style="margin-top:16px;font-size:32px;font-weight:700;color:#fbbf24;">💰 +' + potAmount + ' coins</div>' +
+          '<div style="font-size:14px;color:#9ca3af;margin-top:8px;">Winner takes all!</div>';
+          
       } else {
         document.getElementById('winnerText').textContent = 'Game Over';
-        document.getElementById('winnerInfo').innerHTML = 'Match ended.';
+        winnerInfoDiv.innerHTML = 'Match ended.';
       }
       
       document.getElementById('gameOver').style.display = 'block';
