@@ -54,6 +54,13 @@ CSRF_TRUSTED_ORIGINS = []
 if domain:
     CSRF_TRUSTED_ORIGINS.append(f"https://{domain}")
 
+# Add itch.io domains
+CSRF_TRUSTED_ORIGINS.extend([
+    'https://vic-nas.itch.io',
+    'https://itch.io',
+    'https://*.itch.io',
+])
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -204,3 +211,9 @@ else:
     
     
 X_FRAME_OPTIONS = 'ALLOWALL'
+
+# Cookie settings for cross-site iframe (itch.io)
+CSRF_COOKIE_SAMESITE = 'None'
+CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SAMESITE = 'None'
+SESSION_COOKIE_SECURE = True
