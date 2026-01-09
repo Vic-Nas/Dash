@@ -1,0 +1,24 @@
+from django.db import models
+from django.contrib.auth import get_user_model
+
+
+class profile(models.Model):
+	user = models.OneToOneField(get_user_model(), on_delete=models.CASCADE, primary_key=True, related_name='profile')
+	profilePic = models.ImageField(upload_to='profiles/', null=True, blank=True)
+	coins = models.DecimalField(max_digits=12, decimal_places=2, default=100)
+	soloHighScore = models.IntegerField(default=0)
+	totalWins = models.IntegerField(default=0)
+	totalMatches = models.IntegerField(default=0)
+	currentSkin = models.ForeignKey('cosmetics.botSkin', on_delete=models.SET_NULL, null=True, blank=True, related_name='equippedBy')
+	createdAt = models.DateTimeField(auto_now_add=True)
+	isActive = models.BooleanField(default=True)
+	activityLog = models.TextField(default="", blank=True)
+
+	class Meta:
+		verbose_name = 'Profile'
+		verbose_name_plural = 'Profiles'
+
+	def __str__(self):
+		return f"profile({self.user})"
+
+# Create your models here.
