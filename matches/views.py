@@ -1,3 +1,251 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+from django.db import transaction
+from django.db.models import F
+from django.utils import timezone
+from decimal import Decimal
+from .models import MatchType, Match, MatchParticipation, SoloRun
+from shop.models import Transaction
+import json
 
-# Create your views here.
+
+@login_required
+def solo(request):
+    profile = request.user.profile
+    context = {
+        'profile': profile,
+    }
+    return render(request, 'matches/game.html', context)
+
+
+@login_required
+@require_POST
+def saveSoloRun(request):
+    try:
+        data = json.loads(request.body)
+        wallsSurvived = int(data.get('wallsSurvived', 0))
+        wallsHit = int(data.get('wallsHit', 0))
+        survivalTime = int(data.get('survivalTime', 0))
+        finalGridState = data.get('finalGridState')
+        
+        # Calculate rewards based on walls survived
+        coinsEarned = Decimal('0')
+        if wallsSurvived >= 50:
+            coinsEarned = Decimal('75')
+        elif wallsSurvived >= 40:
+            coinsEarned = Decimal('50')
+        elif wallsSurvived >= 30:
+            coinsEarned = Decimal('30')
+        elif wallsSurvived >= 20:
+            coinsEarned = Decimal('15')
+        elif wallsSurvived >= 10:
+            coinsEarned = Decimal('5')
+        
+        # Calculate penalties (3 coins per wall hit)
+        coinsLost = Decimal(str(wallsHit * 3))
+        netCoins = coinsEarned - coinsLost
+        
+        with transaction.atomic():
+            # Lock profile
+            profile = request.user.profile
+            profile = type(profile).objects.select_for_update().get(pk=profile.pk)
+            
+            balanceBefore = profile.coins
+            
+            # Update coins (can be negative net, but balance can't go below 0)
+            newBalance = max(Decimal('0'), profile.coins + netCoins)
+            profile.coins = newBalance
+            
+            # Update high score if needed
+            if wallsSurvived > profile.soloHighScore:
+                profile.soloHighScore = wallsSurvived
+            
+            profile.save(update_fields=['coins', 'soloHighScore'])
+            balanceAfter = profile.coins
+            
+            # Create solo run record
+            soloRun = SoloRun.objects.create(
+                player=request.user,
+                wallsSurvived=wallsSurvived,
+                wallsHit=wallsHit,
+                coinsEarned=coinsEarned,
+                coinsLost=coinsLost,
+                netCoins=netCoins,
+                survivalTime=survivalTime,
+                finalGridState=finalGridState,
+                endedAt=timezone.now()
+            )
+            
+            # Create transaction records
+            if coinsEarned > 0:
+                Transaction.objects.create(
+                    user=request.user,
+                    amount=coinsEarned,
+                    transactionType='SOLO_REWARD',
+                    description=f'Solo reward: {wallsSurvived} walls survived',
+                    balanceBefore=balanceBefore,
+                    balanceAfter=balanceBefore + coinsEarned
+                )
+            
+            if coinsLost > 0:
+                Transaction.objects.create(
+                    user=request.user,
+                    amount=-coinsLost,
+                    transactionType='SOLO_PENALTY',
+                    description=f'Wall hit penalties: {wallsHit} hits',
+                    balanceBefore=balanceBefore + coinsEarned if coinsEarned > 0 else balanceBefore,
+                    balanceAfter=balanceAfter
+                )
+        
+        return JsonResponse({
+            'success': True,
+            'wallsSurvived': wallsSurvived,
+            'coinsEarned': float(coinsEarned),
+            'coinsLost': float(coinsLost),
+            'netCoins': float(netCoins),
+            'newBalance': float(balanceAfter),
+            'newHighScore': wallsSurvived > (profile.soloHighScore - wallsSurvived)
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+def multiplayer(request):
+    matchTypes = MatchType.objects.filter(isActive=True)
+    context = {
+        'matchTypes': matchTypes,
+        'profile': request.user.profile,
+    }
+    return render(request, 'matches/multiplayer.html', context)
+
+
+@login_required
+@require_POST
+def joinMatch(request):
+    try:
+        data = json.loads(request.body)
+        matchTypeId = data.get('matchTypeId')
+        
+        matchType = get_object_or_404(MatchType, id=matchTypeId, isActive=True)
+        profile = request.user.profile
+        
+        # Check if user has enough coins
+        if profile.coins < matchType.entryFee:
+            return JsonResponse({
+                'success': False,
+                'error': f'Insufficient coins. Need {matchType.entryFee}, have {profile.coins}'
+            })
+        
+        with transaction.atomic():
+            # Lock profile
+            profile = type(profile).objects.select_for_update().get(pk=profile.pk)
+            
+            # Find or create waiting match
+            match = Match.objects.filter(
+                matchType=matchType,
+                status='WAITING'
+            ).first()
+            
+            if not match:
+                # Create new match
+                match = Match.objects.create(
+                    matchType=matchType,
+                    status='WAITING',
+                    gridSize=matchType.gridSize,
+                    speed=matchType.speed,
+                    playersRequired=matchType.playersRequired,
+                    currentPlayers=0,
+                    totalPot=Decimal('0')
+                )
+            
+            # Check if already in this match
+            if MatchParticipation.objects.filter(match=match, player=request.user).exists():
+                return JsonResponse({
+                    'success': True,
+                    'matchId': match.id,
+                    'message': 'Already in this match'
+                })
+            
+            # Check if match is full
+            if match.currentPlayers >= matchType.maxPlayers:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Match is full'
+                })
+            
+            # Deduct entry fee
+            balanceBefore = profile.coins
+            profile.coins = F('coins') - matchType.entryFee
+            profile.save(update_fields=['coins'])
+            profile.refresh_from_db()
+            balanceAfter = profile.coins
+            
+            # Update match pot
+            match.totalPot = F('totalPot') + matchType.entryFee
+            match.currentPlayers = F('currentPlayers') + 1
+            match.save(update_fields=['totalPot', 'currentPlayers'])
+            match.refresh_from_db()
+            
+            # Create participation
+            participation = MatchParticipation.objects.create(
+                match=match,
+                player=request.user,
+                entryFeePaid=matchType.entryFee,
+                livesRemaining=matchType.livesPerPlayer
+            )
+            
+            # Create transaction
+            Transaction.objects.create(
+                user=request.user,
+                amount=-matchType.entryFee,
+                transactionType='MATCH_ENTRY',
+                relatedMatch=match,
+                description=f'Match entry: {matchType.name}',
+                balanceBefore=balanceBefore,
+                balanceAfter=balanceAfter
+            )
+            
+            # Check if match should start
+            shouldStart = match.currentPlayers >= match.playersRequired
+            if shouldStart:
+                match.status = 'STARTING'
+                match.save(update_fields=['status'])
+        
+        return JsonResponse({
+            'success': True,
+            'matchId': match.id,
+            'currentPlayers': match.currentPlayers,
+            'playersRequired': match.playersRequired,
+            'newBalance': float(balanceAfter)
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+def lobby(request, matchId):
+    match = get_object_or_404(Match, id=matchId)
+    
+    # Check if user is in this match
+    participation = MatchParticipation.objects.filter(
+        match=match,
+        player=request.user
+    ).first()
+    
+    if not participation:
+        return redirect('multiplayer')
+    
+    participants = match.participants.select_related('player').all()
+    
+    context = {
+        'match': match,
+        'participation': participation,
+        'participants': participants,
+        'profile': request.user.profile,
+    }
+    return render(request, 'matches/lobby.html', context)

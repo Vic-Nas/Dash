@@ -1,0 +1,115 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Match Lobby - Dash Arena</title>
+  <style>
+    *{box-sizing:border-box;}
+    body{font-family:system-ui,sans-serif;margin:0;background:#0d0f1a;color:#e6e6e6;}
+    header{background:#121428;border-bottom:1px solid #23264a;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;}
+    .brand{font-weight:700;font-size:20px;}
+    .user{display:flex;align-items:center;gap:16px;}
+    .coins{background:#2a2f6b;padding:8px 16px;border-radius:20px;font-weight:600;}
+    .btn{background:#2a2f6b;color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:14px;text-decoration:none;display:inline-block;}
+    .btn:hover{background:#3940a3;}
+    .container{max-width:800px;margin:40px auto;padding:0 20px;}
+    .lobby-card{background:#121428;border:1px solid #23264a;border-radius:12px;padding:32px;text-align:center;}
+    h1{margin:0 0 8px;font-size:28px;}
+    .match-type{color:#9ca3af;margin-bottom:24px;}
+    .status{background:#2a2f6b;display:inline-block;padding:8px 16px;border-radius:20px;margin-bottom:24px;font-weight:600;}
+    .status.starting{background:#10b981;}
+    .status.in-progress{background:#f59e0b;}
+    .players{margin:32px 0;}
+    .player-count{font-size:48px;font-weight:700;color:#5b7bff;margin-bottom:16px;}
+    .player-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:24px;}
+    .player-item{background:#1a1d35;padding:12px;border-radius:8px;border:1px solid #2a2f6b;}
+    .match-info{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:24px 0;text-align:center;}
+    .info-box{background:#1a1d35;padding:16px;border-radius:8px;}
+    .info-label{font-size:12px;color:#9ca3af;margin-bottom:4px;}
+    .info-value{font-size:18px;font-weight:600;}
+    .actions{margin-top:24px;}
+    .waiting-msg{color:#9ca3af;margin-top:16px;}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">Dash Arena</div>
+    <div class="user">
+      <span class="coins">💰 {{ profile.coins|floatformat:0 }}</span>
+      <span>{{ user.username }}</span>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="lobby-card">
+      <h1>Match Lobby</h1>
+      <div class="match-type">{{ match.matchType.name }}</div>
+      
+      <div class="status {% if match.status == 'STARTING' %}starting{% elif match.status == 'IN_PROGRESS' %}in-progress{% endif %}">
+        {{ match.status }}
+      </div>
+
+      <div class="players">
+        <div class="player-count">
+          {{ match.currentPlayers }} / {{ match.playersRequired }}
+        </div>
+        <div>Players in lobby</div>
+      </div>
+
+      <div class="match-info">
+        <div class="info-box">
+          <div class="info-label">Total Pot</div>
+          <div class="info-value">{{ match.totalPot|floatformat:0 }} coins</div>
+        </div>
+        <div class="info-box">
+          <div class="info-label">Grid Size</div>
+          <div class="info-value">{{ match.gridSize }}×{{ match.gridSize }}</div>
+        </div>
+        <div class="info-box">
+          <div class="info-label">Speed</div>
+          <div class="info-value">{{ match.speed }}</div>
+        </div>
+      </div>
+
+      <div class="player-list">
+        {% for p in participants %}
+        <div class="player-item">
+          {{ p.player.username }}
+          {% if p.player == user %}(You){% endif %}
+        </div>
+        {% endfor %}
+        
+        {% for i in "x"|rjust:match.playersRequired|slice:match.currentPlayers %}
+        <div class="player-item" style="opacity:0.3;">
+          Waiting...
+        </div>
+        {% endfor %}
+      </div>
+
+      {% if match.status == 'WAITING' %}
+        <div class="waiting-msg">
+          Waiting for {{ match.playersRequired|add:"-"|add:match.currentPlayers }} more player{{ match.playersRequired|add:"-"|add:match.currentPlayers|pluralize }}...
+        </div>
+      {% elif match.status == 'STARTING' %}
+        <div class="waiting-msg" style="color:#10b981;">
+          Match starting soon!
+        </div>
+      {% endif %}
+
+      <div class="actions">
+        <a href="/matches/multiplayer/" class="btn">Leave Lobby</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Auto-refresh to check match status
+    {% if match.status == 'WAITING' or match.status == 'STARTING' %}
+    setInterval(() => {
+      location.reload();
+    }, 3000);
+    {% endif %}
+  </script>
+</body>
+</html>

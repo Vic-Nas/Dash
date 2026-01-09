@@ -1,0 +1,197 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Shop - Dash Arena</title>
+  <style>
+    *{box-sizing:border-box;}
+    body{font-family:system-ui,sans-serif;margin:0;background:#0d0f1a;color:#e6e6e6;}
+    header{background:#121428;border-bottom:1px solid #23264a;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;}
+    .brand{font-weight:700;font-size:20px;}
+    .user{display:flex;align-items:center;gap:16px;}
+    .coins{background:#2a2f6b;padding:8px 16px;border-radius:20px;font-weight:600;}
+    .btn{background:#2a2f6b;color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:14px;text-decoration:none;display:inline-block;}
+    .btn:hover{background:#3940a3;}
+    .container{max-width:1200px;margin:24px auto;padding:0 20px;}
+    h2{margin:0 0 16px;font-size:22px;}
+    .section{background:#121428;border:1px solid #23264a;border-radius:12px;padding:24px;margin-bottom:24px;}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;}
+    .card{background:#1a1d35;border:1px solid #2a2f6b;border-radius:10px;padding:20px;text-align:center;transition:all .2s;}
+    .card:hover{border-color:#3940a3;transform:translateY(-2px);}
+    .card-title{font-weight:600;font-size:18px;margin-bottom:8px;}
+    .card-desc{font-size:13px;color:#9ca3af;margin-bottom:16px;}
+    .price{font-size:24px;font-weight:700;color:#5b7bff;margin-bottom:16px;}
+    .purchase-btn{width:100%;background:#2a2f6b;color:#fff;border:none;padding:10px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;}
+    .purchase-btn:hover{background:#3940a3;}
+    .purchase-btn:disabled{background:#1a1d35;opacity:0.5;cursor:not-allowed;}
+    .owned-badge{background:#10b981;color:#fff;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;margin-bottom:12px;display:inline-block;}
+    .equipped-badge{background:#5b7bff;color:#fff;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;margin-bottom:12px;display:inline-block;}
+    .rarity{font-size:12px;padding:4px 8px;border-radius:4px;display:inline-block;margin-bottom:8px;font-weight:600;}
+    .rarity.COMMON{background:#6b7280;color:#fff;}
+    .rarity.RARE{background:#3b82f6;color:#fff;}
+    .rarity.EPIC{background:#8b5cf6;color:#fff;}
+    .rarity.LEGENDARY{background:#f59e0b;color:#fff;}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">Dash Arena - Shop</div>
+    <div class="user">
+      <span class="coins" id="userCoins">💰 {{ profile.coins|floatformat:0 }}</span>
+      <span>{{ user.username }}</span>
+      <a href="/" class="btn">Dashboard</a>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="section">
+      <h2>💎 Coin Packages</h2>
+      <div class="grid">
+        {% for pkg in packages %}
+        <div class="card">
+          <div class="card-title">{{ pkg.name }}</div>
+          <div class="card-desc">{{ pkg.coins }} coins</div>
+          <div class="price">${{ pkg.price }}</div>
+          <button class="purchase-btn" onclick="buyPackage({{ pkg.id }}, '{{ pkg.name }}')">
+            Purchase
+          </button>
+        </div>
+        {% empty %}
+        <p style="color:#9ca3af;">No packages available.</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>🎨 Bot Skins</h2>
+      <div class="grid">
+        {% for skin in skins %}
+        <div class="card">
+          <div class="rarity {{ skin.rarity }}">{{ skin.rarity }}</div>
+          {% if skin.id in ownedSkins %}
+            {% if profile.currentSkin_id == skin.id %}
+              <div class="equipped-badge">EQUIPPED</div>
+            {% else %}
+              <div class="owned-badge">OWNED</div>
+            {% endif %}
+          {% endif %}
+          <div class="card-title">{{ skin.name }}</div>
+          <div class="card-desc">{{ skin.description }}</div>
+          
+          {% if skin.id in ownedSkins %}
+            {% if profile.currentSkin_id == skin.id %}
+              <button class="purchase-btn" disabled>Equipped</button>
+            {% else %}
+              <button class="purchase-btn" onclick="equipSkin({{ skin.id }}, '{{ skin.name }}')">
+                Equip
+              </button>
+            {% endif %}
+          {% else %}
+            <div class="price">
+              {% if skin.isDefault %}
+                FREE
+              {% else %}
+                {{ skin.price|floatformat:0 }} coins
+              {% endif %}
+            </div>
+            <button class="purchase-btn" onclick="buySkin({{ skin.id }}, {{ skin.price }}, '{{ skin.name }}', {{ skin.isDefault|lower }})" 
+                    {% if not skin.isDefault and profile.coins < skin.price %}disabled{% endif %}>
+              {% if skin.isDefault %}
+                Claim
+              {% elif profile.coins < skin.price %}
+                Insufficient Coins
+              {% else %}
+                Purchase
+              {% endif %}
+            </button>
+          {% endif %}
+        </div>
+        {% empty %}
+        <p style="color:#9ca3af;">No skins available.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function getCookie(name) {
+      let value = '; ' + document.cookie;
+      let parts = value.split('; ' + name + '=');
+      if (parts.length === 2) return parts.pop().split(';').shift();
+    }
+
+    async function buyPackage(packageId, name) {
+      alert('Payment system integration pending. Please contact support to purchase coins.');
+      return;
+
+      // Future Stripe integration:
+      // const response = await fetch('/shop/create-payment-intent/', {
+      //   method: 'POST',
+      //   headers: {
+      //     'Content-Type': 'application/json',
+      //     'X-CSRFToken': getCookie('csrftoken')
+      //   },
+      //   body: JSON.stringify({ packageId })
+      // });
+      // const data = await response.json();
+      // if (data.success) {
+      //   // Redirect to Stripe checkout
+      // }
+    }
+
+    async function buySkin(skinId, price, name, isFree) {
+      if (!isFree && !confirm(`Purchase ${name} for ${price} coins?`)) return;
+
+      try {
+        const response = await fetch('/shop/buy-skin/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+          },
+          body: JSON.stringify({ skinId })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          alert(data.message);
+          if (data.newBalance !== undefined) {
+            document.getElementById('userCoins').textContent = '💰 ' + Math.floor(data.newBalance);
+          }
+          location.reload();
+        } else {
+          alert('Error: ' + data.error);
+        }
+      } catch (error) {
+        alert('Error: ' + error.message);
+      }
+    }
+
+    async function equipSkin(skinId, name) {
+      try {
+        const response = await fetch('/shop/equip-skin/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+          },
+          body: JSON.stringify({ skinId })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          alert(data.message);
+          location.reload();
+        } else {
+          alert('Error: ' + data.error);
+        }
+      } catch (error) {
+        alert('Error: ' + error.message);
+      }
+    }
+  </script>
+</body>
+</html>
