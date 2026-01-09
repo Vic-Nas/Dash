@@ -4,3 +4,4 @@ cloudinary>=1.41
 django-cloudinary-storage>=0.3
 dj-database-url>=2.2
 python-dotenv>=1.0
+gunicorn>=21.2.0
