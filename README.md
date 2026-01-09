@@ -71,3 +71,8 @@ Coin packages, Stripe integration
 
 ### chat (new)
 Direct messages + global chat
+
+## Protection
+- Free for personal/educational use
+
+- No commercial use without permission
