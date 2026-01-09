@@ -112,12 +112,12 @@
         const data = await response.json();
 
         if (data.success) {
-          alert(`Joined match! ${data.currentPlayers}/${data.playersRequired} players`);
           window.location.href = `/matches/lobby/${data.matchId}/`;
         } else {
           alert('Error: ' + data.error);
         }
       } catch (error) {
+        console.error('Full error:', error);
         alert('Error joining match: ' + error.message);
       }
     }

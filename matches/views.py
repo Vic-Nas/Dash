@@ -116,6 +116,15 @@ def saveSoloRun(request):
 @login_required
 def multiplayer(request):
     matchTypes = MatchType.objects.filter(isActive=True)
+    
+    # Add waiting player count for each match type
+    for mt in matchTypes:
+        waitingMatch = Match.objects.filter(
+            matchType=mt,
+            status='WAITING'
+        ).first()
+        mt.waitingCount = waitingMatch.currentPlayers if waitingMatch else 0
+    
     context = {
         'matchTypes': matchTypes,
         'profile': request.user.profile,
@@ -130,6 +139,12 @@ def joinMatch(request):
         data = json.loads(request.body)
         matchTypeId = data.get('matchTypeId')
         
+        if not matchTypeId:
+            return JsonResponse({
+                'success': False,
+                'error': 'Missing matchTypeId'
+            }, status=400)
+        
         matchType = get_object_or_404(MatchType, id=matchTypeId, isActive=True)
         profile = request.user.profile
         
@@ -138,7 +153,7 @@ def joinMatch(request):
             return JsonResponse({
                 'success': False,
                 'error': f'Insufficient coins. Need {matchType.entryFee}, have {profile.coins}'
-            })
+            }, status=400)
         
         with transaction.atomic():
             # Lock profile
@@ -167,6 +182,8 @@ def joinMatch(request):
                 return JsonResponse({
                     'success': True,
                     'matchId': match.id,
+                    'currentPlayers': match.currentPlayers,
+                    'playersRequired': match.playersRequired,
                     'message': 'Already in this match'
                 })
             
@@ -175,7 +192,7 @@ def joinMatch(request):
                 return JsonResponse({
                     'success': False,
                     'error': 'Match is full'
-                })
+                }, status=400)
             
             # Deduct entry fee
             balanceBefore = profile.coins
@@ -223,8 +240,15 @@ def joinMatch(request):
             'newBalance': float(balanceAfter)
         })
         
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        import traceback
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=500)
 
 
 @login_required
@@ -265,13 +289,18 @@ def leaveLobby(request):
             return JsonResponse({
                 'success': False,
                 'error': 'Cannot leave match that has already started'
-            })
+            }, status=400)
         
-        participation = get_object_or_404(
-            MatchParticipation,
+        participation = MatchParticipation.objects.filter(
             match=match,
             player=request.user
-        )
+        ).first()
+        
+        if not participation:
+            return JsonResponse({
+                'success': False,
+                'error': 'Not in this match'
+            }, status=400)
         
         with transaction.atomic():
             # Lock profile
@@ -315,5 +344,7 @@ def leaveLobby(request):
             'message': 'Left lobby and refunded'
         })
         
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
