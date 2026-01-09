@@ -4,8 +4,10 @@ import random
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.utils import timezone
-from .models import Match, MatchParticipation
+from django.db.models import F
 from decimal import Decimal
+from .models import Match, MatchParticipation
+from shop.models import Transaction
 
 # Active games {match_id: GameEngine instance}
 ACTIVE_GAMES = {}
@@ -21,7 +23,7 @@ class GameEngine:
         speed_map = {'SLOW': 200, 'MEDIUM': 150, 'FAST': 100, 'EXTREME': 75}
         self.tick_rate = speed_map.get(speed, 150) / 1000  # Convert to seconds
         
-        self.players = {}  # {user_id: {x, y, direction, alive, lives, color}}
+        self.players = {}  # {user_id: {x, y, direction, alive, lives, username, playerColor, skinName}}
         self.walls = []
         self.countdown_walls = []
         self.tick_number = 0
@@ -29,23 +31,15 @@ class GameEngine:
         self.task = None
         self.wall_spawn_task = None
         
-        # Color palette for player backgrounds
+        # Player identification colors
         self.available_colors = [
-            '#1a1d35', '#1a2332', '#2d1b2e', '#1f2937', '#172430',
-            '#2a1a2e', '#1e3a3a', '#2e1a1a', '#1a2e1a', '#2e2a1a'
+            '#5b7bff', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', 
+            '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#14b8a6'
         ]
     
-    def add_player(self, user_id, username):
+    def add_player(self, user_id, username, skin_name, player_color):
         if user_id in self.players:
             return
-        
-        # Assign random color
-        color = random.choice(self.available_colors)
-        if color in [p['color'] for p in self.players.values()]:
-            # Try to get unique color
-            unused = [c for c in self.available_colors if c not in [p['color'] for p in self.players.values()]]
-            if unused:
-                color = random.choice(unused)
         
         # Spawn at random position
         x = random.randint(1, self.grid_size - 2)
@@ -58,7 +52,8 @@ class GameEngine:
             'direction': random.choice(['UP', 'DOWN', 'LEFT', 'RIGHT']),
             'alive': True,
             'lives': self.lives_per_player,
-            'color': color
+            'playerColor': player_color,  # Color for player identification
+            'skinName': skin_name  # Which skin asset to use
         }
     
     def update_direction(self, user_id, direction):
@@ -172,7 +167,7 @@ class GameEngine:
                 await broadcast_callback(self.get_state())
                 
                 winner_id = self.check_game_over()
-                if winner_id:
+                if winner_id is not None:
                     await self.end_game(winner_id, broadcast_callback)
                     break
                 
@@ -187,7 +182,7 @@ class GameEngine:
         # Wall spawn loop
         async def spawn_loop():
             while self.running:
-                await asyncio.sleep(3)  # Spawn every 3 seconds
+                await asyncio.sleep(3)
                 self.spawn_wall()
         
         self.task = asyncio.create_task(game_loop())
@@ -196,10 +191,17 @@ class GameEngine:
     
     async def end_game(self, winner_id, broadcast_callback):
         self.running = False
+        
+        # Determine if it's a tie
+        alive_players = [uid for uid, p in self.players.items() if p['alive']]
+        is_tie = len(alive_players) == 0
+        
         await broadcast_callback({
             'type': 'game_over',
-            'winner_id': winner_id,
-            'winner_username': self.players[winner_id]['username'] if winner_id else 'None'
+            'winner_id': winner_id if not is_tie else None,
+            'winner_username': self.players[winner_id]['username'] if winner_id and not is_tie else None,
+            'is_tie': is_tie,
+            'alive_players': alive_players
         })
     
     def stop(self):
@@ -234,6 +236,9 @@ class GameConsumer(AsyncWebsocketConsumer):
             await self.close()
             return
         
+        # Get player's skin and assigned color
+        player_data = await self.get_player_data()
+        
         # Get or create game engine
         if self.match_id not in ACTIVE_GAMES:
             match = await self.get_match()
@@ -246,7 +251,20 @@ class GameConsumer(AsyncWebsocketConsumer):
             ACTIVE_GAMES[self.match_id] = engine
         
         engine = ACTIVE_GAMES[self.match_id]
-        engine.add_player(self.user.id, self.user.username)
+        
+        # Add player with their skin and color
+        engine.add_player(
+            self.user.id,
+            self.user.username,
+            player_data['skinName'],
+            player_data['playerColor']
+        )
+        
+        # Send player their assigned color
+        await self.send(text_data=json.dumps({
+            'type': 'player_color',
+            'playerColor': player_data['playerColor']
+        }))
         
         # If match should start, start it
         match = await self.get_match()
@@ -275,6 +293,10 @@ class GameConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps(event['state']))
     
     async def broadcast_state(self, state):
+        # Handle game over
+        if state.get('type') == 'game_over':
+            await self.handle_game_over(state)
+        
         await self.channel_layer.group_send(
             self.room_group_name,
             {
@@ -282,6 +304,148 @@ class GameConsumer(AsyncWebsocketConsumer):
                 'state': state
             }
         )
+    
+    async def handle_game_over(self, state):
+        """Handle game over - award pot to winner(s)"""
+        match = await self.get_match()
+        
+        is_tie = state.get('is_tie', False)
+        winner_id = state.get('winner_id')
+        
+        if is_tie:
+            await self.split_pot(match)
+        elif winner_id:
+            await self.award_pot(match, winner_id)
+        
+        await self.complete_match(match, winner_id)
+    
+    @database_sync_to_async
+    def get_player_data(self):
+        """Get player's equipped skin and assign a color"""
+        from cosmetics.models import BotSkin
+        
+        profile = self.user.profile
+        
+        # Get skin name
+        if profile.currentSkin:
+            skin_name = profile.currentSkin.name
+        else:
+            # Get default skin
+            default_skin = BotSkin.objects.filter(isDefault=True).first()
+            skin_name = default_skin.name if default_skin else 'Default'
+        
+        # Get participation to find/assign color
+        participation = MatchParticipation.objects.get(
+            match_id=self.match_id,
+            player=self.user
+        )
+        
+        # Assign color based on join order
+        match = Match.objects.get(id=self.match_id)
+        all_participants = list(match.participants.order_by('joinedAt').values_list('player_id', flat=True))
+        player_index = all_participants.index(self.user.id)
+        
+        colors = [
+            '#5b7bff', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', 
+            '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#14b8a6'
+        ]
+        player_color = colors[player_index % len(colors)]
+        
+        return {
+            'skinName': skin_name,
+            'playerColor': player_color
+        }
+    
+    @database_sync_to_async
+    def split_pot(self, match):
+        """Split pot equally among all participants"""
+        from django.db import transaction as db_transaction
+        
+        with db_transaction.atomic():
+            match = Match.objects.select_for_update().get(id=match.id)
+            participants = list(match.participants.select_related('player__profile').all())
+            
+            if not participants:
+                return
+            
+            share = match.totalPot / len(participants)
+            
+            for participation in participants:
+                profile = participation.player.profile
+                profile = type(profile).objects.select_for_update().get(pk=profile.pk)
+                
+                balanceBefore = profile.coins
+                profile.coins = F('coins') + share
+                profile.save(update_fields=['coins'])
+                profile.refresh_from_db()
+                
+                participation.coinReward = share
+                participation.placement = 1
+                participation.save(update_fields=['coinReward', 'placement'])
+                
+                Transaction.objects.create(
+                    user=participation.player,
+                    amount=share,
+                    transactionType='MATCH_WIN',
+                    relatedMatch=match,
+                    description=f'Tie - Split pot: {match.matchType.name}',
+                    balanceBefore=balanceBefore,
+                    balanceAfter=profile.coins
+                )
+    
+    @database_sync_to_async
+    def award_pot(self, match, winner_id):
+        """Award full pot to winner"""
+        from django.db import transaction as db_transaction
+        from django.contrib.auth import get_user_model
+        
+        User = get_user_model()
+        
+        with db_transaction.atomic():
+            match = Match.objects.select_for_update().get(id=match.id)
+            winner = User.objects.get(id=winner_id)
+            
+            profile = winner.profile
+            profile = type(profile).objects.select_for_update().get(pk=profile.pk)
+            
+            balanceBefore = profile.coins
+            profile.coins = F('coins') + match.totalPot
+            profile.totalWins = F('totalWins') + 1
+            profile.save(update_fields=['coins', 'totalWins'])
+            profile.refresh_from_db()
+            
+            participation = MatchParticipation.objects.get(match=match, player=winner)
+            participation.coinReward = match.totalPot
+            participation.placement = 1
+            participation.save(update_fields=['coinReward', 'placement'])
+            
+            Transaction.objects.create(
+                user=winner,
+                amount=match.totalPot,
+                transactionType='MATCH_WIN',
+                relatedMatch=match,
+                description=f'Won match: {match.matchType.name}',
+                balanceBefore=balanceBefore,
+                balanceAfter=profile.coins
+            )
+    
+    @database_sync_to_async
+    def complete_match(self, match, winner_id):
+        """Mark match as completed"""
+        from django.contrib.auth import get_user_model
+        
+        User = get_user_model()
+        
+        match.status = 'COMPLETED'
+        match.completedAt = timezone.now()
+        if winner_id:
+            match.winner = User.objects.get(id=winner_id)
+        match.save(update_fields=['status', 'completedAt', 'winner'])
+        
+        for participation in match.participants.select_related('player__profile').all():
+            profile = participation.player.profile
+            profile.totalMatches = F('totalMatches') + 1
+            profile.save(update_fields=['totalMatches'])
     
     @database_sync_to_async
     def get_participation(self):

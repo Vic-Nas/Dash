@@ -252,6 +252,94 @@ def joinMatch(request):
 
 
 @login_required
+@require_POST
+def forceStart(request):
+    """Force start a match by paying for missing players"""
+    try:
+        data = json.loads(request.body)
+        matchId = data.get('matchId')
+        
+        match = get_object_or_404(Match, id=matchId, status='WAITING')
+        
+        # Check if user is in this match
+        participation = MatchParticipation.objects.filter(
+            match=match,
+            player=request.user
+        ).first()
+        
+        if not participation:
+            return JsonResponse({
+                'success': False,
+                'error': 'You are not in this match'
+            }, status=400)
+        
+        # Calculate missing players
+        missingPlayers = match.playersRequired - match.currentPlayers
+        
+        if missingPlayers <= 0:
+            return JsonResponse({
+                'success': False,
+                'error': 'Match already has enough players'
+            }, status=400)
+        
+        # Calculate cost (entry fee × missing players)
+        forceCost = match.matchType.entryFee * missingPlayers
+        
+        profile = request.user.profile
+        
+        if profile.coins < forceCost:
+            return JsonResponse({
+                'success': False,
+                'error': f'Insufficient coins. Need {forceCost}, have {profile.coins}'
+            }, status=400)
+        
+        with transaction.atomic():
+            # Lock profile
+            profile = type(profile).objects.select_for_update().get(pk=profile.pk)
+            
+            # Deduct force cost
+            balanceBefore = profile.coins
+            profile.coins = F('coins') - forceCost
+            profile.save(update_fields=['coins'])
+            profile.refresh_from_db()
+            balanceAfter = profile.coins
+            
+            # Add to pot
+            match.totalPot = F('totalPot') + forceCost
+            match.forceStartedBy = request.user
+            match.status = 'STARTING'
+            match.save(update_fields=['totalPot', 'forceStartedBy', 'status'])
+            match.refresh_from_db()
+            
+            # Create transaction
+            Transaction.objects.create(
+                user=request.user,
+                amount=-forceCost,
+                transactionType='MATCH_ENTRY',
+                relatedMatch=match,
+                description=f'Force start ({missingPlayers} players): {match.matchType.name}',
+                balanceBefore=balanceBefore,
+                balanceAfter=balanceAfter
+            )
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Match force started! Paid for {missingPlayers} missing players.',
+            'newBalance': float(balanceAfter)
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        import traceback
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=500)
+
+
+@login_required
 def lobby(request, matchId):
     match = get_object_or_404(Match, id=matchId)
     

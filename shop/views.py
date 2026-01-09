@@ -5,6 +5,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.db import transaction
 from django.db.models import F
+from django.utils import timezone
 from decimal import Decimal
 from .models import CoinPackage, CoinPurchase, Transaction
 from cosmetics.models import BotSkin, OwnedSkin
@@ -23,6 +24,7 @@ def shop(request):
         'skins': skins,
         'ownedSkins': list(ownedSkins),
         'profile': request.user.profile,
+        'stripePublicKey': os.environ.get('STRIPE_PUBLIC_KEY', ''),
     }
     return render(request, 'shop/shop.html', context)
 
@@ -122,25 +124,28 @@ def createPaymentIntent(request):
         
         package = get_object_or_404(CoinPackage, id=packageId, isActive=True)
         
-        # Note: Stripe integration would go here
-        # For now, return error indicating Stripe not configured
+        # Check if Stripe is configured
         stripeSecretKey = os.environ.get('STRIPE_SECRET_KEY')
-        
         if not stripeSecretKey:
             return JsonResponse({
                 'success': False,
-                'error': 'Payment system not configured. Please contact support.'
-            })
+                'error': 'Payment system not configured. STRIPE_SECRET_KEY is missing.'
+            }, status=500)
         
-        # In production, create Stripe payment intent:
+        # Create Stripe payment intent
         import stripe
         stripe.api_key = stripeSecretKey
+        
         intent = stripe.PaymentIntent.create(
-            amount=int(package.price * 100),
+            amount=int(package.price * 100),  # Convert to cents
             currency='usd',
-            metadata={'packageId': package.id, 'userId': request.user.id}
+            metadata={
+                'packageId': package.id,
+                'userId': request.user.id
+            }
         )
         
+        # Create purchase record
         CoinPurchase.objects.create(
             user=request.user,
             package=package,
@@ -155,61 +160,83 @@ def createPaymentIntent(request):
             'clientSecret': intent.client_secret
         })
         
-
-        
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        import traceback
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=500)
 
 
 @csrf_exempt
 @require_POST
 def stripeWebhook(request):
+    """Handle Stripe webhook events"""
     try:
-        # Note: Stripe webhook handling would go here
-        # This endpoint should verify the webhook signature and process events
+        import stripe
         
-        # import stripe
-        # stripeWebhookSecret = os.environ.get('STRIPE_WEBHOOK_SECRET')
-        # payload = request.body
-        # sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
-        # 
-        # event = stripe.Webhook.construct_event(
-        #     payload, sig_header, stripeWebhookSecret
-        # )
-        # 
-        # if event.type == 'payment_intent.succeeded':
-        #     paymentIntent = event.data.object
-        #     paymentIntentId = paymentIntent.id
-        #     
-        #     with transaction.atomic():
-        #         purchase = CoinPurchase.objects.select_for_update().get(
-        #             stripePaymentIntentId=paymentIntentId
-        #         )
-        #         
-        #         if purchase.status != 'COMPLETED':
-        #             purchase.status = 'COMPLETED'
-        #             purchase.completedAt = timezone.now()
-        #             purchase.save()
-        #             
-        #             profile = purchase.user.profile
-        #             profile = type(profile).objects.select_for_update().get(pk=profile.pk)
-        #             
-        #             balanceBefore = profile.coins
-        #             profile.coins = F('coins') + purchase.coinAmount
-        #             profile.save(update_fields=['coins'])
-        #             profile.refresh_from_db()
-        #             balanceAfter = profile.coins
-        #             
-        #             Transaction.objects.create(
-        #                 user=purchase.user,
-        #                 amount=purchase.coinAmount,
-        #                 transactionType='PURCHASE',
-        #                 description=f'Purchased {purchase.package.name}',
-        #                 balanceBefore=balanceBefore,
-        #                 balanceAfter=balanceAfter
-        #             )
+        payload = request.body
+        sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
+        
+        stripeWebhookSecret = os.environ.get('STRIPE_WEBHOOK_SECRET')
+        if not stripeWebhookSecret:
+            return JsonResponse({'error': 'Webhook secret not configured'}, status=500)
+        
+        try:
+            event = stripe.Webhook.construct_event(
+                payload, sig_header, stripeWebhookSecret
+            )
+        except ValueError:
+            return JsonResponse({'error': 'Invalid payload'}, status=400)
+        except stripe.error.SignatureVerificationError:
+            return JsonResponse({'error': 'Invalid signature'}, status=400)
+        
+        # Handle payment_intent.succeeded event
+        if event['type'] == 'payment_intent.succeeded':
+            paymentIntent = event['data']['object']
+            paymentIntentId = paymentIntent['id']
+            
+            with transaction.atomic():
+                try:
+                    purchase = CoinPurchase.objects.select_for_update().get(
+                        stripePaymentIntentId=paymentIntentId
+                    )
+                    
+                    # Only process if not already completed
+                    if purchase.status != 'COMPLETED':
+                        purchase.status = 'COMPLETED'
+                        purchase.completedAt = timezone.now()
+                        purchase.save()
+                        
+                        # Add coins to user's balance
+                        profile = purchase.user.profile
+                        profile = type(profile).objects.select_for_update().get(pk=profile.pk)
+                        
+                        balanceBefore = profile.coins
+                        profile.coins = F('coins') + purchase.coinAmount
+                        profile.save(update_fields=['coins'])
+                        profile.refresh_from_db()
+                        balanceAfter = profile.coins
+                        
+                        # Create transaction record
+                        Transaction.objects.create(
+                            user=purchase.user,
+                            amount=purchase.coinAmount,
+                            transactionType='PURCHASE',
+                            description=f'Purchased {purchase.package.name}',
+                            balanceBefore=balanceBefore,
+                            balanceAfter=balanceAfter
+                        )
+                        
+                except CoinPurchase.DoesNotExist:
+                    return JsonResponse({'error': 'Purchase not found'}, status=404)
         
         return JsonResponse({'success': True})
         
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+        import traceback
+        return JsonResponse({
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=400)

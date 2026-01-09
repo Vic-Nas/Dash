@@ -13,6 +13,10 @@
     .coins{background:#2a2f6b;padding:8px 16px;border-radius:20px;font-weight:600;}
     .btn{background:#2a2f6b;color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:14px;text-decoration:none;display:inline-block;}
     .btn:hover{background:#3940a3;}
+    .btn-danger{background:#991b1b;}
+    .btn-danger:hover{background:#7f1d1d;}
+    .btn-success{background:#059669;}
+    .btn-success:hover{background:#047857;}
     .container{max-width:800px;margin:40px auto;padding:0 20px;}
     .lobby-card{background:#121428;border:1px solid #23264a;border-radius:12px;padding:32px;text-align:center;}
     h1{margin:0 0 8px;font-size:28px;}
@@ -28,8 +32,9 @@
     .info-box{background:#1a1d35;padding:16px;border-radius:8px;}
     .info-label{font-size:12px;color:#9ca3af;margin-bottom:4px;}
     .info-value{font-size:18px;font-weight:600;}
-    .actions{margin-top:24px;}
+    .actions{margin-top:24px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;}
     .waiting-msg{color:#9ca3af;margin-top:16px;}
+    .force-start-warning{background:#1a1d35;border:1px solid #f59e0b;border-radius:8px;padding:16px;margin:16px 0;color:#f59e0b;}
   </style>
 </head>
 <body>
@@ -91,6 +96,21 @@
         <div class="waiting-msg">
           Waiting for {{ match.playersRequired|add:"-"|add:match.currentPlayers }} more player{{ match.playersRequired|add:"-"|add:match.currentPlayers|pluralize }}...
         </div>
+
+        {% if match.currentPlayers|add:"-"|add:match.playersRequired < 0 %}
+        {% with missing=match.playersRequired|add:"-"|add:match.currentPlayers %}
+        {% with forceCost=match.matchType.entryFee|floatformat:0 %}
+        {% with totalCost=missing|add:0 %}
+        <div class="force-start-warning">
+          <strong>⚡ Force Start Available</strong>
+          <p style="margin:8px 0;">Don't want to wait? Pay for the missing {{ missing }} player{{ missing|pluralize }} to start immediately.</p>
+          <p style="margin:8px 0;font-size:14px;">Cost: {{ missing }} × {{ forceCost }} = {{ missing|add:forceCost|floatformat:0 }} coins</p>
+        </div>
+        {% endwith %}
+        {% endwith %}
+        {% endwith %}
+        {% endif %}
+
       {% elif match.status == 'STARTING' %}
         <div class="waiting-msg" style="color:#10b981;">
           Match starting soon!
@@ -98,7 +118,18 @@
       {% endif %}
 
       <div class="actions">
-        <button class="btn" onclick="leaveLobby()" style="background:#991b1b;">Leave Lobby</button>
+        {% if match.status == 'WAITING' and match.currentPlayers < match.playersRequired %}
+          {% with missing=match.playersRequired|add:"-"|add:match.currentPlayers %}
+          {% with cost=missing|add:0 %}
+          <button class="btn btn-success" onclick="forceStart({{ missing }}, {{ match.matchType.entryFee }})" 
+                  {% if profile.coins < cost|add:match.matchType.entryFee %}disabled{% endif %}>
+            Force Start ({{ missing|add:match.matchType.entryFee|floatformat:0 }} coins)
+          </button>
+          {% endwith %}
+          {% endwith %}
+        {% endif %}
+        
+        <button class="btn btn-danger" onclick="leaveLobby()">Leave Lobby</button>
       </div>
     </div>
   </div>
@@ -128,6 +159,36 @@
         if (data.success) {
           alert(data.message);
           window.location.href = '/matches/multiplayer/';
+        } else {
+          alert('Error: ' + data.error);
+        }
+      } catch (error) {
+        alert('Error: ' + error.message);
+      }
+    }
+
+    async function forceStart(missingPlayers, entryFee) {
+      const totalCost = missingPlayers * entryFee;
+      
+      if (!confirm(`Force start by paying for ${missingPlayers} missing player${missingPlayers > 1 ? 's' : ''}?\n\nCost: ${totalCost.toFixed(0)} coins`)) {
+        return;
+      }
+
+      try {
+        const response = await fetch('/matches/force-start/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+          },
+          body: JSON.stringify({ matchId: {{ match.id }} })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          alert(data.message);
+          location.reload();
         } else {
           alert('Error: ' + data.error);
         }

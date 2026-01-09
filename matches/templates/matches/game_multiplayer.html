@@ -17,6 +17,7 @@
     .player-name{font-weight:600;}
     .player-lives{font-size:12px;color:#9ca3af;}
     .player-dead{opacity:0.5;text-decoration:line-through;}
+    .color-badge{display:inline-block;width:16px;height:16px;border-radius:3px;margin-right:8px;vertical-align:middle;border:1px solid #fff;}
     #gameOver{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(18,20,40,0.98);padding:40px;border-radius:12px;border:2px solid #2a2f6b;text-align:center;min-width:400px;z-index:1000;}
     #gameOver h2{margin-bottom:16px;font-size:28px;color:#5b7bff;}
     #gameOver button{background:#2a2f6b;color:#fff;border:none;padding:12px 24px;border-radius:8px;cursor:pointer;font-size:15px;margin:8px;}
@@ -42,6 +43,10 @@
       <span class="stat-label">Pot:</span>
       <span class="stat-value">{{ match.totalPot|floatformat:0 }} coins</span>
     </div>
+    <div class="stat" id="yourColorStat" style="display:none;">
+      <span class="stat-label">Your Color:</span>
+      <span class="color-badge" id="yourColorBadge"></span>
+    </div>
     <hr style="border:1px solid #2a2f6b;margin:12px 0;">
     <div id="playerList"></div>
   </div>
@@ -64,16 +69,18 @@
     let gameState = null;
     let socket = null;
     let CELL_SIZE = 0;
-    let botImages = {};
+    let botImages = {};  // {skinName: {color: canvasImage}}
+    let myPlayerColor = null;
 
-    // Create bot image for a player (arrow pointing UP)
-    function createBotImage(color) {
+    // Create bot image for a specific skin with color tint
+    function createBotImage(skinName, color) {
       const size = 64;
       const img = document.createElement('canvas');
       img.width = size;
       img.height = size;
       const c = img.getContext('2d');
       
+      // Draw arrow bot (all skins use same shape for now - can be customized per skin later)
       c.fillStyle = color;
       c.beginPath();
       c.moveTo(size/2, size*0.2);
@@ -93,6 +100,14 @@
       return img;
     }
 
+    function getBotImage(skinName, playerColor) {
+      const key = `${skinName}_${playerColor}`;
+      if (!botImages[key]) {
+        botImages[key] = createBotImage(skinName, playerColor);
+      }
+      return botImages[key];
+    }
+
     // Connect to WebSocket
     function connectWebSocket() {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -108,7 +123,13 @@
       socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
         
-        if (data.type === 'game_over') {
+        if (data.type === 'player_color') {
+          // Receive your assigned color
+          myPlayerColor = data.playerColor;
+          document.getElementById('yourColorStat').style.display = 'block';
+          document.getElementById('yourColorBadge').style.backgroundColor = myPlayerColor;
+          console.log('Your color:', myPlayerColor);
+        } else if (data.type === 'game_over') {
           handleGameOver(data);
         } else {
           gameState = data;
@@ -157,18 +178,14 @@
     function render() {
       if (!gameState || !gameState.players) return;
       
-      // Get current player's background color
-      const currentPlayer = gameState.players[currentUserId];
-      const bgColor = currentPlayer ? currentPlayer.color : '#121428';
-      
-      // Calculate cell size based on grid
+      // Calculate grid size
       const gridSize = Object.keys(gameState.players).length > 0 
         ? Math.max(20, Math.min(40, 15 + Object.keys(gameState.players).length * 2.5))
         : 20;
       CELL_SIZE = canvas.width / gridSize;
       
-      // Clear with player's background color
-      ctx.fillStyle = bgColor;
+      // Clear with default background
+      ctx.fillStyle = '#121428';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
       // Draw grid
@@ -218,24 +235,20 @@
         });
       }
       
-      // Draw players
+      // Draw players with their skins and colors
       Object.entries(gameState.players).forEach(([userId, player]) => {
         if (!player.alive) return;
-        
-        // Create bot image if not cached
-        if (!botImages[userId]) {
-          // Use a color based on player - could use player.color or a variation
-          const colors = ['#5b7bff', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4'];
-          const colorIndex = parseInt(userId) % colors.length;
-          botImages[userId] = createBotImage(colors[colorIndex]);
-        }
         
         const px = player.x * CELL_SIZE + CELL_SIZE / 2;
         const py = player.y * CELL_SIZE + CELL_SIZE / 2;
         
+        // Get bot image with player's skin and color
+        const botImg = getBotImage(player.skinName, player.playerColor);
+        
         ctx.save();
         ctx.translate(px, py);
         
+        // Rotate based on direction
         let angle = 0;
         if (player.direction === 'DOWN') angle = Math.PI;
         else if (player.direction === 'LEFT') angle = -Math.PI / 2;
@@ -244,11 +257,11 @@
         ctx.rotate(angle);
         
         const drawSize = CELL_SIZE - 8;
-        ctx.drawImage(botImages[userId], -drawSize/2, -drawSize/2, drawSize, drawSize);
+        ctx.drawImage(botImg, -drawSize/2, -drawSize/2, drawSize, drawSize);
         
         ctx.restore();
         
-        // Draw username above player
+        // Draw username above player with color badge
         ctx.fillStyle = '#fff';
         ctx.font = '12px system-ui';
         ctx.textAlign = 'center';
@@ -265,12 +278,13 @@
       Object.entries(gameState.players).forEach(([userId, player]) => {
         const div = document.createElement('div');
         div.className = 'player-item' + (player.alive ? '' : ' player-dead');
-        div.style.backgroundColor = player.color;
         
         const isYou = parseInt(userId) === currentUserId;
         
+        const colorBadge = `<span class="color-badge" style="background-color:${player.playerColor};"></span>`;
+        
         div.innerHTML = `
-          <span class="player-name">${player.username}${isYou ? ' (You)' : ''}</span>
+          <span>${colorBadge}<span class="player-name">${player.username}${isYou ? ' (You)' : ''}</span></span>
           <span class="player-lives">${player.lives > 0 ? player.lives + ' lives' : (player.alive ? 'Alive' : 'Dead')}</span>
         `;
         
@@ -279,10 +293,17 @@
     }
 
     function handleGameOver(data) {
-      document.getElementById('winnerText').textContent = data.winner_username ? 'Winner!' : 'Draw!';
-      document.getElementById('winnerInfo').innerHTML = data.winner_username 
-        ? `<strong style="color:#10b981;">${data.winner_username}</strong> wins the pot!`
-        : 'No winners this round.';
+      if (data.is_tie) {
+        document.getElementById('winnerText').textContent = 'Tie Game!';
+        document.getElementById('winnerInfo').innerHTML = '<strong style="color:#f59e0b;">Everyone died! Pot will be split.</strong>';
+      } else if (data.winner_username) {
+        document.getElementById('winnerText').textContent = 'Winner!';
+        document.getElementById('winnerInfo').innerHTML = `<strong style="color:#10b981;">${data.winner_username}</strong> wins the pot!`;
+      } else {
+        document.getElementById('winnerText').textContent = 'Game Over';
+        document.getElementById('winnerInfo').innerHTML = 'Match ended.';
+      }
+      
       document.getElementById('gameOver').style.display = 'block';
     }
 

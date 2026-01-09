@@ -4,6 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Shop - Dash Arena</title>
+  <script src="https://js.stripe.com/v3/"></script>
   <style>
     *{box-sizing:border-box;}
     body{font-family:system-ui,sans-serif;margin:0;background:#0d0f1a;color:#e6e6e6;}
@@ -32,6 +33,14 @@
     .rarity.RARE{background:#3b82f6;color:#fff;}
     .rarity.EPIC{background:#8b5cf6;color:#fff;}
     .rarity.LEGENDARY{background:#f59e0b;color:#fff;}
+    #paymentModal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);z-index:1000;align-items:center;justify-content:center;}
+    #paymentModal.active{display:flex;}
+    .modal-content{background:#121428;border:2px solid #2a2f6b;border-radius:12px;padding:32px;max-width:500px;width:90%;}
+    .modal-content h3{margin:0 0 16px;color:#5b7bff;}
+    #card-element{background:#1a1d35;padding:12px;border-radius:8px;border:1px solid #2a2f6b;margin:16px 0;}
+    #card-errors{color:#ef4444;margin-top:8px;font-size:14px;}
+    .modal-actions{display:flex;gap:12px;margin-top:24px;}
+    .modal-actions button{flex:1;}
   </style>
 </head>
 <body>
@@ -53,7 +62,7 @@
           <div class="card-title">{{ pkg.name }}</div>
           <div class="card-desc">{{ pkg.coins }} coins</div>
           <div class="price">${{ pkg.price }}</div>
-          <button class="purchase-btn" onclick="buyPackage({{ pkg.id }}, '{{ pkg.name }}')">
+          <button class="purchase-btn" onclick="buyPackage({{ pkg.id }}, '{{ pkg.name }}', {{ pkg.price }})">
             Purchase
           </button>
         </div>
@@ -114,31 +123,134 @@
     </div>
   </div>
 
+  <!-- Payment Modal -->
+  <div id="paymentModal">
+    <div class="modal-content">
+      <h3>Complete Payment</h3>
+      <p style="color:#9ca3af;margin-bottom:16px;">Package: <strong id="packageName"></strong></p>
+      <p style="color:#9ca3af;margin-bottom:16px;">Amount: <strong id="packagePrice"></strong></p>
+      
+      <div id="card-element"></div>
+      <div id="card-errors"></div>
+      
+      <div class="modal-actions">
+        <button class="btn" style="background:#991b1b;" onclick="closePaymentModal()">Cancel</button>
+        <button class="btn" id="submitPayment">Pay Now</button>
+      </div>
+    </div>
+  </div>
+
   <script>
+    const stripePublicKey = '{{ stripePublicKey }}';
+    let stripe = null;
+    let cardElement = null;
+    let clientSecret = null;
+    
+    // Initialize Stripe if key is available
+    if (stripePublicKey && stripePublicKey !== '') {
+      stripe = Stripe(stripePublicKey);
+      const elements = stripe.elements();
+      cardElement = elements.create('card', {
+        style: {
+          base: {
+            color: '#e6e6e6',
+            fontFamily: 'system-ui, sans-serif',
+            fontSize: '16px',
+            '::placeholder': {
+              color: '#9ca3af'
+            }
+          },
+          invalid: {
+            color: '#ef4444'
+          }
+        }
+      });
+      
+      // Mount card element when modal opens
+      setTimeout(() => {
+        cardElement.mount('#card-element');
+      }, 100);
+      
+      cardElement.on('change', (event) => {
+        const displayError = document.getElementById('card-errors');
+        if (event.error) {
+          displayError.textContent = event.error.message;
+        } else {
+          displayError.textContent = '';
+        }
+      });
+    }
+
     function getCookie(name) {
       let value = '; ' + document.cookie;
       let parts = value.split('; ' + name + '=');
       if (parts.length === 2) return parts.pop().split(';').shift();
     }
 
-    async function buyPackage(packageId, name) {
-      alert('Payment system integration pending. Please contact support to purchase coins.');
-      return;
+    async function buyPackage(packageId, name, price) {
+      if (!stripe) {
+        alert('Payment system not configured. Stripe integration is pending. Please set STRIPE_PUBLIC_KEY and STRIPE_SECRET_KEY environment variables.');
+        return;
+      }
 
-      // Future Stripe integration:
-      // const response = await fetch('/shop/create-payment-intent/', {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //     'X-CSRFToken': getCookie('csrftoken')
-      //   },
-      //   body: JSON.stringify({ packageId })
-      // });
-      // const data = await response.json();
-      // if (data.success) {
-      //   // Redirect to Stripe checkout
-      // }
+      try {
+        // Create payment intent
+        const response = await fetch('/shop/create-payment-intent/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+          },
+          body: JSON.stringify({ packageId })
+        });
+
+        const data = await response.json();
+
+        if (!data.success) {
+          alert('Error: ' + data.error);
+          return;
+        }
+
+        clientSecret = data.clientSecret;
+        
+        // Show payment modal
+        document.getElementById('packageName').textContent = name;
+        document.getElementById('packagePrice').textContent = '$' + price.toFixed(2);
+        document.getElementById('paymentModal').classList.add('active');
+        
+      } catch (error) {
+        alert('Error: ' + error.message);
+      }
     }
+
+    function closePaymentModal() {
+      document.getElementById('paymentModal').classList.remove('active');
+      document.getElementById('card-errors').textContent = '';
+    }
+
+    document.getElementById('submitPayment')?.addEventListener('click', async () => {
+      if (!stripe || !clientSecret) return;
+      
+      const submitButton = document.getElementById('submitPayment');
+      submitButton.disabled = true;
+      submitButton.textContent = 'Processing...';
+      
+      const {error, paymentIntent} = await stripe.confirmCardPayment(clientSecret, {
+        payment_method: {
+          card: cardElement
+        }
+      });
+      
+      if (error) {
+        document.getElementById('card-errors').textContent = error.message;
+        submitButton.disabled = false;
+        submitButton.textContent = 'Pay Now';
+      } else if (paymentIntent.status === 'succeeded') {
+        alert('Payment successful! Your coins will be added shortly.');
+        closePaymentModal();
+        setTimeout(() => location.reload(), 2000);
+      }
+    });
 
     async function buySkin(skinId, price, name, isFree) {
       if (!isFree && !confirm(`Purchase ${name} for ${price} coins?`)) return;
