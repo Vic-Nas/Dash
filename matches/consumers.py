@@ -23,7 +23,7 @@ class GameEngine:
         speedMap = {'SLOW': 200, 'MEDIUM': 150, 'FAST': 100, 'EXTREME': 75}
         self.tickRate = speedMap.get(speed, 150) / 1000  # Convert to seconds
         
-        self.players = {}  # {userId: {x, y, direction, alive, lives, username, playerColor}}
+        self.players = {}  # {userId: {x, y, direction, alive, lives, username, playerColor, score}}
         self.walls = []
         self.countdownWalls = []
         self.tickNumber = 0
@@ -31,18 +31,10 @@ class GameEngine:
         self.task = None
         self.wallSpawnTask = None
         
-        # Player identification colors (well-spaced on color wheel)
+        # Player identification colors
         self.availableColors = [
-            '#5b7bff',  # Blue
-            '#10b981',  # Green
-            '#f59e0b',  # Orange
-            '#ec4899',  # Pink
-            '#8b5cf6',  # Purple
-            '#06b6d4',  # Cyan
-            '#ef4444',  # Red
-            '#84cc16',  # Lime
-            '#f97316',  # Deep Orange
-            '#14b8a6',  # Teal
+            '#5b7bff', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6',
+            '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#14b8a6',
         ]
     
     def addPlayer(self, userId, username, playerColor):
@@ -61,6 +53,7 @@ class GameEngine:
             'alive': True,
             'lives': self.livesPerPlayer,
             'playerColor': playerColor,
+            'score': 0,  # NEW: Track score
         }
     
     def updateDirection(self, userId, direction):
@@ -70,7 +63,10 @@ class GameEngine:
     def tick(self):
         self.tickNumber += 1
         
-        # Move all alive players
+        # Track movements for collision detection
+        newPositions = {}
+        
+        # Calculate all new positions first
         for userId, player in self.players.items():
             if not player['alive']:
                 continue
@@ -86,42 +82,74 @@ class GameEngine:
             elif player['direction'] == 'RIGHT':
                 newX += 1
             
-            # Check edge collision - treat as wall hit
+            newPositions[userId] = (newX, newY)
+        
+        # Process all movements and collisions
+        for userId, (newX, newY) in newPositions.items():
+            player = self.players[userId]
+            
+            # Check edge collision
             if newX < 0 or newX >= self.gridSize or newY < 0 or newY >= self.gridSize:
-                self.handleCollision(userId)
+                self.handleWallHit(userId)
                 continue
             
             # Check wall collision
             if any(w['x'] == newX and w['y'] == newY for w in self.walls):
-                self.handleCollision(userId)
+                self.handleWallHit(userId)
                 continue
             
-            # Check player collision (from side/back = other dies, head-on = both die)
-            for otherId, other in self.players.items():
-                if otherId != userId and other['alive']:
-                    if other['x'] == newX and other['y'] == newY:
-                        # Both players collide head-on
-                        self.handleCollision(userId)
-                        self.handleCollision(otherId)
-                        continue
+            # Check player-to-player collision
+            collision = False
+            for otherId, otherPlayer in self.players.items():
+                if otherId != userId and otherPlayer['alive']:
+                    # Head-on collision (both moving to same spot)
+                    if otherId in newPositions:
+                        otherNewX, otherNewY = newPositions[otherId]
+                        if newX == otherNewX and newY == otherNewY:
+                            # Both players die in head-on collision
+                            self.handleWallHit(userId)
+                            self.handleWallHit(otherId)
+                            collision = True
+                            break
+                    
+                    # Hit from side/back (colliding with other player's current position)
+                    if newX == otherPlayer['x'] and newY == otherPlayer['y']:
+                        # Other player gets hit and eliminated
+                        # Hitter gets other player's score (min 0)
+                        self.handlePlayerCollision(attackerId=userId, victimId=otherId)
+                        collision = True
+                        break
+            
+            if collision:
+                continue
             
             # Valid move
             player['x'] = newX
             player['y'] = newY
     
-    def handleCollision(self, userId):
+    def handleWallHit(self, userId):
+        """Handle wall/edge collision - lose 1 point"""
         player = self.players[userId]
+        player['score'] -= 1
         
-        if self.livesPerPlayer == 0:
-            # Instant death mode
+        # Check if score reached -50 (game over for this player)
+        if player['score'] <= -50:
             player['alive'] = False
-        else:
-            # Lives mode
-            player['lives'] -= 1
-            if player['lives'] <= 0:
-                player['alive'] = False
+    
+    def handlePlayerCollision(self, attackerId, victimId):
+        """Handle player hitting another player from side/back"""
+        attacker = self.players[attackerId]
+        victim = self.players[victimId]
+        
+        # Victim is eliminated
+        victim['alive'] = False
+        
+        # Attacker gains victim's score (minimum 0)
+        pointsGained = max(0, victim['score'])
+        attacker['score'] += pointsGained
     
     def spawnWall(self):
+        """Spawn countdown wall - when it solidifies, all alive players get +1 score"""
         attempts = 0
         while attempts < 100:
             x = random.randint(0, self.gridSize - 1)
@@ -139,11 +167,18 @@ class GameEngine:
             attempts += 1
     
     def updateCountdownWalls(self):
+        """Update countdown walls - when wall spawns, give all alive players +1 score"""
         toRemove = []
         for wall in self.countdownWalls:
             wall['secondsLeft'] -= 1
             if wall['secondsLeft'] <= 0:
                 self.walls.append({'x': wall['x'], 'y': wall['y']})
+                
+                # Award +1 score to all alive players
+                for player in self.players.values():
+                    if player['alive']:
+                        player['score'] += 1
+                
                 toRemove.append(wall)
         
         for wall in toRemove:
@@ -159,6 +194,7 @@ class GameEngine:
         }
     
     def checkGameOver(self):
+        """Game ends when 1 or 0 players remain"""
         alive = [uid for uid, p in self.players.items() if p['alive']]
         if len(alive) <= 1:
             return alive[0] if alive else None
@@ -208,7 +244,8 @@ class GameEngine:
             'winnerId': winnerId if not isTie else None,
             'winnerUsername': self.players[winnerId]['username'] if winnerId and not isTie else None,
             'isTie': isTie,
-            'alivePlayers': alivePlayers
+            'alivePlayers': alivePlayers,
+            'finalScores': {uid: p['score'] for uid, p in self.players.items()}
         })
     
     def stop(self):
@@ -312,7 +349,7 @@ class GameConsumer(AsyncWebsocketConsumer):
         )
     
     async def handleGameOver(self, state):
-        """Handle game over - award pot to winner(s)"""
+        """Handle game over - award pot based on final scores"""
         match = await self.getMatch()
         
         isTie = state.get('isTie', False)
@@ -333,16 +370,8 @@ class GameConsumer(AsyncWebsocketConsumer):
         playerIndex = allParticipants.index(self.user.id)
         
         colors = [
-            '#5b7bff',  # Blue
-            '#10b981',  # Green
-            '#f59e0b',  # Orange
-            '#ec4899',  # Pink
-            '#8b5cf6',  # Purple
-            '#06b6d4',  # Cyan
-            '#ef4444',  # Red
-            '#84cc16',  # Lime
-            '#f97316',  # Deep Orange
-            '#14b8a6',  # Teal
+            '#5b7bff', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6',
+            '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#14b8a6',
         ]
         
         return colors[playerIndex % len(colors)]

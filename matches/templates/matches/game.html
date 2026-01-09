@@ -13,6 +13,8 @@
     .stat{margin-bottom:8px;font-size:14px;}
     .stat-label{color:#9ca3af;margin-right:8px;}
     .stat-value{color:#fff;font-weight:600;}
+    .score-positive{color:#10b981;}
+    .score-negative{color:#ef4444;}
     #gameOver{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(18,20,40,0.98);padding:40px;border-radius:12px;border:2px solid #2a2f6b;text-align:center;min-width:400px;z-index:1000;}
     #gameOver h2{margin-bottom:16px;font-size:28px;color:#5b7bff;}
     #gameOver .result{margin-bottom:24px;}
@@ -30,12 +32,9 @@
       <p style="color:#9ca3af;margin-bottom:32px;font-size:18px;">Use Arrow Keys or WASD to move • Survive as long as possible!</p>
       <button onclick="startGame()" style="background:#2a2f6b;color:#fff;border:none;padding:16px 48px;border-radius:8px;cursor:pointer;font-size:20px;font-weight:600;margin-top:16px;">Start Game</button>
       <div style="margin-top:32px;color:#9ca3af;font-size:14px;">
-        <div style="margin:8px 0;">🎯 10 walls: +5 coins</div>
-        <div style="margin:8px 0;">🎯 20 walls: +15 coins</div>
-        <div style="margin:8px 0;">🎯 30 walls: +30 coins</div>
-        <div style="margin:8px 0;">🎯 40 walls: +50 coins</div>
-        <div style="margin:8px 0;">🎯 50+ walls: +75 coins</div>
-        <div style="margin:16px 0;color:#ef4444;">⚠️ Wall/Edge hit: -3 coins</div>
+        <div style="margin:8px 0;color:#10b981;">✅ Each wall spawned: +1 coin</div>
+        <div style="margin:8px 0;color:#ef4444;">❌ Each wall/edge hit: -1 coin</div>
+        <div style="margin:16px 0;color:#ef4444;font-weight:600;">⚠️ Game Over at -50 coins</div>
       </div>
     </div>
     <div class="controls" style="display:none;" id="controls">Arrow Keys or WASD to change direction • ESC to quit</div>
@@ -43,8 +42,12 @@
 
   <div id="hud" style="display:none;">
     <div class="stat">
-      <span class="stat-label">Coins:</span>
-      <span class="stat-value" id="coins">{{ profile.coins|floatformat:0 }}</span>
+      <span class="stat-label">Balance:</span>
+      <span class="stat-value" id="balance">{{ profile.coins|floatformat:0 }}</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Current Score:</span>
+      <span class="stat-value" id="currentScore">0</span>
     </div>
     <div class="stat">
       <span class="stat-label">Walls Survived:</span>
@@ -67,6 +70,7 @@
   <div id="gameOver">
     <h2>Game Over</h2>
     <div class="result">
+      <div class="result-item">Final Score: <strong id="finalScore">0</strong></div>
       <div class="result-item">Walls Survived: <strong id="finalWalls">0</strong></div>
       <div class="result-item">Walls Hit: <strong id="finalHits">0</strong></div>
       <div class="result-item">Time: <strong id="finalTime">0s</strong></div>
@@ -90,12 +94,15 @@
     const TICK_RATE = 150;
     const WALL_SPAWN_INTERVAL = 3000;
 
+    const startingBalance = {{ profile.coins|floatformat:0 }};
+
     let gameState = {
       player: { x: 10, y: 10, direction: 'UP', alive: true },
       walls: [],
       countdownWalls: [],
       wallsSurvived: 0,
       wallsHit: 0,
+      currentScore: 0,
       startTime: Date.now(),
       lastWallSpawn: Date.now(),
       gameOver: false
@@ -159,6 +166,7 @@
       gameState.countdownWalls = [];
       gameState.wallsSurvived = 0;
       gameState.wallsHit = 0;
+      gameState.currentScore = 0;
       gameState.startTime = Date.now();
       gameState.lastWallSpawn = Date.now();
       gameState.gameOver = false;
@@ -209,16 +217,28 @@
       else if (currentDirection === 'LEFT') newX--;
       else if (currentDirection === 'RIGHT') newX++;
       
-      // FIXED: Edges act like walls - deduct coins and bounce back
+      // Check edge collision - lose 1 point
       if (newX < 0 || newX >= GRID_SIZE || newY < 0 || newY >= GRID_SIZE) {
         gameState.wallsHit++;
+        gameState.currentScore--;
+        
+        // Check if reached -50
+        if (gameState.currentScore <= -50) {
+          endGame();
+        }
         return; // Don't move, just bounce
       }
       
-      // FIXED: Wall collision - deduct coins and bounce back
+      // Check wall collision - lose 1 point
       const hitWall = gameState.walls.some(w => w.x === newX && w.y === newY);
       if (hitWall) {
         gameState.wallsHit++;
+        gameState.currentScore--;
+        
+        // Check if reached -50
+        if (gameState.currentScore <= -50) {
+          endGame();
+        }
         return; // Don't move, just bounce
       }
       
@@ -250,6 +270,7 @@
         if (w.secondsLeft <= 0) {
           gameState.walls.push({ x: w.x, y: w.y });
           gameState.wallsSurvived++;
+          gameState.currentScore++; // Gain 1 point per wall survived
           return false;
         }
         return true;
@@ -281,7 +302,7 @@
         ctx.stroke();
       }
       
-      // Draw edge indicators (so players know edges are walls)
+      // Draw edge indicators (so players know edges are deadly)
       ctx.fillStyle = '#ef4444';
       ctx.globalAlpha = 0.2;
       ctx.fillRect(0, 0, canvas.width, 4);
@@ -309,7 +330,7 @@
         ctx.fillText(w.secondsLeft, (w.x + 0.5) * CELL_SIZE, (w.y + 0.5) * CELL_SIZE);
       });
       
-      // FIXED: Draw player with rotation based on direction
+      // Draw player with rotation based on direction
       const px = gameState.player.x * CELL_SIZE + CELL_SIZE / 2;
       const py = gameState.player.y * CELL_SIZE + CELL_SIZE / 2;
       
@@ -334,6 +355,10 @@
     function updateHUD() {
       document.getElementById('wallsSurvived').textContent = gameState.wallsSurvived;
       document.getElementById('wallsHit').textContent = gameState.wallsHit;
+      
+      const scoreEl = document.getElementById('currentScore');
+      scoreEl.textContent = gameState.currentScore;
+      scoreEl.className = 'stat-value ' + (gameState.currentScore >= 0 ? 'score-positive' : 'score-negative');
       
       const elapsed = Math.floor((Date.now() - gameState.startTime) / 1000);
       document.getElementById('time').textContent = elapsed + 's';
@@ -381,6 +406,7 @@
     }
 
     function showGameOver(data) {
+      document.getElementById('finalScore').textContent = gameState.currentScore;
       document.getElementById('finalWalls').textContent = data.wallsSurvived;
       document.getElementById('finalHits').textContent = gameState.wallsHit;
       document.getElementById('finalTime').textContent = 

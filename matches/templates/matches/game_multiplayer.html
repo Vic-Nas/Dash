@@ -15,7 +15,9 @@
     .stat-value{color:#fff;font-weight:600;}
     .player-item{margin:8px 0;padding:8px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;}
     .player-name{font-weight:600;}
-    .player-lives{font-size:12px;color:#9ca3af;}
+    .player-score{font-size:12px;font-weight:600;}
+    .score-positive{color:#10b981;}
+    .score-negative{color:#ef4444;}
     .player-dead{opacity:0.5;text-decoration:line-through;}
     .color-badge{display:inline-block;width:16px;height:16px;border-radius:3px;margin-right:8px;vertical-align:middle;border:1px solid #fff;}
     #gameOver{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(18,20,40,0.98);padding:40px;border-radius:12px;border:2px solid #2a2f6b;text-align:center;min-width:400px;z-index:1000;}
@@ -54,6 +56,7 @@
   <div id="gameOver">
     <h2 id="winnerText">Game Over</h2>
     <div id="winnerInfo" style="margin:24px 0;font-size:18px;"></div>
+    <div id="finalScores" style="margin:16px 0;font-size:14px;color:#9ca3af;"></div>
     <div>
       <button onclick="location.href='/matches/multiplayer/'">Find Another Match</button>
       <button onclick="location.href='/'">Dashboard</button>
@@ -69,18 +72,18 @@
     let gameState = null;
     let socket = null;
     let CELL_SIZE = 0;
-    let botImages = {};  // {skinName: {color: canvasImage}}
+    let botImages = {};
     let myPlayerColor = null;
 
-    // Create bot image for a specific skin with color tint
-    function createBotImage(skinName, color) {
+    // Create bot image for a specific color
+    function createBotImage(color) {
       const size = 64;
       const img = document.createElement('canvas');
       img.width = size;
       img.height = size;
       const c = img.getContext('2d');
       
-      // Draw arrow bot (all skins use same shape for now - can be customized per skin later)
+      // Draw arrow bot
       c.fillStyle = color;
       c.beginPath();
       c.moveTo(size/2, size*0.2);
@@ -100,12 +103,11 @@
       return img;
     }
 
-    function getBotImage(skinName, playerColor) {
-      const key = `${skinName}_${playerColor}`;
-      if (!botImages[key]) {
-        botImages[key] = createBotImage(skinName, playerColor);
+    function getBotImage(playerColor) {
+      if (!botImages[playerColor]) {
+        botImages[playerColor] = createBotImage(playerColor);
       }
-      return botImages[key];
+      return botImages[playerColor];
     }
 
     // Connect to WebSocket
@@ -123,13 +125,13 @@
       socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
         
-        if (data.type === 'player_color') {
+        if (data.type === 'playerColor') {
           // Receive your assigned color
           myPlayerColor = data.playerColor;
           document.getElementById('yourColorStat').style.display = 'block';
           document.getElementById('yourColorBadge').style.backgroundColor = myPlayerColor;
           console.log('Your color:', myPlayerColor);
-        } else if (data.type === 'game_over') {
+        } else if (data.type === 'gameOver') {
           handleGameOver(data);
         } else {
           gameState = data;
@@ -169,7 +171,7 @@
       
       if (direction) {
         socket.send(JSON.stringify({
-          action: 'change_direction',
+          action: 'changeDirection',
           direction: direction
         }));
       }
@@ -221,9 +223,9 @@
       }
       
       // Draw countdown walls
-      if (gameState.countdown_walls) {
-        gameState.countdown_walls.forEach(w => {
-          const alpha = 0.3 + (0.7 * (3 - w.seconds_left) / 3);
+      if (gameState.countdownWalls) {
+        gameState.countdownWalls.forEach(w => {
+          const alpha = 0.3 + (0.7 * (3 - w.secondsLeft) / 3);
           ctx.fillStyle = `rgba(239, 68, 68, ${alpha})`;
           ctx.fillRect(w.x * CELL_SIZE + 2, w.y * CELL_SIZE + 2, CELL_SIZE - 4, CELL_SIZE - 4);
           
@@ -231,19 +233,19 @@
           ctx.font = 'bold 16px system-ui';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(w.seconds_left, (w.x + 0.5) * CELL_SIZE, (w.y + 0.5) * CELL_SIZE);
+          ctx.fillText(w.secondsLeft, (w.x + 0.5) * CELL_SIZE, (w.y + 0.5) * CELL_SIZE);
         });
       }
       
-      // Draw players with their skins and colors
+      // Draw players
       Object.entries(gameState.players).forEach(([userId, player]) => {
         if (!player.alive) return;
         
         const px = player.x * CELL_SIZE + CELL_SIZE / 2;
         const py = player.y * CELL_SIZE + CELL_SIZE / 2;
         
-        // Get bot image with player's skin and color
-        const botImg = getBotImage(player.skinName, player.playerColor);
+        // Get bot image with player's color
+        const botImg = getBotImage(player.playerColor);
         
         ctx.save();
         ctx.translate(px, py);
@@ -261,11 +263,17 @@
         
         ctx.restore();
         
-        // Draw username above player with color badge
+        // Draw username and score above player
         ctx.fillStyle = '#fff';
         ctx.font = '12px system-ui';
         ctx.textAlign = 'center';
-        ctx.fillText(player.username, px, py - CELL_SIZE/2 - 8);
+        ctx.fillText(player.username, px, py - CELL_SIZE/2 - 16);
+        
+        // Draw score with color
+        const scoreColor = player.score >= 0 ? '#10b981' : '#ef4444';
+        ctx.fillStyle = scoreColor;
+        ctx.font = 'bold 12px system-ui';
+        ctx.fillText(player.score, px, py - CELL_SIZE/2 - 4);
       });
     }
 
@@ -275,7 +283,10 @@
       const playerList = document.getElementById('playerList');
       playerList.innerHTML = '<strong style="color:#9ca3af;font-size:12px;">PLAYERS</strong>';
       
-      Object.entries(gameState.players).forEach(([userId, player]) => {
+      // Sort players by score descending
+      const sortedPlayers = Object.entries(gameState.players).sort((a, b) => b[1].score - a[1].score);
+      
+      sortedPlayers.forEach(([userId, player]) => {
         const div = document.createElement('div');
         div.className = 'player-item' + (player.alive ? '' : ' player-dead');
         
@@ -283,9 +294,11 @@
         
         const colorBadge = `<span class="color-badge" style="background-color:${player.playerColor};"></span>`;
         
+        const scoreClass = player.score >= 0 ? 'score-positive' : 'score-negative';
+        
         div.innerHTML = `
           <span>${colorBadge}<span class="player-name">${player.username}${isYou ? ' (You)' : ''}</span></span>
-          <span class="player-lives">${player.lives > 0 ? player.lives + ' lives' : (player.alive ? 'Alive' : 'Dead')}</span>
+          <span class="player-score ${scoreClass}">${player.score >= 0 ? '+' : ''}${player.score}</span>
         `;
         
         playerList.appendChild(div);
@@ -293,12 +306,25 @@
     }
 
     function handleGameOver(data) {
-      if (data.is_tie) {
+      const finalScoresDiv = document.getElementById('finalScores');
+      
+      if (data.finalScores) {
+        const sortedScores = Object.entries(data.finalScores).sort((a, b) => b[1] - a[1]);
+        finalScoresDiv.innerHTML = '<strong>Final Scores:</strong><br>' + 
+          sortedScores.map(([userId, score]) => {
+            const player = gameState?.players?.[userId];
+            const name = player?.username || 'Player';
+            const scoreColor = score >= 0 ? '#10b981' : '#ef4444';
+            return `<div style="margin:4px 0;"><span style="color:${scoreColor}">${name}: ${score >= 0 ? '+' : ''}${score}</span></div>`;
+          }).join('');
+      }
+      
+      if (data.isTie) {
         document.getElementById('winnerText').textContent = 'Tie Game!';
         document.getElementById('winnerInfo').innerHTML = '<strong style="color:#f59e0b;">Everyone died! Pot will be split.</strong>';
-      } else if (data.winner_username) {
+      } else if (data.winnerUsername) {
         document.getElementById('winnerText').textContent = 'Winner!';
-        document.getElementById('winnerInfo').innerHTML = `<strong style="color:#10b981;">${data.winner_username}</strong> wins the pot!`;
+        document.getElementById('winnerInfo').innerHTML = `<strong style="color:#10b981;">${data.winnerUsername}</strong> wins the pot!`;
       } else {
         document.getElementById('winnerText').textContent = 'Game Over';
         document.getElementById('winnerInfo').innerHTML = 'Match ended.';

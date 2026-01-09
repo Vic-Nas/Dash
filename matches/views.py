@@ -30,21 +30,9 @@ def saveSoloRun(request):
         survivalTime = int(data.get('survivalTime', 0))
         finalGridState = data.get('finalGridState')
         
-        # Calculate rewards based on walls survived
-        coinsEarned = Decimal('0')
-        if wallsSurvived >= 50:
-            coinsEarned = Decimal('75')
-        elif wallsSurvived >= 40:
-            coinsEarned = Decimal('50')
-        elif wallsSurvived >= 30:
-            coinsEarned = Decimal('30')
-        elif wallsSurvived >= 20:
-            coinsEarned = Decimal('15')
-        elif wallsSurvived >= 10:
-            coinsEarned = Decimal('5')
-        
-        # Calculate penalties (3 coins per wall hit)
-        coinsLost = Decimal(str(wallsHit * 3))
+        # NEW SCORING: +1 coin per wall survived, -1 coin per hit
+        coinsEarned = Decimal(str(wallsSurvived))
+        coinsLost = Decimal(str(wallsHit))
         netCoins = coinsEarned - coinsLost
         
         with transaction.atomic():
@@ -54,8 +42,8 @@ def saveSoloRun(request):
             
             balanceBefore = profile.coins
             
-            # Update coins (can be negative net, but balance can't go below 0)
-            newBalance = max(Decimal('0'), profile.coins + netCoins)
+            # Update coins - balance can go negative but game ends at -50
+            newBalance = profile.coins + netCoins
             profile.coins = newBalance
             
             # Update high score if needed
