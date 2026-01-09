@@ -16,21 +16,71 @@
     .btn:hover{background:#3940a3;}
     .container{max-width:1200px;margin:24px auto;padding:0 20px;}
     h1{margin:0 0 24px;font-size:28px;}
+    
+    .activity-banner{
+      background:#1a1d35;
+      border:2px solid #10b981;
+      border-radius:12px;
+      padding:16px 24px;
+      margin-bottom:24px;
+      text-align:center;
+      animation:pulse 2s ease-in-out infinite;
+    }
+    .activity-banner .icon{
+      font-size:24px;
+      margin-right:8px;
+    }
+    .activity-banner .text{
+      font-size:18px;
+      font-weight:600;
+      color:#10b981;
+    }
+    @keyframes pulse {
+      0%, 100% { border-color:#10b981; }
+      50% { border-color:#34d399; }
+    }
+    
     .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:20px;}
-    .match-card{background:#121428;border:1px solid #23264a;border-radius:12px;padding:24px;transition:all .2s;}
+    .match-card{background:#121428;border:1px solid #23264a;border-radius:12px;padding:24px;transition:all .2s;position:relative;}
     .match-card:hover{border-color:#3940a3;transform:translateY(-2px);}
+    
+    .match-card.has-players{
+      border:2px solid #10b981;
+      background:#1a1d35;
+    }
+    .match-card.has-players::before{
+      content:'🟢 ACTIVE';
+      position:absolute;
+      top:12px;
+      right:12px;
+      background:#10b981;
+      color:#0d0f1a;
+      padding:4px 12px;
+      border-radius:12px;
+      font-size:12px;
+      font-weight:700;
+      animation:glow 2s ease-in-out infinite;
+    }
+    @keyframes glow {
+      0%, 100% { box-shadow:0 0 10px rgba(16,185,129,0.5); }
+      50% { box-shadow:0 0 20px rgba(16,185,129,0.8); }
+    }
+    
     .match-header{display:flex;justify-content:space-between;align-items:start;margin-bottom:16px;}
     .match-title{font-size:20px;font-weight:600;}
     .entry-fee{background:#2a2f6b;padding:6px 12px;border-radius:6px;font-size:14px;font-weight:600;}
     .match-desc{color:#9ca3af;font-size:14px;margin-bottom:16px;line-height:1.5;}
     .match-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;}
     .stat{background:#1a1d35;padding:10px;border-radius:6px;text-align:center;}
+    .match-card.has-players .stat{background:#2a2f6b;}
     .stat-label{font-size:12px;color:#9ca3af;display:block;margin-bottom:4px;}
     .stat-value{font-size:16px;font-weight:600;}
+    .stat-value.highlight{color:#10b981;font-weight:700;font-size:18px;}
     .join-btn{width:100%;background:#2a2f6b;color:#fff;border:none;padding:12px;border-radius:8px;cursor:pointer;font-size:15px;font-weight:600;}
     .join-btn:hover{background:#3940a3;}
     .join-btn:disabled{background:#1a1d35;cursor:not-allowed;opacity:0.5;}
-    .error{background:#991b1b;padding:12px;border-radius:8px;margin-bottom:16px;}
+    .match-card.has-players .join-btn{background:#10b981;color:#0d0f1a;}
+    .match-card.has-players .join-btn:hover{background:#059669;}
   </style>
 </head>
 <body>
@@ -46,9 +96,16 @@
   <div class="container">
     <h1>Multiplayer Matches</h1>
 
+    {% if hasAnyWaitingPlayers %}
+    <div class="activity-banner">
+      <span class="icon">🎮</span>
+      <span class="text">Players are waiting in lobbies! Join now!</span>
+    </div>
+    {% endif %}
+
     <div class="grid">
       {% for mt in matchTypes %}
-      <div class="match-card">
+      <div class="match-card {% if mt.hasWaitingPlayers %}has-players{% endif %}">
         <div class="match-header">
           <div class="match-title">{{ mt.name }}</div>
           <div class="entry-fee">{{ mt.entryFee|floatformat:0 }} coins</div>
@@ -61,7 +118,9 @@
           </div>
           <div class="stat">
             <span class="stat-label">In Lobby</span>
-            <span class="stat-value">{{ mt.waitingCount|default:0 }}</span>
+            <span class="stat-value {% if mt.hasWaitingPlayers %}highlight{% endif %}">
+              {{ mt.waitingCount|default:0 }}
+            </span>
           </div>
           <div class="stat">
             <span class="stat-label">Grid</span>
@@ -75,6 +134,8 @@
         <button class="join-btn" onclick="joinMatch({{ mt.id }}, {{ mt.entryFee }}, '{{ mt.name }}')" {% if profile.coins < mt.entryFee %}disabled{% endif %}>
           {% if profile.coins < mt.entryFee %}
             Insufficient Coins
+          {% elif mt.hasWaitingPlayers %}
+            Join Active Lobby! 🟢
           {% else %}
             Join Match
           {% endif %}
@@ -118,6 +179,11 @@
         alert('Error joining match: ' + error.message);
       }
     }
+    
+    // Auto-refresh every 5 seconds to show updated lobby counts
+    setInterval(() => {
+      location.reload();
+    }, 5000);
   </script>
 </body>
 </html>

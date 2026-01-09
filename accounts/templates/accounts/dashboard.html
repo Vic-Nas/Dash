@@ -106,7 +106,7 @@
           </div>
         </a>
         
-        <a href="/matches/multiplayer/" class="card">
+        <a href="/matches/multiplayer/" class="card" id="multiplayerCard">
           <div class="card-title">Multiplayer</div>
           <div class="card-desc">Compete against other players. Winner takes all!</div>
           <div class="card-info">
@@ -148,5 +148,23 @@
       </table>
     </div>
   </div>
+  <script>
+    // Check for active lobbies and highlight multiplayer
+    fetch('/matches/check-activity/')
+      .then(r => r.json())
+      .then(data => {
+        if (data.hasActivity) {
+          const card = document.getElementById('multiplayerCard');
+          card.style.border = '2px solid #10b981';
+          card.style.background = '#1a1d35';
+          
+          const badge = document.createElement('span');
+          badge.textContent = '🟢 ACTIVE';
+          badge.style.cssText = 'position:absolute;top:12px;right:12px;background:#10b981;color:#0d0f1a;padding:4px 12px;border-radius:12px;font-size:11px;font-weight:700;';
+          card.style.position = 'relative';
+          card.appendChild(badge);
+        }
+      });
+  </script>
 </body>
 </html>

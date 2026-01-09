@@ -105,17 +105,22 @@ def saveSoloRun(request):
 def multiplayer(request):
     matchTypes = MatchType.objects.filter(isActive=True)
     
-    # Add waiting player count for each match type
+    # Add waiting player count and match info for each match type
     for mt in matchTypes:
         waitingMatch = Match.objects.filter(
             matchType=mt,
             status='WAITING'
         ).first()
         mt.waitingCount = waitingMatch.currentPlayers if waitingMatch else 0
+        mt.hasWaitingPlayers = mt.waitingCount > 0
+    
+    # Check if ANY match has waiting players
+    hasAnyWaitingPlayers = any(mt.hasWaitingPlayers for mt in matchTypes)
     
     context = {
         'matchTypes': matchTypes,
         'profile': request.user.profile,
+        'hasAnyWaitingPlayers': hasAnyWaitingPlayers,
     }
     return render(request, 'matches/multiplayer.html', context)
 
@@ -444,3 +449,13 @@ def leaveLobby(request):
             'error': str(e),
             'traceback': traceback.format_exc()
         }, status=500)
+        
+@login_required
+def checkActivity(request):
+    """Check if any lobbies have waiting players"""
+    hasActivity = Match.objects.filter(
+        status='WAITING',
+        currentPlayers__gt=0
+    ).exists()
+    
+    return JsonResponse({'hasActivity': hasActivity})
