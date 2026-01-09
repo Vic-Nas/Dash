@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     'accounts',
     'matches',
     'shop',
+    'chat'
 ]
 
 MIDDLEWARE = [

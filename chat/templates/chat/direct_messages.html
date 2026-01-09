@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Direct Messages - Dash Arena</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:system-ui,sans-serif;background:#0d0f1a;color:#e6e6e6;}
+    header{background:#121428;border-bottom:1px solid #23264a;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;}
+    .brand{font-weight:700;font-size:20px;}
+    .nav{display:flex;gap:16px;align-items:center;}
+    .coins{background:#2a2f6b;padding:8px 16px;border-radius:20px;font-weight:600;}
+    .btn{background:#2a2f6b;color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:14px;text-decoration:none;}
+    .btn:hover{background:#3940a3;}
+    .container{max-width:900px;margin:24px auto;padding:0 20px;}
+    .section{background:#121428;border:1px solid #23264a;border-radius:12px;padding:24px;}
+    h2{margin-bottom:16px;font-size:22px;}
+    .conversation-list{display:flex;flex-direction:column;gap:12px;}
+    .conversation{background:#1a1d35;border:1px solid #2a2f6b;border-radius:8px;padding:16px;cursor:pointer;text-decoration:none;color:inherit;display:flex;justify-content:space-between;align-items:center;transition:all .2s;}
+    .conversation:hover{border-color:#3940a3;transform:translateX(4px);}
+    .conversation-info{flex:1;}
+    .conversation-user{font-weight:600;font-size:16px;margin-bottom:4px;}
+    .conversation-preview{font-size:14px;color:#9ca3af;}
+    .unread-badge{background:#ef4444;color:#fff;padding:4px 8px;border-radius:12px;font-size:12px;font-weight:600;}
+    .empty-state{text-align:center;color:#9ca3af;padding:40px;}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">Dash Arena - Direct Messages</div>
+    <div class="nav">
+      <span class="coins">💰 {{ profile.coins|floatformat:0 }}</span>
+      <a href="/chat/global/" class="btn">🌐 Global Chat</a>
+      <a href="/" class="btn">Dashboard</a>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="section">
+      <h2>Your Conversations</h2>
+
+      {% if conversations %}
+      <div class="conversation-list">
+        {% for conv in conversations %}
+        <a href="/chat/messages/{{ conv.user.id }}/" class="conversation">
+          <div class="conversation-info">
+            <div class="conversation-user">{{ conv.user.username }}</div>
+            {% if conv.lastMessage %}
+            <div class="conversation-preview">
+              {{ conv.lastMessage.message|truncatewords:10 }}
+            </div>
+            {% endif %}
+          </div>
+          {% if conv.unreadCount > 0 %}
+          <div class="unread-badge">{{ conv.unreadCount }}</div>
+          {% endif %}
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty-state">
+        <p>No conversations yet</p>
+        <p style="margin-top:8px;font-size:14px;">Start chatting with other players from the global chat!</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>

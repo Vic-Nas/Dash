@@ -38,6 +38,8 @@
     <div class="user">
       <span class="coins">💰 {{ profile.coins|floatformat:0 }}</span>
       <span>{{ user.username }}</span>
+      <a href="/chat/global/" class="btn">🌐 Chat</a>
+      <a href="/chat/messages/" class="btn">📨 Messages</a>
       <a href="/shop/" class="btn">Shop</a>
       <a href="{% url 'logout' %}" class="btn">Logout</a>
     </div>
