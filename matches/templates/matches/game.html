@@ -38,6 +38,7 @@
       border-radius: 8px;
       border: 1px solid #2a2f6b;
       min-width: 200px;
+      display: block;
     }
     .stat {
       margin-bottom: 8px;
@@ -193,22 +194,6 @@
         <span class="stat-value" id="currentScore">0</span>
       </div>
 
-      <button
-        onclick="toggleSound()"
-        id="soundBtn"
-        style="
-          padding:8px 12px;
-          background:#2a2f6b;
-          border:none;
-          border-radius:6px;
-          color:#fff;
-          cursor:pointer;
-          font-size:13px;
-        "
-      >
-        🔊 Sound ON
-      </button>
-
       <div class="stat">
         <span class="stat-label">Walls:</span>
         <span class="stat-value" id="wallsSurvived">0</span>
@@ -223,6 +208,24 @@
         <span class="stat-label">Time:</span>
         <span class="stat-value" id="time">0s</span>
       </div>
+
+      <button
+        onclick="toggleSound()"
+        id="soundBtn"
+        style="
+          width:100%;
+          margin-top:8px;
+          padding:8px;
+          background:#2a2f6b;
+          border:none;
+          border-radius:6px;
+          color:#fff;
+          cursor:pointer;
+          font-size:13px;
+        "
+      >
+        🔊 Sound ON
+      </button>
     </div>
 
     <div id="mobile-controls" style="display:none;">
@@ -609,7 +612,7 @@
       document.getElementById('startScreen').style.display = 'none';
       document.getElementById('gameCanvas').style.display = 'block';
       document.getElementById('controls').style.display = 'block';
-      document.getElementById('hud').style.display = 'flex'; // Changed to flex
+      document.getElementById('hud').style.display = 'block';
       document.getElementById('mobile-controls').style.display = 'grid';
       initGame();
     }
