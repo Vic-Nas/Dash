@@ -186,7 +186,7 @@ class GameEngine:
     def getState(self):
         return {
             'tick': self.tickNumber,
-            'gridSize': self.gridSize,  # ADD THIS LINE
+            'gridSize': self.gridSize,
             'players': {str(uid): p for uid, p in self.players.items()},
             'walls': self.walls,
             'countdownWalls': self.countdownWalls,
@@ -230,6 +230,10 @@ class GameEngine:
                 self.updateCountdownWalls()
         
         async def spawnLoop():
+            # FIX: Only spawn walls if wallSpawnInterval > 0
+            if self.wallSpawnInterval <= 0:
+                return
+            
             while self.running:
                 await asyncio.sleep(self.wallSpawnInterval)
                 self.spawnWall()
