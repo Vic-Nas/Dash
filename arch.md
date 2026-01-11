@@ -218,6 +218,7 @@ Players spawn evenly around grid perimeter:
 
 ### Wall Spawn Logic
 - Every `wallSpawnInterval` seconds, pick random empty cell
+- But when 0 no walls
 - Show 3-second countdown on that cell
 - After countdown, cell becomes permanent wall
 - **All alive players gain +1 point when wall spawns**

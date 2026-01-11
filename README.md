@@ -22,7 +22,7 @@
 - **Eliminated at 50 hits** or when hit by another player
 - **Eliminate another player** → gain their points (minimum 0)
 - **Last player standing** wins entire pot
-- Walls spawn every 5 seconds
+- Walls spawn every 5 seconds / no walls
 
 ### Player Interactions
 - **Side/back collision**: Attacker eliminates victim, gains their score
