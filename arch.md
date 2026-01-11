@@ -2,7 +2,6 @@
 
 ## Game Overview
 
-
 **Dash** is a fast-paced, real-time multiplayer game where players control bots on a grid, trying to be the last one standing. Bots move continuously in the direction they're facing, and players can only change direction (UP/DOWN/LEFT/RIGHT). Victory comes from strategic positioning, survival, and scoring points.
 
 ### Core Mechanics
