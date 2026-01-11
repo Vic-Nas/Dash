@@ -257,8 +257,9 @@
       <div class="result-item">Walls Survived: <strong id="finalWalls">0</strong></div>
       <div class="result-item">Walls Hit: <strong id="finalHits">0</strong></div>
       <div class="result-item">Time: <strong id="finalTime">0s</strong></div>
+      <div class="result-item" id="savingStatus" style="color:#f59e0b;margin-top:16px;">Saving...</div>
     </div>
-    <div>
+    <div id="gameOverActions" style="display:none;">
       <button onclick="location.reload()">Play Again</button>
       <button onclick="location.href='/'">Dashboard</button>
     </div>
@@ -584,6 +585,58 @@
       document.getElementById('time').textContent = elapsed + 's';
     }
 
+    function getCookie(name) {
+      let value = '; ' + document.cookie;
+      let parts = value.split('; ' + name + '=');
+      if (parts.length === 2) return parts.pop().split(';').shift();
+    }
+
+    async function saveGameResults() {
+      var survivalTime = Math.floor((Date.now() - gameState.startTime) / 1000);
+      
+      try {
+        const response = await fetch('/matches/save-solo-run/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+          },
+          body: JSON.stringify({
+            wallsSurvived: gameState.wallsSurvived,
+            wallsHit: gameState.wallsHit,
+            survivalTime: survivalTime,
+            finalGridState: {
+              walls: gameState.walls,
+              score: gameState.currentScore
+            }
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          var statusEl = document.getElementById('savingStatus');
+          statusEl.style.color = '#10b981';
+          statusEl.textContent = '✅ Saved! Net coins: ' + (data.netCoins >= 0 ? '+' : '') + data.netCoins;
+          
+          if (data.newHighScore) {
+            statusEl.textContent += ' 🏆 NEW HIGH SCORE!';
+          }
+        } else {
+          var statusEl = document.getElementById('savingStatus');
+          statusEl.style.color = '#ef4444';
+          statusEl.textContent = '❌ Error saving: ' + (data.error || 'Unknown error');
+        }
+      } catch (error) {
+        var statusEl = document.getElementById('savingStatus');
+        statusEl.style.color = '#ef4444';
+        statusEl.textContent = '❌ Error saving: ' + error.message;
+      } finally {
+        // Show action buttons after save attempt
+        document.getElementById('gameOverActions').style.display = 'block';
+      }
+    }
+
     function endGame() {
       if (gameState.gameOver) return;
       gameState.gameOver = true;
@@ -604,7 +657,15 @@
       var elapsed = Math.floor((Date.now() - gameState.startTime) / 1000);
       document.getElementById('finalTime').textContent = elapsed + 's';
       
+      // Reset saving status
+      document.getElementById('savingStatus').style.color = '#f59e0b';
+      document.getElementById('savingStatus').textContent = 'Saving...';
+      document.getElementById('gameOverActions').style.display = 'none';
+      
       document.getElementById('gameOver').style.display = 'block';
+      
+      // Save results to server
+      saveGameResults();
     }
 
     function startGame() {
@@ -744,4 +805,3 @@
     }
   </script>
 </body>
-</html>
