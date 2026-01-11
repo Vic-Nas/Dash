@@ -12,8 +12,24 @@
     .brand{font-weight:700;font-size:20px;letter-spacing:0.5px;}
     .user{display:flex;align-items:center;gap:16px;}
     .coins{background:#2a2f6b;padding:8px 16px;border-radius:20px;font-weight:600;}
-    .btn{background:#2a2f6b;color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:14px;text-decoration:none;display:inline-block;}
+    .btn{background:#2a2f6b;color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:14px;text-decoration:none;display:inline-block;position:relative;}
     .btn:hover{background:#3940a3;}
+    .btn.has-unread{background:#ef4444;}
+    .btn.has-unread:hover{background:#dc2626;}
+    .btn.has-unread::after{
+      content:attr(data-count);
+      position:absolute;
+      top:-8px;
+      right:-8px;
+      background:#fbbf24;
+      color:#0d0f1a;
+      font-size:11px;
+      font-weight:700;
+      padding:2px 6px;
+      border-radius:10px;
+      min-width:20px;
+      text-align:center;
+    }
     .container{max-width:1200px;margin:24px auto;padding:0 20px;}
     h2{margin:0 0 16px;font-size:22px;}
     .section{background:#121428;border:1px solid #23264a;border-radius:12px;padding:24px;margin-bottom:24px;}
@@ -50,7 +66,7 @@
       <span class="coins">💰 {{ profile.coins|floatformat:0 }}</span>
       <span>{{ user.username }}</span>
       <a href="/chat/global/" class="btn">🌐 Chat</a>
-      <a href="/chat/messages/" class="btn">📨 Messages</a>
+      <a href="/chat/messages/" class="btn {% if unreadCount > 0 %}has-unread{% endif %}" {% if unreadCount > 0 %}data-count="{{ unreadCount }}"{% endif %}>📨 Messages</a>
       <a href="/shop/" class="btn">Shop</a>
       <a href="/logout/" class="btn">Logout</a>
     </div>

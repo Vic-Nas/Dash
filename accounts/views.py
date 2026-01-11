@@ -5,6 +5,7 @@ from django.http import JsonResponse
 from .forms import SignUpForm, ProfilePictureForm
 from matches.models import MatchType
 from accounts.models import Profile
+from chat.models import DirectMessage
 
 
 def signup(request):
@@ -27,13 +28,20 @@ def dashboard(request):
     profile = request.user.profile
     matchTypes = MatchType.objects.filter(isActive=True)
     
-    # Leaderboard - sort by solo high score
-    topPlayers = Profile.objects.filter(soloHighScore__gt=0).order_by('-soloHighScore')[:10]
+    # Leaderboard - sort by solo high score, refresh from database
+    topPlayers = Profile.objects.filter(soloHighScore__gt=0).select_related('user').order_by('-soloHighScore')[:10]
+    
+    # Get unread message count
+    unreadCount = DirectMessage.objects.filter(
+        recipient=request.user,
+        isRead=False
+    ).count()
     
     context = {
         'profile': profile,
         'matchTypes': matchTypes,
         'topPlayers': topPlayers,
+        'unreadCount': unreadCount,
     }
     return render(request, 'accounts/dashboard.html', context)
 
