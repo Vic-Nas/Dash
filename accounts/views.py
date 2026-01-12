@@ -101,10 +101,10 @@ def customLogout(request):
     if profile.isAnonymous and not profile.hasChangedPassword:
         logout(request)
         user.delete()  # This also deletes the profile due to CASCADE
-        return redirect('anonymousLogin')
+        return redirect('login')
     
     logout(request)
-    return redirect('anonymousLogin')
+    return redirect('login')
 
 
 @login_required
