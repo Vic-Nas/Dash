@@ -311,13 +311,12 @@
     }
 
     function createBotImage() {
-      var size = 128; // Doubled from 64 for bigger arrow
+      var size = 128;
       var img = document.createElement('canvas');
       img.width = size;
       img.height = size;
       var c = img.getContext('2d');
       
-      // BIGGER chevron arrow - like < symbol
       c.fillStyle = '#5b7bff';
       c.strokeStyle = '#fff';
       c.lineWidth = 4;
@@ -325,14 +324,13 @@
       c.lineCap = 'square';
       
       c.beginPath();
-      // Arrow pointing UP (will be rotated for other directions)
-      c.moveTo(size * 0.5, size * 0.15);  // Top point
-      c.lineTo(size * 0.85, size * 0.5);  // Right corner
-      c.lineTo(size * 0.65, size * 0.5);  // Right inner
-      c.lineTo(size * 0.65, size * 0.85); // Right bottom
-      c.lineTo(size * 0.35, size * 0.85); // Left bottom
-      c.lineTo(size * 0.35, size * 0.5);  // Left inner
-      c.lineTo(size * 0.15, size * 0.5);  // Left corner
+      c.moveTo(size * 0.5, size * 0.15);
+      c.lineTo(size * 0.85, size * 0.5);
+      c.lineTo(size * 0.65, size * 0.5);
+      c.lineTo(size * 0.65, size * 0.85);
+      c.lineTo(size * 0.35, size * 0.85);
+      c.lineTo(size * 0.35, size * 0.5);
+      c.lineTo(size * 0.15, size * 0.5);
       c.closePath();
       c.fill();
       c.stroke();
@@ -569,7 +567,6 @@
       
       ctx.rotate(angle);
       
-      // Draw 1.5x bigger than cell - allows overflow
       var drawSize = CELL_SIZE * 1.5;
       ctx.drawImage(botImage, -drawSize/2, -drawSize/2, drawSize, drawSize);
       
@@ -803,3 +800,6 @@
       var enabled = gameAudio.toggle();
       document.getElementById('soundBtn').textContent = enabled ? '🔊 Sound ON' : '🔇 Sound OFF';
     }
+  </script>
+</body>
+</html>
