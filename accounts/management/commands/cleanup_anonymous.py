@@ -28,13 +28,10 @@ class Command(BaseCommand):
         cutoffDate = timezone.now() - timedelta(days=days)
         
         # Find accounts to delete:
-        # - Still anonymous (isAnonymous=True)
         # - Haven't changed password (hasChangedPassword=False)
         # - Last activity before cutoff date
         User = get_user_model()
-        
         accountsToDelete = User.objects.filter(
-            profile__isAnonymous=True,
             profile__hasChangedPassword=False,
             profile__lastActivityAt__lt=cutoffDate
         ).select_related('profile')

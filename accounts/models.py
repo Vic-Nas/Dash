@@ -33,11 +33,4 @@ def createProfile(sender, instance, created, **kwargs):
     if created:
         Profile.objects.create(user=instance)
 
-# Remove isAnonymous from existing profiles if present (migration safety)
-def remove_isAnonymous_field():
-    from django.db import connection
-    with connection.cursor() as cursor:
-        try:
-            cursor.execute("ALTER TABLE accounts_profile DROP COLUMN IF EXISTS isAnonymous;")
-        except Exception:
-            pass
+    # isAnonymous logic fully removed; migration will handle schema cleanup

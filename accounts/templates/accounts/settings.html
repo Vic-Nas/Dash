@@ -98,13 +98,7 @@
     <div class="section">
       <h2>📋 Account Status</h2>
       <div class="info-box">
-        <p style="margin:0;"><strong>Account Type:</strong> 
-          {% if profile.isAnonymous %}
-            🔓 Anonymous (temporary)
-          {% else %}
-            🔒 Secured
-          {% endif %}
-        </p>
+        <!-- Removed Account Type based on isAnonymous -->
         <p style="margin:8px 0 0;"><strong>Password Changed:</strong> 
           {% if profile.hasChangedPassword %}
             ✅ Yes
@@ -114,7 +108,7 @@
         </p>
       </div>
       
-      {% if profile.isAnonymous and not profile.hasChangedPassword %}
+      {% if not profile.hasChangedPassword %}
       <div class="info-box warning">
         <strong>⚠️ Warning</strong>
         <p style="margin:8px 0 0;">Your account is not secured. Change your password to prevent deletion when you logout!</p>

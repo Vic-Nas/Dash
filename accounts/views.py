@@ -45,7 +45,6 @@ def anonymousLogin(request):
     
     # Profile is auto-created by signal, just update it
     profile = user.profile
-    profile.isAnonymous = True
     profile.hasChangedPassword = False
     profile.save()
     
@@ -78,7 +77,7 @@ def dashboard(request):
     tempPassword = request.session.pop('temp_password', None)
     
     # Check if account will be deleted on logout
-    willDeleteOnLogout = profile.isAnonymous and not profile.hasChangedPassword
+    willDeleteOnLogout = not profile.hasChangedPassword
     
     context = {
         'profile': profile,
@@ -97,8 +96,8 @@ def customLogout(request):
     profile = request.user.profile
     user = request.user
     
-    # Delete account if still anonymous and hasn't changed password
-    if profile.isAnonymous and not profile.hasChangedPassword:
+    # Delete account if user never changed password
+    if not profile.hasChangedPassword:
         logout(request)
         user.delete()  # This also deletes the profile due to CASCADE
         return redirect('login')
@@ -190,11 +189,10 @@ def changePassword(request):
         user.save()
         update_session_auth_hash(request, user)  # Keep the user logged in after password change
         
-        # Mark that user has changed password and is no longer anonymous
+        # Mark that user has changed password
         profile = user.profile
         profile.hasChangedPassword = True
-        profile.isAnonymous = False
-        profile.save(update_fields=['hasChangedPassword', 'isAnonymous'])
+        profile.save(update_fields=['hasChangedPassword'])
         
         return JsonResponse({
             'success': True,
@@ -252,8 +250,7 @@ def changeUsername(request):
             # Deduct coins
             balanceBefore = profile.coins
             profile.coins = F('coins') - usernameChangeCost
-            profile.isAnonymous = False  # No longer anonymous
-            profile.save(update_fields=['coins', 'isAnonymous'])
+            profile.save(update_fields=['coins'])
             profile.refresh_from_db()
             balanceAfter = profile.coins
             
