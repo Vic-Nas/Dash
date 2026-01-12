@@ -2,6 +2,9 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from django.utils import timezone
+import random
+import string
 
 
 class Profile(models.Model):
@@ -14,6 +17,11 @@ class Profile(models.Model):
     createdAt = models.DateTimeField(auto_now_add=True)
     isActive = models.BooleanField(default=True)
     activityLog = models.TextField(default="", blank=True)
+    
+    # New fields for anonymous auth system
+    isAnonymous = models.BooleanField(default=True)
+    hasChangedPassword = models.BooleanField(default=False)
+    lastActivityAt = models.DateTimeField(default=timezone.now)
 
     class Meta:
         verbose_name = 'Profile'

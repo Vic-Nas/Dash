@@ -1,0 +1,211 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <title>Account Settings - Dash Arena</title>
+  <style>
+    *{box-sizing:border-box;}
+    body{font-family:system-ui,sans-serif;margin:0;background:#0d0f1a;color:#e6e6e6;}
+    header{background:#121428;border-bottom:1px solid #23264a;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;}
+    .brand{font-weight:700;font-size:20px;}
+    .nav{display:flex;gap:16px;align-items:center;}
+    .coins{background:#2a2f6b;padding:8px 16px;border-radius:20px;font-weight:600;}
+    .btn{background:#2a2f6b;color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:14px;text-decoration:none;}
+    .btn:hover{background:#3940a3;}
+    .btn-primary{background:#10b981;}
+    .btn-primary:hover{background:#059669;}
+    .container{max-width:800px;margin:24px auto;padding:0 20px;}
+    .section{background:#121428;border:1px solid #23264a;border-radius:12px;padding:24px;margin-bottom:24px;}
+    h1{margin:0 0 8px;font-size:28px;}
+    h2{margin:0 0 16px;font-size:22px;}
+    .form-group{margin-bottom:20px;}
+    label{display:block;margin-bottom:8px;font-weight:600;color:#e6e6e6;}
+    input[type="text"],input[type="password"]{width:100%;padding:12px;background:#1a1d35;border:1px solid #2a2f6b;border-radius:8px;color:#fff;font-size:15px;}
+    input:focus{outline:none;border-color:#3940a3;}
+    button[type="submit"]{width:100%;padding:12px;background:#2a2f6b;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;font-weight:600;}
+    button[type="submit"]:hover{background:#3940a3;}
+    .info-box{background:#1a1d35;border:1px solid #2a2f6b;padding:16px;border-radius:8px;margin-bottom:16px;}
+    .info-box.warning{border-color:#f59e0b;background:#422006;}
+    .info-box.success{border-color:#10b981;background:#064e3b;}
+    .alert{padding:12px 16px;border-radius:6px;margin-top:12px;display:none;}
+    .alert.success{background:#065f46;color:#10b981;display:block;}
+    .alert.error{background:#991b1b;color:#ef4444;display:block;}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">Dash Arena - Settings</div>
+    <div class="nav">
+      <span class="coins">💰 <span id="coinBalance">{{ profile.coins|floatformat:0 }}</span></span>
+      <a href="/" class="btn">Dashboard</a>
+    </div>
+  </header>
+
+  <div class="container">
+    <h1>Account Settings</h1>
+    <p style="color:#9ca3af;margin-bottom:24px;">Manage your account security and identity</p>
+
+    <!-- Change Password Section -->
+    <div class="section">
+      <h2>🔒 Change Password</h2>
+      <div class="info-box success">
+        <strong>✓ Always FREE</strong>
+        <p style="margin:8px 0 0;font-size:14px;">Changing your password is free and secures your account from deletion on logout.</p>
+      </div>
+      
+      <form id="passwordForm">
+        <div class="form-group">
+          <label for="newPassword">New Password</label>
+          <input type="password" id="newPassword" name="newPassword" minlength="8" required placeholder="At least 8 characters">
+        </div>
+        
+        <div class="form-group">
+          <label for="confirmPassword">Confirm Password</label>
+          <input type="password" id="confirmPassword" name="confirmPassword" required placeholder="Re-enter password">
+        </div>
+        
+        <button type="submit" class="btn-primary">Change Password</button>
+      </form>
+      <div id="passwordAlert" class="alert"></div>
+    </div>
+
+    <!-- Change Username Section -->
+    <div class="section">
+      <h2>✏️ Change Username</h2>
+      <div class="info-box warning">
+        <strong>💰 Costs {{ usernameChangeCost }} coins</strong>
+        <p style="margin:8px 0 0;font-size:14px;">Once changed, you'll no longer be considered anonymous and your account is fully secured.</p>
+      </div>
+      
+      <div class="info-box">
+        <strong>Current Username:</strong> {{ user.username }}
+      </div>
+      
+      <form id="usernameForm">
+        <div class="form-group">
+          <label for="newUsername">New Username</label>
+          <input type="text" id="newUsername" name="newUsername" minlength="3" maxlength="20" required placeholder="3-20 characters">
+        </div>
+        
+        <button type="submit">Change Username ({{ usernameChangeCost }} coins)</button>
+      </form>
+      <div id="usernameAlert" class="alert"></div>
+    </div>
+
+    <!-- Account Status -->
+    <div class="section">
+      <h2>📋 Account Status</h2>
+      <div class="info-box">
+        <p style="margin:0;"><strong>Account Type:</strong> 
+          {% if profile.isAnonymous %}
+            🔓 Anonymous (temporary)
+          {% else %}
+            🔒 Secured
+          {% endif %}
+        </p>
+        <p style="margin:8px 0 0;"><strong>Password Changed:</strong> 
+          {% if profile.hasChangedPassword %}
+            ✅ Yes
+          {% else %}
+            ❌ No (account will be deleted on logout!)
+          {% endif %}
+        </p>
+      </div>
+      
+      {% if profile.isAnonymous and not profile.hasChangedPassword %}
+      <div class="info-box warning">
+        <strong>⚠️ Warning</strong>
+        <p style="margin:8px 0 0;">Your account is not secured. Change your password to prevent deletion when you logout!</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <script>
+    function getCookie(name) {
+      let value = '; ' + document.cookie;
+      let parts = value.split('; ' + name + '=');
+      if (parts.length === 2) return parts.pop().split(';').shift();
+    }
+
+    // Password change form
+    document.getElementById('passwordForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const formData = new FormData(e.target);
+      const alertEl = document.getElementById('passwordAlert');
+      
+      try {
+        const response = await fetch('/change-password/', {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': getCookie('csrftoken')
+          },
+          body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          alertEl.className = 'alert success';
+          alertEl.textContent = data.message;
+          e.target.reset();
+          
+          // Reload after 2 seconds to update account status
+          setTimeout(() => location.reload(), 2000);
+        } else {
+          alertEl.className = 'alert error';
+          alertEl.textContent = data.error;
+        }
+      } catch (error) {
+        alertEl.className = 'alert error';
+        alertEl.textContent = 'Error: ' + error.message;
+      }
+    });
+
+    // Username change form
+    document.getElementById('usernameForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const newUsername = document.getElementById('newUsername').value;
+      const cost = {{ usernameChangeCost }};
+      
+      if (!confirm(`Change username to "${newUsername}" for ${cost} coins?`)) {
+        return;
+      }
+      
+      const formData = new FormData(e.target);
+      const alertEl = document.getElementById('usernameAlert');
+      
+      try {
+        const response = await fetch('/change-username/', {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': getCookie('csrftoken')
+          },
+          body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          alertEl.className = 'alert success';
+          alertEl.textContent = data.message;
+          document.getElementById('coinBalance').textContent = Math.floor(data.newBalance);
+          
+          // Reload after 2 seconds to update username everywhere
+          setTimeout(() => location.reload(), 2000);
+        } else {
+          alertEl.className = 'alert error';
+          alertEl.textContent = data.error;
+        }
+      } catch (error) {
+        alertEl.className = 'alert error';
+        alertEl.textContent = 'Error: ' + error.message;
+      }
+    });
+  </script>
+</body>
+</html>

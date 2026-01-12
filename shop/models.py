@@ -39,7 +39,7 @@ class Transaction(models.Model):
     transactionType = models.CharField(max_length=16, choices=[
         ('PURCHASE','PURCHASE'), ('MATCH_ENTRY','MATCH_ENTRY'), ('MATCH_WIN','MATCH_WIN'),
         ('SOLO_REWARD','SOLO_REWARD'), ('SOLO_PENALTY','SOLO_PENALTY'),
-        ('EXTRA_LIFE','EXTRA_LIFE'), ('REFUND','REFUND')
+        ('EXTRA_LIFE','EXTRA_LIFE'), ('REFUND','REFUND'), ('USERNAME_CHANGE','USERNAME_CHANGE')
     ])
     relatedMatch = models.ForeignKey('matches.Match', on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions')
     description = models.CharField(max_length=255)
@@ -49,3 +49,36 @@ class Transaction(models.Model):
 
     def __str__(self):
         return f"Transaction({self.user_id}, {self.amount})"
+
+
+class SystemSettings(models.Model):
+    """Global system settings configurable from admin"""
+    settingKey = models.CharField(max_length=100, unique=True)
+    settingValue = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    updatedAt = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = 'System Setting'
+        verbose_name_plural = 'System Settings'
+    
+    def __str__(self):
+        return f"{self.settingKey}: {self.settingValue}"
+    
+    @classmethod
+    def getInt(cls, key, default=0):
+        """Get integer setting value"""
+        try:
+            setting = cls.objects.get(settingKey=key)
+            return int(setting.settingValue)
+        except (cls.DoesNotExist, ValueError):
+            return default
+    
+    @classmethod
+    def getString(cls, key, default=''):
+        """Get string setting value"""
+        try:
+            setting = cls.objects.get(settingKey=key)
+            return setting.settingValue
+        except cls.DoesNotExist:
+            return default
