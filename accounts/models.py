@@ -17,9 +17,6 @@ class Profile(models.Model):
     createdAt = models.DateTimeField(auto_now_add=True)
     isActive = models.BooleanField(default=True)
     activityLog = models.TextField(default="", blank=True)
-    
-    # New fields for anonymous auth system
-    isAnonymous = models.BooleanField(default=True)
     hasChangedPassword = models.BooleanField(default=False)
     lastActivityAt = models.DateTimeField(default=timezone.now)
 
@@ -35,3 +32,12 @@ class Profile(models.Model):
 def createProfile(sender, instance, created, **kwargs):
     if created:
         Profile.objects.create(user=instance)
+
+# Remove isAnonymous from existing profiles if present (migration safety)
+def remove_isAnonymous_field():
+    from django.db import connection
+    with connection.cursor() as cursor:
+        try:
+            cursor.execute("ALTER TABLE accounts_profile DROP COLUMN IF EXISTS isAnonymous;")
+        except Exception:
+            pass
