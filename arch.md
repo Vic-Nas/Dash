@@ -1,315 +1,168 @@
-# Dash - Real-time Multiplayer Bot Arena Game
+# Dash - Real-time Multiplayer Bot Arena
 
-## Game Overview
-
-
-**Dash** is a fast-paced, real-time multiplayer game where players control bots on a grid, trying to be the last one standing. Bots move continuously in the direction they're facing, and players can only change direction (UP/DOWN/LEFT/RIGHT). Victory comes from strategic positioning, survival, and scoring points.
-
-### Core Mechanics
-- **Continuous Movement:** Bots move automatically in their facing direction at fixed speed
-- **Direction Control:** Players change bot direction via keyboard/tap controls
-- **Scoring System:**
-  - **+1 point** for each wall that successfully spawns on the grid
-  - **-1 point** for hitting a wall or edge
-  - Score starts at 0 and can go negative
-- **Collision Rules:**
-  - **Solo Mode:** Hit wall/edge → lose 1 point. Game over at -50 points
-  - **Multiplayer:** Hit wall/edge → lose 1 point. Hit another player from side/back → they're eliminated and you gain their score (minimum 0). Game over at -50 points OR when eliminated by another player
-- **Dynamic Walls:** Random cells spawn walls (3-second countdown, then permanent)
-- **Match Types:** Solo practice mode and multiplayer matchmaking queues
-
-### Game Modes
-
-**Solo Mode:**
-- 20×20 grid, single player
-- High speed, walls spawn every 3 seconds
-- **Scoring:**
-  - **+1 coin** per wall spawned (walls you survive)
-  - **-1 coin** per wall/edge hit
-  - Game ends when score reaches **-50 coins**
-- No entry fee - score translates directly to coin gain/loss
-- Survive as long as possible and build your score
-- Leaderboard tracks best survival records (walls survived)
-- Can quit anytime to save current score
-
-**Multiplayer Matchmaking:**
-- Pre-configured match queues (different entry fees, settings)
-- Fixed player count per match type (typically 4-8 players)
-- Winner takes entire pot (sum of all entry fees)
-- **Scoring:**
-  - **+1 point** per wall spawned (for all alive players)
-  - **-1 point** per wall/edge hit
-  - **+opponent's score** (minimum 0) when eliminating another player
-  - Eliminated at -50 points OR when hit by another player from side/back
-- Last player standing wins the pot
-- Players can force-start with fewer players by paying for empty slots
-- No platform cut - winner gets full pot
-
-### Collision & Elimination Details
-
-**Solo Mode:**
-- Hitting walls or edges deducts 1 point from your score
-- Game over when your score reaches -50
-- Your final score (positive or negative) is added to your coin balance
-
-**Multiplayer:**
-- **Wall/Edge Hit:** -1 point, continue playing unless score reaches -50
-- **Hit Another Player (Side/Back):**
-  - Victim is immediately eliminated from the match
-  - Attacker gains victim's score (if positive) or gains 0 (if victim's score is negative)
-  - Example: If you have +5 points and eliminate someone with +10 points, you now have +15 points
-  - Example: If you have +5 points and eliminate someone with -3 points, you still have +5 points (can't gain from negative scores)
-- **Head-On Collision:** Both players are eliminated
-- **Score of -50:** Eliminated even if not hit by another player
-- Last player alive wins the entire pot
+Fast-paced grid game. Bots auto-move, players change direction. Survive walls, eliminate opponents.
 
 ---
 
-## Django Models Architecture
+## Game Rules
 
-### **ACCOUNTS APP**
+### Solo Mode
+- 20×20 grid, walls spawn every 3s
+- +1 coin per wall survived, -1 per hit
+- Game over at -50 score
+- Press ESC to quit and save score
 
-#### **Profile**
-- **user** (OneToOneField to User, primaryKey=True)
-- **profilePic** (ImageField, nullable)
-- **coins** (DecimalField, default=100) - virtual currency balance (can go negative)
-- **soloHighScore** (IntegerField, default=0) - walls survived in best solo run
-- **totalWins** (IntegerField, default=0) - multiplayer wins
-- **totalMatches** (IntegerField, default=0) - matches participated
-- **createdAt** (DateTimeField, autoNowAdd=True)
-- **isActive** (BooleanField, default=True)
-- **activityLog** (TextField, default="")
+### Multiplayer
+- Entry fee required (varies by match type)
+- +1 point per wall spawned (all alive players)
+- Hits don't reduce score, just count toward elimination (50 hits = out)
+- Eliminate opponent → gain their points
+- Last standing wins pot (or split if all die)
 
----
-
-### **MATCHES APP**
-
-#### **MatchType**
-Pre-configured match templates that players can join
-
-- **name** (CharField, maxLength=50, unique=True) - e.g., "Quick Match", "Speed Demon"
-- **description** (TextField)
-- **entryFee** (DecimalField) - coins to enter
-- **gridSize** (IntegerField) - grid side length (20, 25, 30, etc.)
-- **speed** (CharField, choices: SLOW, MEDIUM, FAST, EXTREME)
-- **playersRequired** (IntegerField) - players needed to auto-start
-- **maxPlayers** (IntegerField) - maximum allowed
-- **wallSpawnInterval** (IntegerField, default=5) - seconds between wall spawns
-- **isActive** (BooleanField, default=True) - visible in matchmaking?
-- **displayOrder** (IntegerField, default=0)
-- **createdAt** (DateTimeField, autoNowAdd=True)
-
-#### **Match**
-Active or completed match instance
-
-- **matchType** (ForeignKey to MatchType, relatedName='matches')
-- **status** (CharField, choices: WAITING, STARTING, IN_PROGRESS, COMPLETED, CANCELLED)
-- **gridSize** (IntegerField) - snapshot from matchType
-- **speed** (CharField) - snapshot from matchType
-- **currentPlayers** (IntegerField, default=0) - players currently joined
-- **playersRequired** (IntegerField) - snapshot from matchType
-- **totalPot** (DecimalField, default=0) - total coins in pot
-- **winner** (ForeignKey to User, nullable, relatedName='matchesWon')
-- **forceStartedBy** (ForeignKey to User, nullable, relatedName='forcedMatches') - who paid to force start
-- **startedAt** (DateTimeField, nullable)
-- **completedAt** (DateTimeField, nullable)
-- **createdAt** (DateTimeField, autoNowAdd=True)
-- **isSoloMode** (BooleanField, default=False)
-
-#### **MatchParticipation**
-Player's participation in a match
-
-- **match** (ForeignKey to Match, relatedName='participants')
-- **player** (ForeignKey to User, relatedName='matchParticipations')
-- **entryFeePaid** (DecimalField) - coins paid to enter
-- **placement** (IntegerField, nullable) - 1st, 2nd, 3rd, etc.
-- **wallsHit** (IntegerField, default=0)
-- **botsEliminated** (IntegerField, default=0) - how many others they killed
-- **survivalTime** (IntegerField, nullable) - seconds survived
-- **coinReward** (DecimalField, default=0) - coins won (0 if not winner)
-- **joinedAt** (DateTimeField, autoNowAdd=True)
-- **eliminatedAt** (DateTimeField, nullable)
-- **uniqueTogether**: (match, player)
-
-#### **GameState**
-Real-time game state for active matches (stored for replay/spectating)
-
-- **match** (ForeignKey to Match, relatedName='gameStates')
-- **tickNumber** (IntegerField) - game tick counter
-- **timestamp** (DateTimeField, autoNowAdd=True)
-- **playerPositions** (JSONField) - {user_id: {x: int, y: int, direction: str, alive: bool, score: int}}
-- **walls** (JSONField) - [{x: int, y: int}] - list of wall positions
-- **countdownWalls** (JSONField) - [{x: int, y: int, secondsLeft: int}] - walls spawning
-- **activePlayers** (IntegerField) - players still alive
-- **ordering**: ['tickNumber']
-
-**Note:** GameStates stored periodically (every 10 ticks?) for replay, not every single tick
-
-#### **SoloRun**
-Individual solo mode attempt
-
-- **player** (ForeignKey to User, relatedName='soloRuns')
-- **wallsSurvived** (IntegerField, default=0)
-- **wallsHit** (IntegerField, default=0)
-- **coinsEarned** (DecimalField, default=0) - +1 per wall survived
-- **coinsLost** (DecimalField, default=0) - -1 per wall hit
-- **netCoins** (DecimalField, default=0) - earned - lost
-- **survivalTime** (IntegerField) - seconds
-- **finalGridState** (JSONField, nullable) - snapshot when died
-- **startedAt** (DateTimeField, autoNowAdd=True)
-- **endedAt** (DateTimeField, nullable)
+### Collisions
+- Wall/edge hit → +1 hit counter
+- Side/back collision → victim eliminated, attacker gains their score
+- Head-on collision → both get +1 hit
 
 ---
 
-### **SHOP APP**
+## Tech Stack
 
-#### **CoinPackage**
-Real money → coins offers
-
-- **name** (CharField, maxLength=100) - e.g., "Starter Pack", "Mega Bundle"
-- **description** (TextField, nullable)
-- **coins** (IntegerField) - amount of coins
-- **price** (DecimalField) - USD price
-- **displayOrder** (IntegerField, default=0)
-- **iconImage** (ImageField, nullable)
-- **isActive** (BooleanField, default=True)
-- **createdAt** (DateTimeField, autoNowAdd=True)
-
-#### **CoinPurchase**
-Purchase transaction record
-
-- **user** (ForeignKey to User, relatedName='coinPurchases')
-- **package** (ForeignKey to CoinPackage, relatedName='purchases')
-- **stripePaymentIntentId** (CharField, unique=True)
-- **status** (CharField, choices: PENDING, COMPLETED, FAILED, REFUNDED)
-- **coinAmount** (IntegerField) - snapshot
-- **pricePaid** (DecimalField) - snapshot
-- **createdAt** (DateTimeField, autoNowAdd=True)
-- **completedAt** (DateTimeField, nullable)
-
-#### **Transaction**
-All coin movements (audit log)
-
-- **user** (ForeignKey to User, relatedName='transactions')
-- **amount** (DecimalField) - positive = gained, negative = spent
-- **transactionType** (CharField, choices: PURCHASE, MATCH_ENTRY, MATCH_WIN, SOLO_REWARD, SOLO_PENALTY, EXTRA_LIFE, REFUND)
-- **relatedMatch** (ForeignKey to Match, nullable, relatedName='transactions')
-- **description** (CharField, maxLength=255)
-- **balanceBefore** (DecimalField)
-- **balanceAfter** (DecimalField)
-- **createdAt** (DateTimeField, autoNowAdd=True)
+Django 5.0 + Channels (WebSocket) + PostgreSQL + Redis + Stripe + Cloudinary
 
 ---
 
-## Grid Formula & Spawn Logic
+## Apps & Implementation
 
-### Grid Size Based on Players
-- **gridSize = 15 + (maxPlayers × 2.5)**, rounded to nearest 5
-- Examples:
-  - 4 players → 25×25
-  - 6 players → 30×30
-  - 8 players → 35×35
+### accounts
+**Models:** Profile (coins, stats, profilePic via Cloudinary)
 
-### Player Spawn Positions
-Players spawn evenly around grid perimeter:
-- Calculate perimeter: `4 × gridSize`
-- Spacing: `perimeter / numPlayers`
-- Walk around edge placing players at intervals
-- All face toward center initially (or random directions)
+**Views:** Dashboard, login/signup, profile search, picture upload
 
-### Wall Spawn Logic
-- Every `wallSpawnInterval` seconds, pick random empty cell
-- But when 0 no walls
-- Show 3-second countdown on that cell
-- After countdown, cell becomes permanent wall
-- **All alive players gain +1 point when wall spawns**
-- Continue until match ends
+**Key Choices:**
+- Profile auto-created on user signup (post_save signal)
+- Coins can go negative (design choice for solo mode)
+- Leaderboard sorts by `soloHighScore` (walls survived)
+- GET logout allowed (simpler UX than POST)
 
 ---
 
-## Technical Implementation Notes
+### matches
 
-### Real-time Architecture
-- **Django Channels** for WebSocket connections
-- **ASGI server** (Daphne/Uvicorn)
-- **Redis** as channel layer backend
-- Each match runs async game loop (ticks every 100-200ms)
-- Game state broadcasted to all players + spectators
+**Models:**
+- MatchType: Pre-configured templates (entry fee, grid size, speed, wallSpawnInterval)
+- Match: Instance with status (WAITING → STARTING → IN_PROGRESS → COMPLETED)
+- MatchParticipation: Player stats per match
+- SoloRun: Solo attempt records
 
-### Match Flow
-1. Player joins queue → MatchParticipation created, coins deducted
-2. When `playersRequired` reached → Match status = STARTING (5 sec countdown)
-3. Or player force-starts → pays for missing slots, immediate start
-4. Match begins → game loop starts ticking
-5. Players send direction inputs via WebSocket
-6. Server validates, updates positions, checks collisions, tracks scores
-7. Broadcast state to all connected clients
-8. Last player standing → Match status = COMPLETED, winner gets pot
-9. GameState snapshots saved for replay
+**WebSocket (consumers.py):**
+- `GameEngine` class: Server-side game loop
+  - Tick rate: 75-200ms based on speed
+  - Movement validation: Check boundaries FIRST, then walls, then players
+  - Collision detection: New position vs current positions
+  - Score tracking: Separate `score` (points) and `hits` (elimination counter)
+  - Wall spawning: Based on `wallSpawnInterval` (0 = no walls)
+  
+**Lobby System:**
+- Auto-start: 30s countdown when min players reached
+- Force-start: Pay for empty slots to start early
+- Countdown persists across page refreshes (localStorage)
+- Auto-refresh every 3s to show player count updates
 
-### Solo Mode Flow
-1. Player starts solo run → SoloRun created
-2. Game ticks, walls spawn every 3 seconds
-3. Wall spawns → player gains +1 point
-4. Wall/edge hit → player loses -1 point
-5. Score reaches -50 OR player quits → calculate rewards, update SoloRun
-6. Net score added to Profile.coins (can go negative)
-7. If new high score → update Profile.soloHighScore
+**Views:**
+- `joinMatch`: Atomic transaction (deduct fee, add to pot, create participation)
+- `forceStart`: Calculate missing slots × entry fee, validate min players
+- `leaveLobby`: Refund only if status = WAITING, delete empty matches
+- `saveSoloRun`: Calculate net coins, update high score, create transaction records
 
-### Coin Balance Management
-- All coin changes go through Transaction model (audit trail)
-- Profile.coins updated atomically (F expressions)
-- Balance CAN go negative (unlike previous version)
+**Key Choices:**
+- WebSocket for real-time (not polling)
+- Server-authoritative (clients send input, server validates)
+- Boundary check BEFORE wall check (critical for edge detection)
+- One GameEngine instance per match (stored in ACTIVE_GAMES dict)
+- Countdown function standalone (doesn't depend on consumer instance)
+- Auto-start checks if still WAITING before triggering
 
-### Matchmaking Queue System
-- MatchType defines template
-- Match instance created when first player joins
-- Players keep joining until `playersRequired` met
-- Auto-start or force-start triggers game
-- New Match instance created for next queue
-
----
-
-## Launch Feature Checklist
-
-**MVP (Minimum Viable Product):**
-- ✅ Solo mode (practice + coin earning/losing based on score)
-- ✅ Multiplayer matchmaking (5-10 match types)
-- ✅ Basic bot skins (3-5 skins)
-- ✅ Coin purchases via Stripe
-- ✅ Leaderboard (solo high scores)
-- ✅ Score-based elimination system
-
-**Post-Launch:**
-- Daily admin-organized free tournaments
-- More cosmetics (death effects, victory emotes, trails)
-- Replay system (watch past matches)
-- Spectator mode (watch live matches)
-- Friend challenges
-- Seasons/rankings
-- Achievements
+**Client (game.html / gameMultiplayer.html):**
+- Canvas rendering with grid + players + walls
+- Client-side prediction disabled (wait for server state)
+- Keyboard input sent via WebSocket
+- Mobile controls: Touch buttons for arrow keys
+- Sound effects: Web Audio API (move, hit, score, victory, loss, kill)
+- Bot rendering: Arrow-shaped canvas images, rotated by direction
 
 ---
 
-## Economy Balance (Initial Values)
+### shop
 
-**Solo Mode:**
-- Wall spawned: +1 coin
-- Wall/edge hit: -1 coin
-- Game over: Score reaches -50
-- Net score added to balance (can go negative)
+**Models:** CoinPackage, CoinPurchase, Transaction
 
-**Multiplayer Entry Fees:**
-- Beginner: 5 coins
-- Standard: 10 coins
-- Speed: 15 coins
-- Arena: 25 coins
-- High Stakes: 50 coins
+**Stripe Flow:**
+1. `createPaymentIntent`: Create Stripe intent + pending purchase
+2. Client confirms payment with card
+3. Stripe webhook (`payment_intent.succeeded`) → mark completed, add coins
+4. Transaction record created for audit
 
-**Coin Packages:**
-- Starter: 100 coins - $0.99
-- Standard: 500 coins - $4.99
-- Premium: 1200 coins - $9.99
-- Mega: 3000 coins - $19.99
+**Key Choices:**
+- Webhook handles fulfillment (not client callback)
+- `select_for_update()` prevents double-crediting
+- Transaction model logs all coin changes with before/after balance
 
-*Note: All values subject to playtesting and adjustment*
+---
+
+### chat
+
+**Models:** GlobalChatMessage, DirectMessage
+
+**Implementation:**
+- HTTP polling every 2s (not WebSocket - simpler)
+- `poll` endpoints: Return messages after given ID
+- New user gets welcome DM from admin (post_save signal)
+- Unread count displayed on dashboard
+
+**Key Choices:**
+- Polling over WebSocket (chat not performance-critical)
+- Client-side deduplication (track displayed message IDs)
+- Auto-scroll only if user at bottom (UX improvement)
+
+---
+
+## Key Flows
+
+### Solo
+1. Click start → client-side game loop begins
+2. Walls spawn every 3s (client-side timer)
+3. Movement/collision detection (client-side)
+4. Game ends → POST to `/matches/save-solo-run/`
+5. Server validates, updates coins atomically, returns new balance
+
+### Multiplayer
+1. Join → deduct fee, add to WAITING match
+2. Min players → 30s countdown (localStorage persists across refreshes)
+3. Time's up OR force-start → status = STARTING
+4. 10s countdown broadcast via WebSocket
+5. Status = IN_PROGRESS → GameEngine.start()
+6. Game loop: tick → validate → broadcast state
+7. Last alive → end game, award pot, update stats
+
+---
+
+## Data Integrity
+
+- All coin operations: Atomic with `select_for_update()` + `F()` expressions
+- Transaction audit trail: Every coin change logged
+- Refunds: Only when match status = WAITING
+- Match cleanup: Delete if currentPlayers = 0 after leave
+
+---
+
+## Setup
+
+```bash
+pip install -r requirements.txt
+# .env: DATABASE_URL, REDIS_URL, STRIPE_*, CLOUDINARY_*
+python manage.py migrate
+python manage.py createsuperuser
+# Create MatchTypes via admin panel
+daphne -b 0.0.0.0 -p 8000 project.asgi:application
+```
