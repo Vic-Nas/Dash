@@ -152,13 +152,11 @@
     }
     @media (max-width: 768px) {
       #hud {
-        /* Move HUD below canvas on mobile */
         position: static;
         margin-top: 10px;
         padding: 12px;
         min-width: 150px;
         font-size: 12px;
-        /* Make it horizontal layout */
         display: flex;
         flex-wrap: wrap;
         justify-content: space-around;
@@ -295,7 +293,7 @@
 
     function adjustCanvasSize() {
       var maxWidth = window.innerWidth - 40;
-      var maxHeight = window.innerHeight - 400; // More space for controls below
+      var maxHeight = window.innerHeight - 400;
       var size = Math.min(600, maxWidth, maxHeight);
       
       canvas.width = size;
@@ -313,26 +311,30 @@
     }
 
     function createBotImage() {
-      var size = 64;
+      var size = 128; // Doubled from 64 for bigger arrow
       var img = document.createElement('canvas');
       img.width = size;
       img.height = size;
       var c = img.getContext('2d');
       
+      // BIGGER chevron arrow - like < symbol
       c.fillStyle = '#5b7bff';
+      c.strokeStyle = '#fff';
+      c.lineWidth = 4;
+      c.lineJoin = 'miter';
+      c.lineCap = 'square';
+      
       c.beginPath();
-      c.moveTo(size/2, size*0.2);
-      c.lineTo(size*0.8, size*0.5);
-      c.lineTo(size*0.6, size*0.5);
-      c.lineTo(size*0.6, size*0.8);
-      c.lineTo(size*0.4, size*0.8);
-      c.lineTo(size*0.4, size*0.5);
-      c.lineTo(size*0.2, size*0.5);
+      // Arrow pointing UP (will be rotated for other directions)
+      c.moveTo(size * 0.5, size * 0.15);  // Top point
+      c.lineTo(size * 0.85, size * 0.5);  // Right corner
+      c.lineTo(size * 0.65, size * 0.5);  // Right inner
+      c.lineTo(size * 0.65, size * 0.85); // Right bottom
+      c.lineTo(size * 0.35, size * 0.85); // Left bottom
+      c.lineTo(size * 0.35, size * 0.5);  // Left inner
+      c.lineTo(size * 0.15, size * 0.5);  // Left corner
       c.closePath();
       c.fill();
-      
-      c.strokeStyle = '#fff';
-      c.lineWidth = 2;
       c.stroke();
       
       return img;
@@ -567,7 +569,8 @@
       
       ctx.rotate(angle);
       
-      var drawSize = CELL_SIZE - 8;
+      // Draw 1.5x bigger than cell - allows overflow
+      var drawSize = CELL_SIZE * 1.5;
       ctx.drawImage(botImage, -drawSize/2, -drawSize/2, drawSize, drawSize);
       
       ctx.restore();
@@ -632,7 +635,6 @@
         statusEl.style.color = '#ef4444';
         statusEl.textContent = '❌ Error saving: ' + error.message;
       } finally {
-        // Show action buttons after save attempt
         document.getElementById('gameOverActions').style.display = 'block';
       }
     }
@@ -657,14 +659,12 @@
       var elapsed = Math.floor((Date.now() - gameState.startTime) / 1000);
       document.getElementById('finalTime').textContent = elapsed + 's';
       
-      // Reset saving status
       document.getElementById('savingStatus').style.color = '#f59e0b';
       document.getElementById('savingStatus').textContent = 'Saving...';
       document.getElementById('gameOverActions').style.display = 'none';
       
       document.getElementById('gameOver').style.display = 'block';
       
-      // Save results to server
       saveGameResults();
     }
 
@@ -803,5 +803,3 @@
       var enabled = gameAudio.toggle();
       document.getElementById('soundBtn').textContent = enabled ? '🔊 Sound ON' : '🔇 Sound OFF';
     }
-  </script>
-</body>

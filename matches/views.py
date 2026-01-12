@@ -265,7 +265,16 @@ def forceStart(request):
                 'error': 'You are not in this match'
             }, status=400)
         
-        # Calculate missing players
+        # FIXED: Check minimum player requirement
+        # For a 2-6 player match, you need at least 2 players (playersRequired)
+        if match.currentPlayers < match.playersRequired:
+            return JsonResponse({
+                'success': False,
+                'error': f'Need at least {match.playersRequired} players to start. Currently have {match.currentPlayers}.'
+            }, status=400)
+        
+        # Calculate missing players (up to maxPlayers, but after playersRequired is met)
+        # This shouldn't happen if check above passes, but keeping for safety
         missingPlayers = match.playersRequired - match.currentPlayers
         
         if missingPlayers <= 0:

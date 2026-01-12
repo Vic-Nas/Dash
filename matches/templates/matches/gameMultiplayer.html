@@ -251,26 +251,30 @@
     }
 
     function createBotImage(color) {
-      var size = 64;
+      var size = 128; // Doubled from 64 for bigger arrow
       var img = document.createElement('canvas');
       img.width = size;
       img.height = size;
       var c = img.getContext('2d');
       
+      // BIGGER chevron arrow - like < symbol
       c.fillStyle = color;
+      c.strokeStyle = '#fff';
+      c.lineWidth = 4;
+      c.lineJoin = 'miter';
+      c.lineCap = 'square';
+      
       c.beginPath();
-      c.moveTo(size/2, size*0.2);
-      c.lineTo(size*0.8, size*0.5);
-      c.lineTo(size*0.6, size*0.5);
-      c.lineTo(size*0.6, size*0.8);
-      c.lineTo(size*0.4, size*0.8);
-      c.lineTo(size*0.4, size*0.5);
-      c.lineTo(size*0.2, size*0.5);
+      // Arrow pointing UP (will be rotated for other directions)
+      c.moveTo(size * 0.5, size * 0.15);  // Top point
+      c.lineTo(size * 0.85, size * 0.5);  // Right corner
+      c.lineTo(size * 0.65, size * 0.5);  // Right inner
+      c.lineTo(size * 0.65, size * 0.85); // Right bottom
+      c.lineTo(size * 0.35, size * 0.85); // Left bottom
+      c.lineTo(size * 0.35, size * 0.5);  // Left inner
+      c.lineTo(size * 0.15, size * 0.5);  // Left corner
       c.closePath();
       c.fill();
-      
-      c.strokeStyle = '#fff';
-      c.lineWidth = 2;
       c.stroke();
       
       return img;
@@ -528,7 +532,7 @@
 
         ctx.rotate(angle);
 
-        var drawSize = CELL_SIZE * 0.8;
+        var drawSize = CELL_SIZE * 1.5;
         ctx.drawImage(
           botImg,
           -drawSize / 2,

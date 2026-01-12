@@ -36,6 +36,7 @@
     .actions{margin-top:24px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;}
     .waiting-msg{color:#9ca3af;margin-top:16px;}
     .force-start-warning{background:#1a1d35;border:1px solid #f59e0b;border-radius:8px;padding:16px;margin:16px 0;color:#f59e0b;}
+    .force-not-ready{background:#1a1d35;border:1px solid #ef4444;border-radius:8px;padding:16px;margin:16px 0;color:#ef4444;}
   </style>
 </head>
 <body>
@@ -103,16 +104,16 @@
       </div>
 
       {% if match.status == 'WAITING' %}
-        <div class="waiting-msg">
-          Waiting for <span id="missingPlayers"></span> more player<span id="playerPlural"></span>...
-        </div>
-
         {% if match.currentPlayers < match.playersRequired %}
-        <div class="force-start-warning">
-          <strong>⚡ Force Start Available</strong>
-          <p style="margin:8px 0;">Don't want to wait? Pay for the missing <span id="missingPlayersForce"></span> player<span id="playerPluralForce"></span> to start immediately.</p>
-          <p style="margin:8px 0;font-size:14px;">Cost: <span id="missingPlayersCost"></span> × {{ match.matchType.entryFee|floatformat:0 }} = <span id="forceCostTotal"></span> coins</p>
-        </div>
+          <div class="force-not-ready">
+            <strong>⏳ Cannot Force Start</strong>
+            <p style="margin:8px 0;">Need at least {{ match.playersRequired }} players to start. Currently have {{ match.currentPlayers }}.</p>
+            <p style="margin:8px 0;font-size:14px;">Wait for <span id="missingPlayers"></span> more player<span id="playerPlural"></span> to join.</p>
+          </div>
+        {% else %}
+          <div class="waiting-msg">
+            Match will start automatically when ready!
+          </div>
         {% endif %}
 
       {% elif match.status == 'STARTING' %}
@@ -122,13 +123,6 @@
       {% endif %}
 
       <div class="actions">
-        {% if match.status == 'WAITING' and match.currentPlayers < match.playersRequired %}
-          <button class="btn btn-success" onclick="forceStart()" 
-                  {% if profile.coins < match.matchType.entryFee %}disabled{% endif %}>
-            Force Start
-          </button>
-        {% endif %}
-        
         <button class="btn btn-danger" onclick="leaveLobby()">Leave Lobby</button>
       </div>
     </div>
@@ -143,13 +137,11 @@
       if (parts.length === 2) return parts.pop().split(';').shift();
     }
 
-    // Calculate and display force cost
+    // Calculate and display missing players
     window.addEventListener('DOMContentLoaded', function() {
       const playersRequired = {{ match.playersRequired }};
       const currentPlayers = {{ match.currentPlayers }};
       const missing = playersRequired - currentPlayers;
-      const forceCost = {{ match.matchType.entryFee|floatformat:0 }};
-      const totalCost = missing * forceCost;
       
       // Update waiting message
       const missingElem = document.getElementById('missingPlayers');
@@ -159,24 +151,6 @@
       const pluralElem = document.getElementById('playerPlural');
       if (pluralElem) {
         pluralElem.textContent = missing > 1 ? 's' : '';
-      }
-      
-      // Update force start message
-      const missingForceElem = document.getElementById('missingPlayersForce');
-      if (missingForceElem) {
-        missingForceElem.textContent = missing;
-      }
-      const pluralForceElem = document.getElementById('playerPluralForce');
-      if (pluralForceElem) {
-        pluralForceElem.textContent = missing > 1 ? 's' : '';
-      }
-      const missingCostElem = document.getElementById('missingPlayersCost');
-      if (missingCostElem) {
-        missingCostElem.textContent = missing;
-      }
-      const costElement = document.getElementById('forceCostTotal');
-      if (costElement) {
-        costElement.textContent = totalCost.toFixed(0);
       }
 
       // Start auto-refresh only if in WAITING or STARTING status
@@ -214,56 +188,6 @@
         }
       } catch (error) {
         alert('Error: ' + error.message);
-      }
-    }
-
-    async function forceStart() {
-      const playersRequired = {{ match.playersRequired }};
-      const currentPlayers = {{ match.currentPlayers }};
-      const missingPlayers = playersRequired - currentPlayers;
-      const entryFee = {{ match.matchType.entryFee|floatformat:0 }};
-      const totalCost = missingPlayers * entryFee;
-      
-      if (!confirm(`Force start by paying for ${missingPlayers} missing player${missingPlayers > 1 ? 's' : ''}?\n\nCost: ${totalCost.toFixed(0)} coins`)) {
-        return;
-      }
-
-      // Cancel auto-refresh during force start
-      if (autoRefreshInterval) {
-        clearInterval(autoRefreshInterval);
-      }
-
-      try {
-        const response = await fetch('/matches/force-start/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCookie('csrftoken')
-          },
-          body: JSON.stringify({ matchId: {{ match.id }} })
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-          window.location.href = '/matches/lobby/{{ match.id }}/';
-        } else {
-          alert('Error: ' + data.error);
-          // Restart auto-refresh on error
-          {% if match.status == 'WAITING' or match.status == 'STARTING' %}
-          autoRefreshInterval = setInterval(() => {
-            location.reload();
-          }, 3000);
-          {% endif %}
-        }
-      } catch (error) {
-        alert('Error: ' + error.message);
-        // Restart auto-refresh on error
-        {% if match.status == 'WAITING' or match.status == 'STARTING' %}
-        autoRefreshInterval = setInterval(() => {
-          location.reload();
-        }, 3000);
-        {% endif %}
       }
     }
   </script>
