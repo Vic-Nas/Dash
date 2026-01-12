@@ -8,9 +8,24 @@
   <style>
     *{box-sizing:border-box;}
     body{font-family:system-ui,sans-serif;margin:0;background:#0d0f1a;color:#e6e6e6;}
-    header{background:#121428;border-bottom:1px solid #23264a;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;}
+    header{background:#121428;border-bottom:1px solid #23264a;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;position:relative;z-index:10;}
     .brand{font-weight:700;font-size:20px;letter-spacing:0.5px;}
     .user{display:flex;align-items:center;gap:16px;}
+    .nav-toggle{display:none;flex-direction:column;justify-content:center;align-items:center;width:40px;height:40px;background:none;border:none;cursor:pointer;z-index:20;}
+    .nav-toggle span{display:block;width:28px;height:3px;background:#e6e6e6;margin:4px 0;border-radius:2px;transition:all .3s;}
+    @media (max-width: 800px) {
+      .user{position:fixed;top:0;right:-100vw;width:70vw;max-width:320px;height:100vh;background:#121428;flex-direction:column;align-items:flex-start;gap:0;padding:80px 24px 24px 24px;box-shadow:-2px 0 16px rgba(0,0,0,0.25);transition:right .3s;z-index:15;}
+      .user.open{right:0;}
+      .nav-toggle{display:flex;}
+      header{padding:16px 12px;}
+      .brand{font-size:18px;}
+      .user .btn, .user .coins, .user span:not(.coins){width:100%;margin:0 0 16px 0;display:block;text-align:left;}
+      .github-link{right:70px;}
+    }
+    @media (max-width: 500px) {
+      .user{width:90vw;max-width:none;padding:80px 12px 12px 12px;}
+      .github-link{right:18px;}
+    }
     .coins{background:#2a2f6b;padding:8px 16px;border-radius:20px;font-weight:600;}
     .btn{background:#2a2f6b;color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:14px;text-decoration:none;display:inline-block;position:relative;}
     .btn:hover{background:#3940a3;}
@@ -68,7 +83,12 @@
   </a>
   <header>
     <div class="brand">Dash Arena</div>
-    <div class="user">
+    <button class="nav-toggle" id="navToggle" aria-label="Open navigation" aria-expanded="false">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+    <div class="user" id="userNav">
       <span class="coins">💰 {{ profile.coins|floatformat:0 }}</span>
       <span>{{ user.username }}</span>
       <a href="/chat/global/" class="btn">🌐 Chat</a>
@@ -180,6 +200,22 @@
     </div>
   </div>
   <script>
+        // Mobile nav toggle
+        const navToggle = document.getElementById('navToggle');
+        const userNav = document.getElementById('userNav');
+        navToggle.addEventListener('click', function() {
+          const isOpen = userNav.classList.toggle('open');
+          navToggle.setAttribute('aria-expanded', isOpen);
+        });
+        // Close nav on outside click (mobile)
+        document.addEventListener('click', function(e) {
+          if(window.innerWidth <= 800 && userNav.classList.contains('open')) {
+            if(!userNav.contains(e.target) && !navToggle.contains(e.target)) {
+              userNav.classList.remove('open');
+              navToggle.setAttribute('aria-expanded', false);
+            }
+          }
+        });
     // Check for active lobbies and highlight multiplayer
     fetch('/matches/check-activity/')
       .then(r => r.json())
