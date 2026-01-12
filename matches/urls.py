@@ -8,6 +8,7 @@ urlpatterns = [
     path('multiplayer/', views.multiplayer, name='multiplayer'),
     path('join-match/', views.joinMatch, name='joinMatch'),
     path('force-start/', views.forceStart, name='forceStart'),
+    path('check-auto-start/', views.checkAutoStart, name='checkAutoStart'),
     path('lobby/<int:matchId>/', views.lobby, name='lobby'),
     path('leave-lobby/', views.leaveLobby, name='leaveLobby'),
 ]

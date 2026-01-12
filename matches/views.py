@@ -218,9 +218,9 @@ def joinMatch(request):
                 balanceAfter=balanceAfter
             )
             
-            # Check if match should start
-            shouldStart = match.currentPlayers >= match.playersRequired
-            if shouldStart:
+            # Only auto-start when maxPlayers is reached
+            shouldAutoStart = match.currentPlayers >= matchType.maxPlayers
+            if shouldAutoStart:
                 match.status = 'STARTING'
                 match.save(update_fields=['status'])
         
@@ -229,6 +229,7 @@ def joinMatch(request):
             'matchId': match.id,
             'currentPlayers': match.currentPlayers,
             'playersRequired': match.playersRequired,
+            'maxPlayers': matchType.maxPlayers,
             'newBalance': float(balanceAfter)
         })
         
@@ -265,22 +266,20 @@ def forceStart(request):
                 'error': 'You are not in this match'
             }, status=400)
         
-        # FIXED: Check minimum player requirement
-        # For a 2-6 player match, you need at least 2 players (playersRequired)
+        # Check minimum player requirement
         if match.currentPlayers < match.playersRequired:
             return JsonResponse({
                 'success': False,
                 'error': f'Need at least {match.playersRequired} players to start. Currently have {match.currentPlayers}.'
             }, status=400)
         
-        # Calculate missing players (up to maxPlayers, but after playersRequired is met)
-        # This shouldn't happen if check above passes, but keeping for safety
-        missingPlayers = match.playersRequired - match.currentPlayers
+        # Calculate cost for missing slots up to maxPlayers
+        missingPlayers = match.matchType.maxPlayers - match.currentPlayers
         
         if missingPlayers <= 0:
             return JsonResponse({
                 'success': False,
-                'error': 'Match already has enough players'
+                'error': 'Match is already full'
             }, status=400)
         
         # Calculate cost (entry fee × missing players)
@@ -318,14 +317,14 @@ def forceStart(request):
                 amount=-forceCost,
                 transactionType='MATCH_ENTRY',
                 relatedMatch=match,
-                description=f'Force start ({missingPlayers} players): {match.matchType.name}',
+                description=f'Force start ({missingPlayers} slots): {match.matchType.name}',
                 balanceBefore=balanceBefore,
                 balanceAfter=balanceAfter
             )
         
         return JsonResponse({
             'success': True,
-            'message': f'Match force started! Paid for {missingPlayers} missing players.',
+            'message': f'Match force started! Paid for {missingPlayers} empty slots.',
             'newBalance': float(balanceAfter)
         })
         
@@ -458,6 +457,29 @@ def leaveLobby(request):
             'error': str(e),
             'traceback': traceback.format_exc()
         }, status=500)
+
+
+@login_required
+@require_POST
+def checkAutoStart(request):
+    """Check if a match should auto-start and trigger it"""
+    try:
+        data = json.loads(request.body)
+        matchId = data.get('matchId')
+        
+        match = get_object_or_404(Match, id=matchId, status='WAITING')
+        
+        # Only auto-start if we have minimum players
+        if match.currentPlayers >= match.playersRequired:
+            match.status = 'STARTING'
+            match.save(update_fields=['status'])
+            return JsonResponse({'success': True, 'started': True})
+        
+        return JsonResponse({'success': True, 'started': False})
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
         
 @login_required
 def checkActivity(request):

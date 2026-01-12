@@ -37,6 +37,12 @@
     .waiting-msg{color:#9ca3af;margin-top:16px;}
     .force-start-warning{background:#1a1d35;border:1px solid #f59e0b;border-radius:8px;padding:16px;margin:16px 0;color:#f59e0b;}
     .force-not-ready{background:#1a1d35;border:1px solid #ef4444;border-radius:8px;padding:16px;margin:16px 0;color:#ef4444;}
+    .auto-start-timer{background:#1a1d35;border:2px solid #10b981;border-radius:8px;padding:20px;margin:16px 0;animation:pulse 2s ease-in-out infinite;}
+    .timer-display{font-size:36px;font-weight:700;color:#10b981;margin:8px 0;}
+    @keyframes pulse {
+      0%, 100% { border-color:#10b981; }
+      50% { border-color:#34d399; }
+    }
   </style>
 </head>
 <body>
@@ -59,9 +65,9 @@
 
       <div class="players">
         <div class="player-count">
-          {{ match.currentPlayers }} / {{ match.playersRequired }}
+          {{ match.currentPlayers }} / {{ match.matchType.maxPlayers }}
         </div>
-        <div>Players in lobby</div>
+        <div>Players in lobby (min: {{ match.playersRequired }})</div>
       </div>
 
       <div class="match-info">
@@ -96,9 +102,9 @@
         </div>
         {% endfor %}
         
-        {% for i in "x"|rjust:match.playersRequired|slice:match.currentPlayers %}
+        {% for i in "x"|rjust:match.matchType.maxPlayers|slice:match.currentPlayers %}
         <div class="player-item" style="opacity:0.3;">
-          Waiting...
+          Empty slot
         </div>
         {% endfor %}
       </div>
@@ -106,13 +112,22 @@
       {% if match.status == 'WAITING' %}
         {% if match.currentPlayers < match.playersRequired %}
           <div class="force-not-ready">
-            <strong>⏳ Cannot Force Start</strong>
+            <strong>⏳ Waiting for Players</strong>
             <p style="margin:8px 0;">Need at least {{ match.playersRequired }} players to start. Currently have {{ match.currentPlayers }}.</p>
             <p style="margin:8px 0;font-size:14px;">Wait for <span id="missingPlayers"></span> more player<span id="playerPlural"></span> to join.</p>
           </div>
         {% else %}
-          <div class="waiting-msg">
-            Match will start automatically when ready!
+          <div class="auto-start-timer" id="autoStartTimer">
+            <strong style="color:#10b981;font-size:18px;">✓ Ready to Start!</strong>
+            <div class="timer-display" id="timerDisplay">30</div>
+            <p style="margin:8px 0;color:#e6e6e6;">Match starts automatically in <span id="timerSeconds">30</span> seconds</p>
+            <p style="margin:0;font-size:14px;color:#9ca3af;">or force start now by paying for empty slots</p>
+          </div>
+          
+          <div class="force-start-warning">
+            <strong>💰 Force Start Option</strong>
+            <p style="margin:8px 0;">Don't want to wait? Pay for the <strong id="emptySlots"></strong> empty slots to start immediately!</p>
+            <p style="margin:8px 0;font-size:14px;">Cost: <strong id="forceCost"></strong> coins ({{ match.matchType.entryFee|floatformat:0 }} per slot)</p>
           </div>
         {% endif %}
 
@@ -123,6 +138,11 @@
       {% endif %}
 
       <div class="actions">
+        {% if match.status == 'WAITING' and match.currentPlayers >= match.playersRequired %}
+          <button class="btn btn-success" onclick="forceStartMatch()" id="forceStartBtn">
+            Force Start (Pay for Empty Slots)
+          </button>
+        {% endif %}
         <button class="btn btn-danger" onclick="leaveLobby()">Leave Lobby</button>
       </div>
     </div>
@@ -130,6 +150,8 @@
 
   <script>
     let autoRefreshInterval = null;
+    let countdownInterval = null;
+    let timeLeft = 30;
 
     function getCookie(name) {
       let value = '; ' + document.cookie;
@@ -137,13 +159,16 @@
       if (parts.length === 2) return parts.pop().split(';').shift();
     }
 
-    // Calculate and display missing players
+    // Calculate and display missing players and force start cost
     window.addEventListener('DOMContentLoaded', function() {
       const playersRequired = {{ match.playersRequired }};
       const currentPlayers = {{ match.currentPlayers }};
+      const maxPlayers = {{ match.matchType.maxPlayers }};
+      const entryFee = {{ match.matchType.entryFee|floatformat:0 }};
       const missing = playersRequired - currentPlayers;
+      const emptySlots = maxPlayers - currentPlayers;
       
-      // Update waiting message
+      // Update waiting message for minimum players
       const missingElem = document.getElementById('missingPlayers');
       if (missingElem) {
         missingElem.textContent = missing;
@@ -153,6 +178,22 @@
         pluralElem.textContent = missing > 1 ? 's' : '';
       }
 
+      // Update force start cost display
+      const emptySlotsElem = document.getElementById('emptySlots');
+      if (emptySlotsElem) {
+        emptySlotsElem.textContent = emptySlots;
+      }
+      const forceCostElem = document.getElementById('forceCost');
+      if (forceCostElem) {
+        const totalCost = emptySlots * entryFee;
+        forceCostElem.textContent = totalCost;
+      }
+
+      // Start countdown if minimum players met
+      {% if match.status == 'WAITING' and match.currentPlayers >= match.playersRequired %}
+        startCountdown();
+      {% endif %}
+
       // Start auto-refresh only if in WAITING or STARTING status
       {% if match.status == 'WAITING' or match.status == 'STARTING' %}
       autoRefreshInterval = setInterval(() => {
@@ -161,12 +202,108 @@
       {% endif %}
     });
 
+    function startCountdown() {
+      const timerDisplay = document.getElementById('timerDisplay');
+      const timerSeconds = document.getElementById('timerSeconds');
+      
+      countdownInterval = setInterval(() => {
+        timeLeft--;
+        
+        if (timerDisplay) {
+          timerDisplay.textContent = timeLeft;
+        }
+        if (timerSeconds) {
+          timerSeconds.textContent = timeLeft;
+        }
+        
+        if (timeLeft <= 0) {
+          clearInterval(countdownInterval);
+          // Trigger auto-start
+          triggerAutoStart();
+        }
+      }, 1000);
+    }
+
+    async function triggerAutoStart() {
+      try {
+        const response = await fetch('/matches/check-auto-start/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+          },
+          body: JSON.stringify({ matchId: {{ match.id }} })
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.started) {
+          // Reload to see STARTING status
+          location.reload();
+        }
+      } catch (error) {
+        console.error('Auto-start error:', error);
+        // Reload anyway to sync state
+        location.reload();
+      }
+    }
+
+    async function forceStartMatch() {
+      const emptySlots = {{ match.matchType.maxPlayers }} - {{ match.currentPlayers }};
+      const totalCost = emptySlots * {{ match.matchType.entryFee|floatformat:0 }};
+      
+      if (!confirm(`Pay ${totalCost} coins to fill ${emptySlots} empty slots and start now?`)) {
+        return;
+      }
+
+      // Cancel auto-refresh and countdown
+      if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+      }
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+      }
+
+      try {
+        const response = await fetch('/matches/force-start/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+          },
+          body: JSON.stringify({ matchId: {{ match.id }} })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          // Reload to see STARTING status
+          location.reload();
+        } else {
+          alert('Error: ' + data.error);
+          // Restart auto-refresh on error
+          autoRefreshInterval = setInterval(() => {
+            location.reload();
+          }, 3000);
+        }
+      } catch (error) {
+        alert('Error: ' + error.message);
+        // Restart auto-refresh on error
+        autoRefreshInterval = setInterval(() => {
+          location.reload();
+        }, 3000);
+      }
+    }
+
     async function leaveLobby() {
       if (!confirm('Leave lobby and get refunded?')) return;
 
-      // Cancel auto-refresh before leaving
+      // Cancel auto-refresh and countdown before leaving
       if (autoRefreshInterval) {
         clearInterval(autoRefreshInterval);
+      }
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
       }
 
       try {
@@ -190,6 +327,16 @@
         alert('Error: ' + error.message);
       }
     }
+
+    // Clean up intervals when page is unloaded
+    window.addEventListener('beforeunload', function() {
+      if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+      }
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+      }
+    });
   </script>
 </body>
 </html>
