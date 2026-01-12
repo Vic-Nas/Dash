@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth import login, get_user_model, logout
+from django.contrib.auth import login, get_user_model, logout, update_session_auth_hash
 from django.http import JsonResponse
 from django.db import transaction
 from django.db.models import F
@@ -188,11 +188,13 @@ def changePassword(request):
         user = request.user
         user.set_password(newPassword)
         user.save()
+        update_session_auth_hash(request, user)  # Keep the user logged in after password change
         
-        # Mark that user has changed password (no longer considered completely anonymous)
+        # Mark that user has changed password and is no longer anonymous
         profile = user.profile
         profile.hasChangedPassword = True
-        profile.save(update_fields=['hasChangedPassword'])
+        profile.isAnonymous = False
+        profile.save(update_fields=['hasChangedPassword', 'isAnonymous'])
         
         return JsonResponse({
             'success': True,
