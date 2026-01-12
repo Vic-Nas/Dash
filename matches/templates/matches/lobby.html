@@ -153,6 +153,10 @@
     let countdownInterval = null;
     let timeLeft = 30;
 
+    // FIXED: Store countdown start time in localStorage to persist across refreshes
+    const COUNTDOWN_KEY = 'match_{{ match.id }}_countdown_start';
+    const READY_KEY = 'match_{{ match.id }}_is_ready';
+
     function getCookie(name) {
       let value = '; ' + document.cookie;
       let parts = value.split('; ' + name + '=');
@@ -189,9 +193,32 @@
         forceCostElem.textContent = totalCost;
       }
 
-      // Start countdown if minimum players met
+      // FIXED: Check if minimum players met and handle countdown
       {% if match.status == 'WAITING' and match.currentPlayers >= match.playersRequired %}
-        startCountdown();
+        const isReady = localStorage.getItem(READY_KEY);
+        const countdownStart = localStorage.getItem(COUNTDOWN_KEY);
+        
+        if (!isReady || !countdownStart) {
+          // First time reaching minimum players - start fresh countdown
+          localStorage.setItem(READY_KEY, 'true');
+          localStorage.setItem(COUNTDOWN_KEY, Date.now().toString());
+          startCountdown();
+        } else {
+          // Already counting down - calculate remaining time
+          const elapsed = Math.floor((Date.now() - parseInt(countdownStart)) / 1000);
+          timeLeft = Math.max(0, 30 - elapsed);
+          
+          if (timeLeft > 0) {
+            startCountdown();
+          } else {
+            // Time's up! Trigger auto-start
+            triggerAutoStart();
+          }
+        }
+      {% else %}
+        // Clear countdown state if not ready
+        localStorage.removeItem(READY_KEY);
+        localStorage.removeItem(COUNTDOWN_KEY);
       {% endif %}
 
       // Start auto-refresh only if in WAITING or STARTING status
@@ -206,6 +233,14 @@
       const timerDisplay = document.getElementById('timerDisplay');
       const timerSeconds = document.getElementById('timerSeconds');
       
+      // Update display immediately
+      if (timerDisplay) {
+        timerDisplay.textContent = timeLeft;
+      }
+      if (timerSeconds) {
+        timerSeconds.textContent = timeLeft;
+      }
+      
       countdownInterval = setInterval(() => {
         timeLeft--;
         
@@ -218,6 +253,9 @@
         
         if (timeLeft <= 0) {
           clearInterval(countdownInterval);
+          // Clear countdown state
+          localStorage.removeItem(READY_KEY);
+          localStorage.removeItem(COUNTDOWN_KEY);
           // Trigger auto-start
           triggerAutoStart();
         }
@@ -238,6 +276,9 @@
         const data = await response.json();
 
         if (data.success && data.started) {
+          // Clear countdown state
+          localStorage.removeItem(READY_KEY);
+          localStorage.removeItem(COUNTDOWN_KEY);
           // Reload to see STARTING status
           location.reload();
         }
@@ -263,6 +304,10 @@
       if (countdownInterval) {
         clearInterval(countdownInterval);
       }
+
+      // Clear countdown state
+      localStorage.removeItem(READY_KEY);
+      localStorage.removeItem(COUNTDOWN_KEY);
 
       try {
         const response = await fetch('/matches/force-start/', {
@@ -305,6 +350,10 @@
       if (countdownInterval) {
         clearInterval(countdownInterval);
       }
+
+      // Clear countdown state
+      localStorage.removeItem(READY_KEY);
+      localStorage.removeItem(COUNTDOWN_KEY);
 
       try {
         const response = await fetch('/matches/leave-lobby/', {
