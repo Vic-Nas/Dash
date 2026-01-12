@@ -139,19 +139,26 @@ def uploadProfilePicture(request):
 @login_required
 def publicProfile(request, username):
     User = get_user_model()
-    profileUser = get_object_or_404(User, username=username)
-    profileData = profileUser.profile
-    
-    # Check if viewing own profile
-    isOwnProfile = profileUser == request.user
-    
-    context = {
-        'profileUser': profileUser,
-        'profileData': profileData,
-        'isOwnProfile': isOwnProfile,
-        'currentUserProfile': request.user.profile,
-    }
-    return render(request, 'accounts/publicProfile.html', context)
+    try:
+        profileUser = User.objects.get(username=username)
+        profileData = profileUser.profile
+        isOwnProfile = profileUser == request.user
+        context = {
+            'profileUser': profileUser,
+            'profileData': profileData,
+            'isOwnProfile': isOwnProfile,
+            'currentUserProfile': request.user.profile,
+        }
+        # Convert all context keys to camelCase for template
+        context = {
+            'profileUser': profileUser,
+            'profileData': profileData,
+            'isOwnProfile': isOwnProfile,
+            'currentUserProfile': request.user.profile,
+        }
+        return render(request, 'accounts/publicProfile.html', context)
+    except User.DoesNotExist:
+        return render(request, 'accounts/userNotFound.html', {'username': username}, status=404)
 
 
 @login_required

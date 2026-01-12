@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <title>User Not Found - Dash Arena</title>
+  <style>
+    body{font-family:system-ui,sans-serif;margin:0;background:#0d0f1a;color:#e6e6e6;display:flex;flex-direction:column;min-height:100vh;}
+    .container{max-width:500px;margin:80px auto 0 auto;padding:32px;background:#121428;border-radius:12px;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,0.18);}
+    h1{font-size:32px;margin-bottom:16px;}
+    p{font-size:17px;margin-bottom:24px;color:#9ca3af;}
+    a.btn{background:#5b7bff;color:#fff;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:600;transition:background .2s;display:inline-block;}
+    a.btn:hover{background:#3940a3;}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚫 User Not Found</h1>
+    <p>No user with the username <strong>{{ username }}</strong> exists.</p>
+    <a href="/" class="btn">Back to Dashboard</a>
+  </div>
+</body>
+</html>
