@@ -37,7 +37,7 @@ def sendWelcomeMessage(sender, instance, created, **kwargs):
     """Send welcome DM from admin to new users"""
     if created:
         try:
-            adminUser = get_user_model().objects.get(username='admin')
+            adminUser = get_user_model().objects.get(username='GameMaster')
             # Only create if welcome message doesn't already exist
             existingWelcome = DirectMessage.objects.filter(
                 sender=adminUser,
