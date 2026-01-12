@@ -33,6 +33,10 @@
       <input type="password" name="password" placeholder="Password" required>
       <button type="submit">Login</button>
     </form>
+    <form method="post" action="{% url 'guestLogin' %}" style="margin-top:16px;">
+      {% csrf_token %}
+      <button type="submit" style="background:#3940a3;">Continue as Guest</button>
+    </form>
     <div class="link">
       No account? <a href="{% url 'signup' %}">Sign up</a>
     </div>

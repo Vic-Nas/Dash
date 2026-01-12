@@ -31,28 +31,40 @@ def generateRandomPassword():
     return ''.join(random.choices(string.ascii_letters + string.digits, k=12))
 
 
-def anonymousLogin(request):
-    """Auto-create and login anonymous user"""
+
+from django.contrib.auth.forms import AuthenticationForm
+from django.contrib.auth import authenticate
+
+def login_view(request):
     if request.user.is_authenticated:
         return redirect('dashboard')
-    
-    # Create anonymous user
-    User = get_user_model()
-    username = generateRandomUsername()
-    password = generateRandomPassword()
-    
-    user = User.objects.create_user(username=username, password=password)
-    
-    # Profile is auto-created by signal, just update it
-    profile = user.profile
-    profile.hasChangedPassword = False
-    profile.save()
-    
-    # Store original password in session so user can see it once
-    request.session['temp_password'] = password
-    
-    login(request, user)
-    return redirect('dashboard')
+    error = None
+    if request.method == 'POST' and 'username' in request.POST:
+        form = AuthenticationForm(request, data=request.POST)
+        if form.is_valid():
+            login(request, form.get_user())
+            return redirect('dashboard')
+        else:
+            error = 'Invalid username or password.'
+    else:
+        form = AuthenticationForm()
+    return render(request, 'accounts/login.html', {'form': form, 'error': error})
+
+from django.views.decorators.csrf import csrf_exempt
+@csrf_exempt
+def guestLogin(request):
+    if request.method == 'POST':
+        User = get_user_model()
+        username = generateRandomUsername()
+        password = generateRandomPassword()
+        user = User.objects.create_user(username=username, password=password)
+        profile = user.profile
+        profile.hasChangedPassword = False
+        profile.save()
+        request.session['temp_password'] = password
+        login(request, user)
+        return redirect('dashboard')
+    return redirect('login')
 
 
 @login_required
