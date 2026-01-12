@@ -100,10 +100,10 @@ def customLogout(request):
     if not profile.hasChangedPassword:
         logout(request)
         user.delete()  # This also deletes the profile due to CASCADE
-        return redirect('login')
+        return redirect('/login/')
     
     logout(request)
-    return redirect('login')
+    return redirect('/login/')
 
 
 @login_required
