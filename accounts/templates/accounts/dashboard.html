@@ -80,19 +80,6 @@
   </header>
 
   <div class="container">
-    {% if tempPassword %}
-    <div class="alert alert-warning">
-      <h3 style="margin:0 0 8px;">⚠️ Important - Save Your Temporary Password!</h3>
-      <p style="margin:8px 0;">Your temporary credentials:</p>
-      <div class="code">
-        <strong>Username:</strong> {{ user.username }}<br>
-        <strong>Password:</strong> {{ tempPassword }}
-      </div>
-      <p style="margin:8px 0;"><strong>Go to Settings to change your password and username!</strong></p>
-      <p style="margin:0;font-size:14px;color:#fbbf24;">⚠️ If you logout without changing your password, this account will be DELETED!</p>
-    </div>
-    {% endif %}
-
     {% if willDeleteOnLogout %}
     <div class="alert alert-warning">
       <h3 style="margin:0 0 8px;">⚠️ Account Not Secured</h3>
