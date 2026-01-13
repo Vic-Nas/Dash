@@ -64,6 +64,8 @@
       display: flex;
       gap: 12px;
       align-items: center;
+      flex-wrap: wrap;
+      max-width: 90%;
     }
     .control-btn {
       padding: 10px 20px;
@@ -76,7 +78,7 @@
       font-weight: 600;
       transition: all 0.2s;
     }
-    .control-btn:hover {
+    .control-btn:hover:not(:disabled) {
       background: #3940a3;
     }
     .control-btn:disabled {
@@ -86,7 +88,7 @@
     .control-btn.primary {
       background: #5b7bff;
     }
-    .control-btn.primary:hover {
+    .control-btn.primary:hover:not(:disabled) {
       background: #4a6aef;
     }
     .speed-control {
@@ -112,6 +114,7 @@
       flex: 1;
       max-width: 400px;
       margin: 0 16px;
+      min-width: 200px;
     }
     .timeline input[type="range"] {
       width: 100%;
@@ -157,10 +160,24 @@
       margin-bottom: 16px;
     }
     .payment-status {
-      color: #ef4444;
       text-align: center;
       margin-top: 12px;
       font-size: 14px;
+      min-height: 20px;
+    }
+    .balance-display {
+      position: absolute;
+      top: 20px;
+      right: 180px;
+      padding: 10px 16px;
+      background: rgba(42, 47, 107, 0.8);
+      border-radius: 8px;
+      font-size: 15px;
+      border: 1px solid #2a2f6b;
+    }
+    .balance-amount {
+      color: #fbbf24;
+      font-weight: 700;
     }
     @media (max-width: 768px) {
       .info-panel {
@@ -172,18 +189,26 @@
       .controls {
         position: static;
         margin-top: 12px;
-        flex-wrap: wrap;
         transform: none;
+        justify-content: center;
       }
       .timeline {
         flex-basis: 100%;
         max-width: none;
+      }
+      .balance-display {
+        position: static;
+        margin-bottom: 12px;
       }
     }
   </style>
 </head>
 <body>
   <div class="container">
+    <div class="balance-display">
+      💰 <span class="balance-amount" id="coinBalance">{{ profile.coins }}</span> coins
+    </div>
+    
     <a href="/matches/replays/" class="back-link">← Back to Replays</a>
 
     <div class="info-panel">
@@ -233,6 +258,7 @@
           min="0" 
           max="100" 
           value="0" 
+          {% if not has_access %}disabled{% endif %}
           oninput="seekReplay(this.value)"
         >
         <div class="timeline-time">
@@ -247,7 +273,7 @@
         <button class="speed-btn" onclick="setSpeed(4)">4x</button>
       </div>
     </div>
-    <div id="paymentStatus" class="payment-status" style="display:none;"></div>
+    <div id="paymentStatus" class="payment-status"></div>
 
     <div class="replay-status" id="replayStatus" style="display:none;">
       <h2>Replay Ended</h2>
@@ -256,79 +282,91 @@
   </div>
 
   <script>
-    const hasAccess = {{ has_access|lower }};
-    const replayType = '{{ replay_type }}';
-    const replayId = {{ replay_id }};
-    const replayData = {{ replay_data|safe }};
+    var hasAccess = {{ has_access|lower }};
+    var replayType = '{{ replay_type }}';
+    var replayId = {{ replay_id }};
+    var replayData = {{ replay_data|safe }};
+    var currentBalance = parseFloat('{{ profile.coins }}');
+    var replayCost = {{ replay_cost }};
     
     function getCookie(name) {
-      let value = '; ' + document.cookie;
-      let parts = value.split('; ' + name + '=');
+      var value = '; ' + document.cookie;
+      var parts = value.split('; ' + name + '=');
       if (parts.length === 2) return parts.pop().split(';').shift();
     }
 
-    async function handlePayment() {
-      const playBtn = document.getElementById('playPauseBtn');
-      const paymentStatus = document.getElementById('paymentStatus');
+    function handlePayment() {
+      var playBtn = document.getElementById('playPauseBtn');
+      var paymentStatus = document.getElementById('paymentStatus');
+      var balanceDisplay = document.getElementById('coinBalance');
+      
+      if (currentBalance < replayCost) {
+        paymentStatus.style.color = '#ef4444';
+        paymentStatus.textContent = 'Insufficient coins! Need ' + replayCost + ', you have ' + currentBalance;
+        return;
+      }
       
       playBtn.disabled = true;
-      paymentStatus.style.display = 'block';
+      paymentStatus.style.color = '#9ca3af';
       paymentStatus.textContent = 'Processing payment...';
       
-      try {
-        const response = await fetch('/matches/replays/watch/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCookie('csrftoken')
-          },
-          body: JSON.stringify({
-            type: replayType,
-            id: replayId
-          })
-        });
-        
-        const data = await response.json();
-        
+      fetch('/matches/replays/watch/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+          type: replayType,
+          id: replayId
+        })
+      })
+      .then(function(response) {
+        return response.json();
+      })
+      .then(function(data) {
         if (data.success) {
           if (data.paid) {
+            currentBalance = data.newBalance;
+            balanceDisplay.textContent = currentBalance.toFixed(2);
             paymentStatus.style.color = '#10b981';
-            paymentStatus.textContent = `Payment successful! ${data.cost} coins deducted.`;
-            setTimeout(() => {
+            paymentStatus.textContent = 'Payment successful! ' + data.cost + ' coins deducted. Reloading...';
+            setTimeout(function() {
               location.reload();
-            }, 1000);
+            }, 1500);
           } else {
             paymentStatus.style.color = '#10b981';
-            paymentStatus.textContent = data.message;
-            setTimeout(() => {
+            paymentStatus.textContent = data.message + '. Reloading...';
+            setTimeout(function() {
               location.reload();
-            }, 1000);
+            }, 1500);
           }
         } else {
           playBtn.disabled = false;
           paymentStatus.style.color = '#ef4444';
           paymentStatus.textContent = data.error || 'Payment failed';
         }
-      } catch (err) {
+      })
+      .catch(function(err) {
         playBtn.disabled = false;
         paymentStatus.style.color = '#ef4444';
         paymentStatus.textContent = 'Network error: ' + err.message;
-      }
+      });
     }
 
-    const canvas = document.getElementById('replayCanvas');
-    const ctx = canvas.getContext('2d');
+    var canvas = document.getElementById('replayCanvas');
+    var ctx = canvas.getContext('2d');
     
-    let currentFrame = 0;
-    let isPlaying = false;
-    let playbackSpeed = 1;
-    let animationFrameId = null;
-    let lastFrameTime = 0;
+    var currentFrame = 0;
+    var isPlaying = false;
+    var playbackSpeed = 1;
+    var animationFrameId = null;
+    var lastFrameTime = 0;
     
     function adjustCanvasSize() {
-      const maxWidth = window.innerWidth - 40;
-      const maxHeight = window.innerHeight - 300;
-      const size = Math.min(600, maxWidth, maxHeight);
+      var maxWidth = window.innerWidth - 40;
+      var maxHeight = window.innerHeight - 300;
+      var size = Math.min(600, maxWidth, maxHeight);
       canvas.width = size;
       canvas.height = size;
     }
@@ -350,7 +388,7 @@
       }
       
       isPlaying = !isPlaying;
-      const btn = document.getElementById('playPauseBtn');
+      var btn = document.getElementById('playPauseBtn');
       
       if (isPlaying) {
         btn.textContent = '⏸ Pause';
@@ -366,13 +404,13 @@
     function playReplay() {
       if (!replayData || !replayData.frames) return;
       
-      const frameDelay = (replayData.frameDuration || 150) / playbackSpeed;
+      var frameDelay = (replayData.frameDuration || 150) / playbackSpeed;
       
       function animate(timestamp) {
         if (!isPlaying) return;
         
         if (!lastFrameTime) lastFrameTime = timestamp;
-        const elapsed = timestamp - lastFrameTime;
+        var elapsed = timestamp - lastFrameTime;
         
         if (elapsed >= frameDelay) {
           currentFrame++;
@@ -398,7 +436,7 @@
     function restartReplay() {
       currentFrame = 0;
       isPlaying = false;
-      document.getElementById('playPauseBtn').textContent = hasAccess ? '▶ Play' : '▶ Pay {{ replay_cost }} coins to watch';
+      document.getElementById('playPauseBtn').textContent = hasAccess ? '▶ Play' : '▶ Pay ' + replayCost + ' coins to watch';
       document.getElementById('replayStatus').style.display = 'none';
       renderFrame(0);
       updateTimeline();
@@ -407,7 +445,7 @@
     function seekReplay(value) {
       if (!replayData || !replayData.frames || !hasAccess) return;
       
-      const frameIndex = Math.floor((value / 100) * (replayData.frames.length - 1));
+      var frameIndex = Math.floor((value / 100) * (replayData.frames.length - 1));
       currentFrame = frameIndex;
       renderFrame(currentFrame);
       updateTimeline();
@@ -415,7 +453,8 @@
     
     function setSpeed(speed) {
       playbackSpeed = speed;
-      document.querySelectorAll('.speed-btn').forEach(btn => {
+      var buttons = document.querySelectorAll('.speed-btn');
+      buttons.forEach(function(btn) {
         btn.classList.remove('active');
       });
       event.target.classList.add('active');
@@ -424,35 +463,35 @@
     function updateTimeline() {
       if (!replayData || !replayData.frames) return;
       
-      const progress = (currentFrame / (replayData.frames.length - 1)) * 100;
+      var progress = (currentFrame / (replayData.frames.length - 1)) * 100;
       document.getElementById('timelineSlider').value = progress;
       
-      const currentSeconds = Math.floor(currentFrame * (replayData.frameDuration || 150) / 1000);
-      const totalSeconds = Math.floor((replayData.frames.length - 1) * (replayData.frameDuration || 150) / 1000);
+      var currentSeconds = Math.floor(currentFrame * (replayData.frameDuration || 150) / 1000);
+      var totalSeconds = Math.floor((replayData.frames.length - 1) * (replayData.frameDuration || 150) / 1000);
       
       document.getElementById('currentTime').textContent = formatTime(currentSeconds);
       document.getElementById('totalTime').textContent = formatTime(totalSeconds);
     }
     
     function formatTime(seconds) {
-      const mins = Math.floor(seconds / 60);
-      const secs = seconds % 60;
-      return `${mins}:${secs.toString().padStart(2, '0')}`;
+      var mins = Math.floor(seconds / 60);
+      var secs = seconds % 60;
+      return mins + ':' + (secs < 10 ? '0' : '') + secs;
     }
     
     function renderFrame(frameIndex) {
       if (!replayData || !replayData.frames || !replayData.frames[frameIndex]) return;
       
-      const frame = replayData.frames[frameIndex];
-      const gridSize = frame.gridSize || 20;
-      const cellSize = canvas.width / gridSize;
+      var frame = replayData.frames[frameIndex];
+      var gridSize = frame.gridSize || 20;
+      var cellSize = canvas.width / gridSize;
       
       ctx.fillStyle = '#121428';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
       ctx.strokeStyle = '#23264a';
       ctx.lineWidth = 1;
-      for (let i = 0; i <= gridSize; i++) {
+      for (var i = 0; i <= gridSize; i++) {
         ctx.beginPath();
         ctx.moveTo(i * cellSize, 0);
         ctx.lineTo(i * cellSize, canvas.height);
@@ -466,7 +505,7 @@
       
       ctx.fillStyle = '#ef4444';
       if (frame.walls) {
-        frame.walls.forEach(wall => {
+        frame.walls.forEach(function(wall) {
           ctx.fillRect(
             wall.x * cellSize + 2,
             wall.y * cellSize + 2,
@@ -477,9 +516,9 @@
       }
       
       if (frame.countdownWalls) {
-        frame.countdownWalls.forEach(wall => {
-          const alpha = 0.3 + (0.7 * (3 - wall.secondsLeft) / 3);
-          ctx.fillStyle = `rgba(239, 68, 68, ${alpha})`;
+        frame.countdownWalls.forEach(function(wall) {
+          var alpha = 0.3 + (0.7 * (3 - wall.secondsLeft) / 3);
+          ctx.fillStyle = 'rgba(239, 68, 68, ' + alpha + ')';
           ctx.fillRect(
             wall.x * cellSize + 2,
             wall.y * cellSize + 2,
@@ -488,7 +527,7 @@
           );
           
           ctx.fillStyle = '#fff';
-          ctx.font = `bold ${Math.max(12, cellSize * 0.5)}px system-ui`;
+          ctx.font = 'bold ' + Math.max(12, cellSize * 0.5) + 'px system-ui';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(
@@ -504,7 +543,7 @@
       }
       
       if (frame.bots) {
-        frame.bots.forEach(bot => {
+        frame.bots.forEach(function(bot) {
           if (bot.alive) {
             drawPlayer(bot, cellSize, '#ef4444');
           }
@@ -512,7 +551,7 @@
       }
       
       if (frame.players) {
-        Object.values(frame.players).forEach(player => {
+        Object.values(frame.players).forEach(function(player) {
           if (player.alive) {
             drawPlayer(player, cellSize, player.playerColor || '#5b7bff');
           }
@@ -521,13 +560,13 @@
     }
     
     function drawPlayer(player, cellSize, color) {
-      const px = player.x * cellSize + cellSize / 2;
-      const py = player.y * cellSize + cellSize / 2;
+      var px = player.x * cellSize + cellSize / 2;
+      var py = player.y * cellSize + cellSize / 2;
       
       ctx.save();
       ctx.translate(px, py);
       
-      let angle = 0;
+      var angle = 0;
       if (player.direction === 'DOWN') angle = Math.PI;
       else if (player.direction === 'LEFT') angle = -Math.PI / 2;
       else if (player.direction === 'RIGHT') angle = Math.PI / 2;
@@ -539,7 +578,7 @@
       ctx.lineWidth = 2;
       ctx.lineJoin = 'miter';
       
-      const size = cellSize * 0.7;
+      var size = cellSize * 0.7;
       
       ctx.beginPath();
       ctx.moveTo(0, -size / 2);
@@ -556,7 +595,7 @@
       ctx.restore();
     }
     
-    window.addEventListener('resize', () => {
+    window.addEventListener('resize', function() {
       adjustCanvasSize();
       renderFrame(currentFrame);
     });
