@@ -99,9 +99,10 @@
     </div>
   </header>
 
-  <div class="container">
-    {% if willDeleteOnLogout %}
-    <div class="alert alert-warning">
+                <th>Rank</th>
+                <th>Player</th>
+                <th>Level</th>
+                <th>Time (s)</th>
       <h3 style="margin:0 0 8px;">⚠️ Account Not Secured</h3>
       <p style="margin:8px 0;">You haven't changed your password yet. If you logout now, this account will be PERMANENTLY DELETED!</p>
       <p style="margin:0;"><a href="/settings/" style="color:#10b981;font-weight:600;">Go to Settings</a> to secure your account by changing your password.</p>
@@ -114,7 +115,8 @@
         <input type="text" name="username" placeholder="Enter username..." required style="flex:1;padding:12px;background:#1a1d35;border:1px solid #2a2f6b;border-radius:8px;color:#fff;font-size:15px;">
         <button type="submit" style="padding:12px 24px;background:#2a2f6b;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Search</button>
       </form>
-    </div>
+                <td>{{ p.level }}</td>
+                <td>{{ p.time }}</td>
 
     <div class="section">
       <h2>📊 Your Stats</h2>
@@ -230,8 +232,8 @@
                   </a>
                   {% if p.user == user %} (You){% endif %}
                 </td>
-                <td>{{ p.multiplayerWins }}</td>
-                <td>{{ p.multiplayerMatches }}</td>
+                  <td>{{ p.totalWins }}</td>
+                  <td>{{ p.totalMatches }}</td>
               </tr>
               {% empty %}
               <tr><td colspan="4" style="text-align:center;color:#9ca3af;">No scores yet</td></tr>
