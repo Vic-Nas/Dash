@@ -726,18 +726,6 @@ def watchReplay(request):
             paid=True
         )
         return JsonResponse({'success': True, 'paid': True, 'newBalance': float(balance_after)})
-                owner_id = run.player_id
-                replay_exists = True
-        elif replay_type == 'progressive':
-            run = ProgressiveRun.objects.filter(id=replay_id, replayData__isnull=False).first()
-            if run:
-                owner_id = run.player_id
-                replay_exists = True
-        elif replay_type == 'multiplayer':
-            participation = MatchParticipation.objects.filter(id=replay_id, replayData__isnull=False).first()
-            if participation:
-                owner_id = participation.player_id
-                replay_exists = True
         
         if not replay_exists:
             return JsonResponse({
