@@ -88,14 +88,16 @@ def dashboard(request):
     # Get top 10 users by highest level, then by best (lowest) survivalTime at that level
     # Two-step: get top 10 players by max level, then fetch their best time at that level
     from django.db.models import Max
+    # Only consider runs where the player won the level
     max_levels = (
-        ProgressiveRun.objects.values('player', 'player__username', 'player__profile__profilePic')
+        ProgressiveRun.objects.filter(won=True)
+        .values('player', 'player__username', 'player__profile__profilePic')
         .annotate(max_level=Max('level'))
         .order_by('-max_level', 'player__username')[:10]
     )
     topProgressive = []
     for entry in max_levels:
-        run = ProgressiveRun.objects.filter(player=entry['player'], level=entry['max_level']).order_by('survivalTime').first()
+        run = ProgressiveRun.objects.filter(player=entry['player'], level=entry['max_level'], won=True).order_by('survivalTime').first()
         topProgressive.append({
             'username': entry['player__username'],
             'profilePic': entry['player__profile__profilePic'],
