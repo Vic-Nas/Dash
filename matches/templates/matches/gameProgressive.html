@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Progressive Mode - Dash Arena</title>
-  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>"/>
   <style>
     * {
       box-sizing: border-box;
@@ -305,6 +305,8 @@
     var GRID_SIZE = 20;
     var CELL_SIZE = 0;
     var TICK_RATE = 150;
+    var botMoveCounter = 0;
+    var BOT_MOVE_EVERY = 2; // Bots move every 2 ticks (player moves every tick)
 
     var gameState = {
       player: null,
@@ -552,6 +554,7 @@
       
       currentDirection = 'UP';
       nextDirection = 'UP';
+      botMoveCounter = 0;
       
       botImage = createBotImage();
       playerImage = createPlayerImage();
@@ -623,19 +626,8 @@
         newPlayerY = gameState.player.y;
       }
       
-      var botNewPositions = [];
-      for (var i = 0; i < gameState.bots.length; i++) {
-        var bot = gameState.bots[i];
-        if (!bot.alive) {
-          botNewPositions.push(null);
-          continue;
-        }
-        
-        var botMove = calculateBotMove(bot);
-        botNewPositions.push(botMove);
-      }
-      
-      var playerHitBot = false;
+      // Check for head-on collision BEFORE moving - this blocks movement
+      var headOnCollision = false;
       for (var i = 0; i < gameState.bots.length; i++) {
         var bot = gameState.bots[i];
         if (!bot.alive) continue;
@@ -645,19 +637,53 @@
         
         if (newPlayerX === bot.x && newPlayerY === bot.y) {
           // Check if it's a head-on collision (both facing each other)
-          var headOn = false;
-          if (dx === 0 && dy === 1 && currentDirection === 'DOWN' && bot.direction === 'UP') headOn = true;
-          if (dx === 0 && dy === -1 && currentDirection === 'UP' && bot.direction === 'DOWN') headOn = true;
-          if (dx === 1 && dy === 0 && currentDirection === 'RIGHT' && bot.direction === 'LEFT') headOn = true;
-          if (dx === -1 && dy === 0 && currentDirection === 'LEFT' && bot.direction === 'RIGHT') headOn = true;
+          if (dx === 0 && dy === 1 && currentDirection === 'DOWN' && bot.direction === 'UP') headOnCollision = true;
+          if (dx === 0 && dy === -1 && currentDirection === 'UP' && bot.direction === 'DOWN') headOnCollision = true;
+          if (dx === 1 && dy === 0 && currentDirection === 'RIGHT' && bot.direction === 'LEFT') headOnCollision = true;
+          if (dx === -1 && dy === 0 && currentDirection === 'LEFT' && bot.direction === 'RIGHT') headOnCollision = true;
 
-          if (headOn) {
-            gameState.player.alive = false;
-            gameAudio.playHit();
-            endGame();
-            return;
+          if (headOnCollision) {
+            // Block movement - don't move player
+            newPlayerX = gameState.player.x;
+            newPlayerY = gameState.player.y;
+            break;
           }
+        }
+      }
+      
+      // Move bots (slower than player)
+      botMoveCounter++;
+      var shouldMoveBots = (botMoveCounter >= BOT_MOVE_EVERY);
+      if (shouldMoveBots) {
+        botMoveCounter = 0;
+      }
+      
+      var botNewPositions = [];
+      for (var i = 0; i < gameState.bots.length; i++) {
+        var bot = gameState.bots[i];
+        if (!bot.alive) {
+          botNewPositions.push(null);
+          continue;
+        }
+        
+        if (shouldMoveBots) {
+          var botMove = calculateBotMove(bot);
+          botNewPositions.push(botMove);
+        } else {
+          botNewPositions.push({ x: bot.x, y: bot.y, direction: bot.direction });
+        }
+      }
+      
+      // Check for side/back hits on bots
+      var playerHitBot = false;
+      for (var i = 0; i < gameState.bots.length; i++) {
+        var bot = gameState.bots[i];
+        if (!bot.alive) continue;
 
+        var dx = newPlayerX - bot.x;
+        var dy = newPlayerY - bot.y;
+        
+        if (newPlayerX === bot.x && newPlayerY === bot.y) {
           // Check if player hits bot from back
           var hitBack = false;
           if (dx === 0 && dy === -1 && bot.direction === 'UP') hitBack = true;
@@ -681,8 +707,8 @@
         }
       }
 
-      // Only update player position if not hitting a bot
-      if (!playerHitBot) {
+      // Only update player position if not hitting a bot and not head-on collision
+      if (!playerHitBot && !headOnCollision) {
         gameState.player.x = newPlayerX;
         gameState.player.y = newPlayerY;
       }
