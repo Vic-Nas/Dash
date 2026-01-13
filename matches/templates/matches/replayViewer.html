@@ -281,12 +281,12 @@
   </div>
 
   <script>
-    var hasAccess = {% if has_access %}{{ has_access|lower }}{% else %}false{% endif %};
-    var replayType = '{{ replay_type }}';
-    var replayId = {{ replay_id }};
-    var replayData = {{ replay_data|safe }};
+    var hasAccess = {{ hasAccess|lower }};
+    var replayType = '{{ replayType }}';
+    var replayId = {{ replayId }};
+    var replayData = {{ replayData|safe }};
     var currentBalance = parseFloat('{{ profile.coins }}');
-    var replayCost = {{ replay_cost|default:'0' }};
+    var replayCost = {{ replayCost }};
     
     function getCookie(name) {
       var value = '; ' + document.cookie;
@@ -435,8 +435,7 @@
     function restartReplay() {
       currentFrame = 0;
       isPlaying = false;
-      var costText = replayCost && replayCost > 0 ? replayCost + ' coins to watch' : 'coins to watch';
-      document.getElementById('playPauseBtn').textContent = hasAccess ? '▶ Play' : '▶ Pay ' + costText;
+      document.getElementById('playPauseBtn').textContent = hasAccess ? '▶ Play' : '▶ Pay ' + replayCost + ' coins to watch';
       document.getElementById('replayStatus').style.display = 'none';
       renderFrame(0);
       updateTimeline();

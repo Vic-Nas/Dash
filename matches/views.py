@@ -803,14 +803,16 @@ def watchReplay(request):
 
 
 @login_required
-def replayViewer(request, replay_type, replay_id):
+def replayViewer(request, replayType, replayId):
     """Render replay viewer page"""
-    replay_data = None
+    replayData = None
     metadata = {}
+    playerId = None
     
-    if replay_type == 'solo':
-        run = get_object_or_404(SoloRun, id=replay_id, replayData__isnull=False)
-        replay_data = run.replayData
+    if replayType == 'solo':
+        run = get_object_or_404(SoloRun, id=replayId, replayData__isnull=False)
+        replayData = run.replayData
+        playerId = run.player.id
         metadata = {
             'type': 'Solo Mode',
             'player': run.player.username,
@@ -818,9 +820,10 @@ def replayViewer(request, replay_type, replay_id):
             'time': f'{run.survivalTime}s',
             'date': run.endedAt,
         }
-    elif replay_type == 'progressive':
-        run = get_object_or_404(ProgressiveRun, id=replay_id, replayData__isnull=False)
-        replay_data = run.replayData
+    elif replayType == 'progressive':
+        run = get_object_or_404(ProgressiveRun, id=replayId, replayData__isnull=False)
+        replayData = run.replayData
+        playerId = run.player.id
         metadata = {
             'type': 'Progressive Mode',
             'player': run.player.username,
@@ -828,9 +831,10 @@ def replayViewer(request, replay_type, replay_id):
             'time': f'{run.survivalTime}s',
             'date': run.endedAt,
         }
-    elif replay_type == 'multiplayer':
-        participation = get_object_or_404(MatchParticipation, id=replay_id, replayData__isnull=False)
-        replay_data = participation.replayData
+    elif replayType == 'multiplayer':
+        participation = get_object_or_404(MatchParticipation, id=replayId, replayData__isnull=False)
+        replayData = participation.replayData
+        playerId = participation.player.id
         metadata = {
             'type': 'Multiplayer',
             'player': participation.player.username,
@@ -845,13 +849,17 @@ def replayViewer(request, replay_type, replay_id):
     # Check if user needs to pay for this replay
     from .models import ReplayView
     profile = request.user.profile
-    already_paid = (profile.user.id == (metadata.get('player_id') if 'player_id' in metadata else None)) or ReplayView.objects.filter(user=profile, replay_type=replay_type, replay_id=replay_id, paid=True).exists()
+    isOwner = profile.user.id == playerId
+    hasPaid = isOwner or ReplayView.objects.filter(user=profile, replay_type=replayType, replay_id=replayId, paid=True).exists()
+    replayCost = SystemSettings.getInt('REPLAY_VIEW_COST', 10)
+    
     context = {
-        'replay_data': json.dumps(replay_data),
+        'replayData': json.dumps(replayData),
         'metadata': metadata,
-        'replay_type': replay_type,
+        'replayType': replayType,
         'profile': profile,
-        'already_paid': already_paid,
-        'replay_id': replay_id,
+        'hasAccess': hasPaid,
+        'replayId': replayId,
+        'replayCost': replayCost,
     }
     return render(request, 'matches/replayViewer.html', context)
