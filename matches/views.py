@@ -688,9 +688,9 @@ def watchReplay(request):
         # Get cost based on ownership
         isOwner = ownerId == request.user.id
         if isOwner:
-            replayCost = SystemSettings.getInt('REPLAY_VIEW_COST_OWNER', 5)
+            replayCost = SystemSettings.getInt('replayViewCostOwn', 0)
         else:
-            replayCost = SystemSettings.getInt('REPLAY_VIEW_COST_OTHER', 10)
+            replayCost = SystemSettings.getInt('replayViewCostOther', 50)
 
         # Check if already paid
         from .models import ReplayView
@@ -841,9 +841,9 @@ def replayViewer(request, replayType, replayId):
     
     # Get appropriate cost based on ownership
     if isOwner:
-        replayCost = SystemSettings.getInt('REPLAY_VIEW_COST_OWNER', 5)
+        replayCost = SystemSettings.getInt('replayViewCostOwn', 0)
     else:
-        replayCost = SystemSettings.getInt('REPLAY_VIEW_COST_OTHER', 10)
+        replayCost = SystemSettings.getInt('replayViewCostOther', 50)
     
     context = {
         'replayData': json.dumps(replayData),
