@@ -154,7 +154,6 @@
             <span>20×20 grid</span>
           </div>
         </a>
-        
         <a href="/matches/multiplayer/" class="card" id="multiplayerCard">
           <div class="card-title">Multiplayer</div>
           <div class="card-desc">Compete against other players. Winner takes all!</div>
@@ -163,12 +162,18 @@
             <span>Various entry fees</span>
           </div>
         </a>
-
-
         <a href="{% url 'matches:progressive' %}" class="card">
             <h3>🎯 Progressive Mode</h3>
             <p>Battle increasing numbers of bots</p>
             <p>Level {{ profile.progressiveHighestLevel }}/30 Completed</p>
+        </a>
+        <a href="/matches/replays/" class="card" style="border:2px solid #fbbf24; background:#23264a;">
+          <div class="card-title">🎬 Browse Replays</div>
+          <div class="card-desc">Watch, share, and relive your best games!</div>
+          <div class="card-info">
+            <span>All modes</span>
+            <span>Shareable links</span>
+          </div>
         </a>
       </div>
     </div>
