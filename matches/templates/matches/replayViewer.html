@@ -403,6 +403,9 @@
     var playbackSpeed = 1;
     var animationFrameId = null;
     var lastFrameTime = 0;
+    var deathFrame = null;
+    var deathLocation = null;
+    var explosionFrames = 0;
     
     function adjustCanvasSize() {
       var maxWidth = window.innerWidth - 40;
@@ -541,6 +544,11 @@
         // Check for wall hit (wallsHit increased)
         if (frame.wallsHit > prevFrame.wallsHit) {
           playWallHitSound();
+          if (deathFrame === null && prevFrame.player) {
+            deathFrame = frameIndex;
+            deathLocation = { x: prevFrame.player.x, y: prevFrame.player.y };
+            explosionFrames = 0;
+          }
         }
         
         // Check for wall placed (walls array increased)
@@ -625,6 +633,39 @@
           }
         });
       }
+      
+      // Draw explosion animation at death location
+      if (deathFrame !== null && deathLocation && frameIndex >= deathFrame && frameIndex < deathFrame + 10) {
+        explosionFrames = frameIndex - deathFrame;
+        drawExplosion(deathLocation, cellSize, explosionFrames);
+      }
+    }
+    
+    function drawExplosion(location, cellSize, animFrame) {
+      var px = location.x * cellSize + cellSize / 2;
+      var py = location.y * cellSize + cellSize / 2;
+      var maxRadius = cellSize * 1.5;
+      var radius = (maxRadius / 10) * animFrame;
+      
+      // Outer expanding circle
+      ctx.strokeStyle = 'rgba(255, 100, 0, ' + (1 - animFrame / 10) + ')';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(px, py, radius, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      // Inner brighter circle
+      ctx.strokeStyle = 'rgba(255, 200, 0, ' + (1 - animFrame / 10) * 0.7 + ')';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(px, py, radius * 0.6, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      // Flash at center
+      ctx.fillStyle = 'rgba(255, 255, 100, ' + (1 - animFrame / 10) * 0.3 + ')';
+      ctx.beginPath();
+      ctx.arc(px, py, cellSize * 0.3, 0, Math.PI * 2);
+      ctx.fill();
     }
     
     function drawPlayer(player, cellSize, color) {
