@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Progressive Mode - Dash Arena</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>"/>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <style>
     * {
       box-sizing: border-box;
@@ -306,7 +306,7 @@
     var CELL_SIZE = 0;
     var TICK_RATE = 150;
     var botMoveCounter = 0;
-    var BOT_MOVE_EVERY = 2; // Bots move every 2 ticks (player moves every tick)
+    var BOT_MOVE_EVERY = 4; // Bots move every 4 ticks (player moves every tick)
 
     var gameState = {
       player: null,
@@ -632,20 +632,23 @@
         var bot = gameState.bots[i];
         if (!bot.alive) continue;
 
-        var dx = newPlayerX - bot.x;
-        var dy = newPlayerY - bot.y;
-        
+        // Only check if we're trying to move into the bot's cell
         if (newPlayerX === bot.x && newPlayerY === bot.y) {
-          // Check if it's a head-on collision (both facing each other)
-          if (dx === 0 && dy === 1 && currentDirection === 'DOWN' && bot.direction === 'UP') headOnCollision = true;
-          if (dx === 0 && dy === -1 && currentDirection === 'UP' && bot.direction === 'DOWN') headOnCollision = true;
-          if (dx === 1 && dy === 0 && currentDirection === 'RIGHT' && bot.direction === 'LEFT') headOnCollision = true;
-          if (dx === -1 && dy === 0 && currentDirection === 'LEFT' && bot.direction === 'RIGHT') headOnCollision = true;
+          var dx = newPlayerX - gameState.player.x; // Direction player is moving
+          var dy = newPlayerY - gameState.player.y;
+          
+          // Check if bot is facing towards the player
+          var botFacingPlayer = false;
+          if (dx === 0 && dy === -1 && bot.direction === 'DOWN') botFacingPlayer = true; // Player moving UP, bot facing DOWN
+          if (dx === 0 && dy === 1 && bot.direction === 'UP') botFacingPlayer = true;    // Player moving DOWN, bot facing UP
+          if (dx === -1 && dy === 0 && bot.direction === 'RIGHT') botFacingPlayer = true; // Player moving LEFT, bot facing RIGHT
+          if (dx === 1 && dy === 0 && bot.direction === 'LEFT') botFacingPlayer = true;   // Player moving RIGHT, bot facing LEFT
 
-          if (headOnCollision) {
+          if (botFacingPlayer) {
             // Block movement - don't move player
             newPlayerX = gameState.player.x;
             newPlayerY = gameState.player.y;
+            headOnCollision = true;
             break;
           }
         }
