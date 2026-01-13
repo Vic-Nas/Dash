@@ -594,10 +594,11 @@
         'RIGHT': 'LEFT'
       };
 
+      var nonReverseMoves = [];
+      var reverseMoves = [];
       for (var i = 0; i < moves.length; i++) {
         var m = moves[i];
-        // Disallow reversing direction
-        if (bot.direction && m.dir === opposite[bot.direction]) continue;
+        var isReverse = bot.direction && m.dir === opposite[bot.direction];
 
         var newX = bot.x + m.dx;
         var newY = bot.y + m.dy;
@@ -609,37 +610,40 @@
         });
 
         if (occupied) continue;
-        
+
         var newDx = playerX - newX;
         var newDy = playerY - newY;
         var newDistance = Math.sqrt(newDx * newDx + newDy * newDy);
-        
         var isPlayerMove = (newX === playerX && newY === playerY);
-        
+
+        var moveObj = null;
         if (distance < 3) {
           if (isPlayerMove) {
-            possibleMoves.push({ x: newX, y: newY, direction: m.dir, priority: 1000 });
+            moveObj = { x: newX, y: newY, direction: m.dir, priority: 1000 };
           } else if (newDistance > distance) {
-            possibleMoves.push({ x: newX, y: newY, direction: m.dir, priority: 100 + newDistance });
+            moveObj = { x: newX, y: newY, direction: m.dir, priority: 100 + newDistance };
           }
         } else {
           if (isPlayerMove) {
-            possibleMoves.push({ x: newX, y: newY, direction: m.dir, priority: 1000 });
+            moveObj = { x: newX, y: newY, direction: m.dir, priority: 1000 };
           } else if (newDistance < distance) {
-            possibleMoves.push({ x: newX, y: newY, direction: m.dir, priority: 50 - newDistance });
+            moveObj = { x: newX, y: newY, direction: m.dir, priority: 50 - newDistance };
           } else {
-            possibleMoves.push({ x: newX, y: newY, direction: m.dir, priority: 10 });
+            moveObj = { x: newX, y: newY, direction: m.dir, priority: 10 };
           }
         }
+        if (moveObj) {
+          if (isReverse) reverseMoves.push(moveObj);
+          else nonReverseMoves.push(moveObj);
+        }
       }
-      
-      if (possibleMoves.length === 0) {
+
+      var allMoves = nonReverseMoves.length > 0 ? nonReverseMoves : reverseMoves;
+      if (allMoves.length === 0) {
         return { x: bot.x, y: bot.y, direction: bot.direction };
       }
-      
-      possibleMoves.sort(function(a, b) { return b.priority - a.priority; });
-      
-      return possibleMoves[0];
+      allMoves.sort(function(a, b) { return b.priority - a.priority; });
+      return allMoves[0];
     }
 
     function render() {
