@@ -486,10 +486,11 @@
       else if (currentDirection === 'LEFT') newPlayerX--;
       else if (currentDirection === 'RIGHT') newPlayerX++;
       
+      // Prevent player from moving out of bounds
       if (newPlayerX < 0 || newPlayerX >= GRID_SIZE || newPlayerY < 0 || newPlayerY >= GRID_SIZE) {
-        gameState.player.alive = false;
-        endGame();
-        return;
+        // Do not update position, just skip movement
+        newPlayerX = gameState.player.x;
+        newPlayerY = gameState.player.y;
       }
       
       var botNewPositions = [];
@@ -508,14 +509,25 @@
       for (var i = 0; i < gameState.bots.length; i++) {
         var bot = gameState.bots[i];
         if (!bot.alive) continue;
-        
-        if (newPlayerX === bot.x && newPlayerY === bot.y) {
+
+        // Only allow player to eliminate bot if hitting the back
+        // Player must move into the cell behind the bot (opposite of bot's direction)
+        var dx = newPlayerX - bot.x;
+        var dy = newPlayerY - bot.y;
+        var hitBack = false;
+        if (dx === 0 && dy === -1 && bot.direction === 'UP') hitBack = true;
+        if (dx === 0 && dy === 1 && bot.direction === 'DOWN') hitBack = true;
+        if (dx === -1 && dy === 0 && bot.direction === 'LEFT') hitBack = true;
+        if (dx === 1 && dy === 0 && bot.direction === 'RIGHT') hitBack = true;
+
+        if (newPlayerX === bot.x && newPlayerY === bot.y && hitBack) {
           bot.alive = false;
           gameState.botsEliminated++;
           playerHitBot = true;
         }
       }
-      
+
+      // Only update player position if not hitting a bot's back
       if (!playerHitBot) {
         gameState.player.x = newPlayerX;
         gameState.player.y = newPlayerY;
