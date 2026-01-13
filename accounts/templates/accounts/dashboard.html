@@ -176,34 +176,99 @@
     </div>
 
     <div class="section leaderboard">
-      <h2>🏆 Solo Leaderboard</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Rank</th>
-            <th>Player</th>
-            <th>High Score</th>
-            <th>Wins</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for p in topPlayers %}
-          <tr {% if p.user == user %}style="background:#1a1d35;"{% endif %}>
-            <td class="rank">#{{ forloop.counter }}</td>
-            <td>
-              <a href="{% url 'publicProfile' p.user.username %}" style="color:#5b7bff;text-decoration:none;">
-                {{ p.user.username }}
-              </a>
-              {% if p.user == user %} (You){% endif %}
-            </td>
-            <td>{{ p.soloHighScore }} walls</td>
-            <td>{{ p.totalWins }}</td>
-          </tr>
-          {% empty %}
-          <tr><td colspan="4" style="text-align:center;color:#9ca3af;">No scores yet</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      <div style="display: flex; gap: 24px; flex-wrap: wrap; justify-content: space-between;">
+        <!-- Solo Leaderboard -->
+        <div style="flex:1 1 300px; min-width:260px;">
+          <h2 style="text-align:center;">🏆 Solo</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Player</th>
+                <th>High Score</th>
+                <th>Wins</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in topPlayers %}
+              <tr {% if p.user == user %}style="background:#1a1d35;"{% endif %}>
+                <td class="rank">#{{ forloop.counter }}</td>
+                <td>
+                  <a href="{% url 'publicProfile' p.user.username %}" style="color:#5b7bff;text-decoration:none;">
+                    {{ p.user.username }}
+                  </a>
+                  {% if p.user == user %} (You){% endif %}
+                </td>
+                <td>{{ p.soloHighScore }} walls</td>
+                <td>{{ p.totalWins }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="4" style="text-align:center;color:#9ca3af;">No scores yet</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <!-- Multiplayer Leaderboard -->
+        <div style="flex:1 1 300px; min-width:260px;">
+          <h2 style="text-align:center;">🏆 Multiplayer</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Player</th>
+                <th>Wins</th>
+                <th>Matches</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in topMultiplayer %}
+              <tr {% if p.user == user %}style="background:#1a1d35;"{% endif %}>
+                <td class="rank">#{{ forloop.counter }}</td>
+                <td>
+                  <a href="{% url 'publicProfile' p.user.username %}" style="color:#5b7bff;text-decoration:none;">
+                    {{ p.user.username }}
+                  </a>
+                  {% if p.user == user %} (You){% endif %}
+                </td>
+                <td>{{ p.multiplayerWins }}</td>
+                <td>{{ p.multiplayerMatches }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="4" style="text-align:center;color:#9ca3af;">No scores yet</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <!-- Progressive Leaderboard -->
+        <div style="flex:1 1 300px; min-width:260px;">
+          <h2 style="text-align:center;">🏆 Progressive</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Player</th>
+                <th>Level (Time)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in topProgressive %}
+              <tr {% if p.user == user %}style="background:#1a1d35;"{% endif %}>
+                <td class="rank">#{{ forloop.counter }}</td>
+                <td>
+                  <a href="{% url 'publicProfile' p.user.username %}" style="color:#5b7bff;text-decoration:none;">
+                    {{ p.user.username }}
+                  </a>
+                  {% if p.user == user %} (You){% endif %}
+                </td>
+                <td>{{ p.progressiveLevel }} <span style="color:#9ca3af;">({{ p.progressiveTime }}s)</span></td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="3" style="text-align:center;color:#9ca3af;">No scores yet</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </div>
   <script>
