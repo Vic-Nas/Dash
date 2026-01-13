@@ -245,7 +245,8 @@
               <tr>
                 <th>Rank</th>
                 <th>Player</th>
-                <th>Level (Time)</th>
+                <th>Level</th>
+                <th>Time (s)</th>
               </tr>
             </thead>
             <tbody>
@@ -258,7 +259,8 @@
                   </a>
                   {% if p.username == user.username %} (You){% endif %}
                 </td>
-                <td>{{ p.level }} <span style="color:#9ca3af;">({{ p.time }}s)</span></td>
+                <td>{{ p.level }}</td>
+                <td>{{ p.time }}</td>
               </tr>
               {% empty %}
               <tr><td colspan="3" style="text-align:center;color:#9ca3af;">No scores yet</td></tr>
