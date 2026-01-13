@@ -218,7 +218,7 @@
     <div class="controls">
       {% if not already_paid %}
         <button class="control-btn" id="playPauseBtn" onclick="handlePlayClick()" data-payment-required="true">
-          ▶ Play ({{ replay_type == 'solo' and profile.id == metadata.player_id|default:None }}{% if profile.id == metadata.player_id %}Free{% else %}{{ profile.coins >= 50|yesno:'50 coins,Insufficient coins' }}{% endif %})
+          ▶ Play {% if profile.user.id == metadata.player_id %}(Free){% else %}(50 coins){% endif %}
         </button>
       {% else %}
         <button class="control-btn" id="playPauseBtn" onclick="togglePlayPause()">▶ Play</button>
