@@ -86,30 +86,22 @@ def dashboard(request):
     from matches.models import ProgressiveRun
     from django.db.models import Min
     # Get top 10 users by highest level, then by best (lowest) survivalTime at that level
-    # For each player, get their run with the highest level, and the time spent to beat that level
-    from django.db.models import Subquery, OuterRef
-    max_level_subquery = ProgressiveRun.objects.filter(player=OuterRef('player')).order_by('-level', 'survivalTime')
-    progressive_leaderboard = (
-        ProgressiveRun.objects.values('player__username', 'player__profile__profilePic')
-        .annotate(
-            max_level=Max('level'),
-            time=Subquery(
-                ProgressiveRun.objects.filter(player=OuterRef('player'), level=Max('level'))
-                .order_by('survivalTime')
-                .values('survivalTime')[:1]
-            )
-        )
-        .order_by('-max_level', 'time', 'player__username')[:10]
+    # Two-step: get top 10 players by max level, then fetch their best time at that level
+    from django.db.models import Max
+    max_levels = (
+        ProgressiveRun.objects.values('player', 'player__username', 'player__profile__profilePic')
+        .annotate(max_level=Max('level'))
+        .order_by('-max_level', 'player__username')[:10]
     )
-    topProgressive = [
-        {
+    topProgressive = []
+    for entry in max_levels:
+        run = ProgressiveRun.objects.filter(player=entry['player'], level=entry['max_level']).order_by('survivalTime').first()
+        topProgressive.append({
             'username': entry['player__username'],
             'profilePic': entry['player__profile__profilePic'],
             'level': entry['max_level'],
-            'time': entry['time'],
-        }
-        for entry in progressive_leaderboard
-    ]
+            'time': run.survivalTime if run else None,
+        })
     
     # Get unread message count
     unreadCount = DirectMessage.objects.filter(
