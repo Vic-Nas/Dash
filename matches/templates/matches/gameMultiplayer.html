@@ -241,6 +241,11 @@
     var myPlayerColor = null;
     var isGameStarted = false;
 
+    // Death explosion animation
+    var deathFrame = null;
+    var deathLocation = null;
+    var explosionFrames = 0;
+
     function adjustCanvasSize() {
       var maxWidth = window.innerWidth - 40;
       var maxHeight = window.innerHeight - 300;
@@ -317,9 +322,37 @@
           handleGameOver(data);
         } else {
           // Regular game state
+          // Detect if we died (game state update)
+          var myPlayerId = null;
+          if (myPlayerColor) {
+            for (var id in data.players) {
+              if (data.players[id].playerColor === myPlayerColor) {
+                myPlayerId = id;
+                break;
+              }
+            }
+          }
+          
+          if (myPlayerId && gameState && gameState.players && gameState.players[myPlayerId]) {
+            var wasMeAlive = gameState.players[myPlayerId].alive;
+            var amIAliveNow = data.players[myPlayerId].alive;
+            
+            // I just died
+            if (wasMeAlive && !amIAliveNow && deathFrame === null) {
+              deathFrame = 0;
+              deathLocation = { x: gameState.players[myPlayerId].x, y: gameState.players[myPlayerId].y };
+              explosionFrames = 0;
+            }
+          }
+          
           gameState = data;
           render();
           updateHUD();
+          
+          // Increment explosion animation frame
+          if (deathFrame !== null && explosionFrames < 10) {
+            explosionFrames++;
+          }
           
           if (!isGameStarted) {
             isGameStarted = true;
@@ -562,6 +595,38 @@
           py - CELL_SIZE / 2 - 2
         );
       }
+
+      // Draw explosion animation
+      if (deathFrame !== null && explosionFrames < 10) {
+        drawExplosion(deathLocation, CELL_SIZE, explosionFrames);
+      }
+    }
+
+    function drawExplosion(location, cellSize, animFrame) {
+      var px = location.x * cellSize + cellSize / 2;
+      var py = location.y * cellSize + cellSize / 2;
+      var maxRadius = cellSize * 1.5;
+      var radius = (maxRadius / 10) * animFrame;
+      
+      // Outer expanding circle
+      ctx.strokeStyle = 'rgba(255, 100, 0, ' + (1 - animFrame / 10) + ')';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(px, py, radius, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      // Inner brighter circle
+      ctx.strokeStyle = 'rgba(255, 200, 0, ' + (1 - animFrame / 10) * 0.7 + ')';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(px, py, radius * 0.6, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      // Flash at center
+      ctx.fillStyle = 'rgba(255, 255, 100, ' + (1 - animFrame / 10) * 0.3 + ')';
+      ctx.beginPath();
+      ctx.arc(px, py, cellSize * 0.3, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     function updateHUD() {
@@ -595,72 +660,95 @@
     }
 
     function handleGameOver(data) {
-      /* ===============================
-        VICTORY / LOSS SOUND LOGIC
-        =============================== */
+      // Wait for explosion animation to finish before showing game over (10 frames * 150ms = 1500ms)
+      var showGameOverDialog = function() {
+        /* ===============================
+          VICTORY / LOSS SOUND LOGIC
+          =============================== */
 
-      var myPlayerId = null;
-      for (var id in gameState.players) {
-        if (gameState.players[id].playerColor === myPlayerColor) {
-          myPlayerId = id;
-          break;
-        }
-      }
-
-      // Victory
-      if (data.winnerId && myPlayerId && data.winnerId == myPlayerId) {
-        gameAudio.playVictory(); // WE WON!
-      } else if (!data.isTie) {
-        // Loss sound already handled on elimination in render()
-        // Do nothing here to avoid double audio
-      }
-
-      /* ===============================
-        FINAL SCORES UI
-        =============================== */
-
-      var finalScoresDiv = document.getElementById('finalScores');
-      var winnerInfoDiv = document.getElementById('winnerInfo');
-
-      if (data.finalScores) {
-        var sortedScores = Object.entries(data.finalScores).sort(function (a, b) {
-          return b[1] - a[1];
-        });
-
-        var scoresHTML = '<strong>Final Results:</strong><br>';
-
-        for (var i = 0; i < sortedScores.length; i++) {
-          var userId = sortedScores[i][0];
-          var score = sortedScores[i][1];
-          var hits = data.finalHits ? data.finalHits[userId] : 0;
-          var player =
-            gameState && gameState.players ? gameState.players[userId] : null;
-          var name = player ? player.username : 'Player';
-
-          scoresHTML +=
-            '<div style="margin:6px 0;">' +
-            '<span style="color:#10b981;font-weight:600;">' +
-            name +
-            ': +' +
-            score +
-            ' pts</span>' +
-            '<span style="color:#9ca3af;margin-left:8px;font-size:12px;">(❌ ' +
-            hits +
-            '/50)</span>' +
-            '</div>';
+        var myPlayerId = null;
+        for (var id in gameState.players) {
+          if (gameState.players[id].playerColor === myPlayerColor) {
+            myPlayerId = id;
+            break;
+          }
         }
 
-        finalScoresDiv.innerHTML = scoresHTML;
+        // Victory
+        if (data.winnerId && myPlayerId && data.winnerId == myPlayerId) {
+          gameAudio.playVictory(); // WE WON!
+        } else if (!data.isTie) {
+          // Loss sound already handled on elimination in render()
+          // Do nothing here to avoid double audio
+        }
+
+        /* ===============================
+          FINAL SCORES UI
+          =============================== */
+
+        var finalScoresDiv = document.getElementById('finalScores');
+        var winnerInfoDiv = document.getElementById('winnerInfo');
+
+        if (data.finalScores) {
+          var sortedScores = Object.entries(data.finalScores).sort(function (a, b) {
+            return b[1] - a[1];
+          });
+
+          var scoresHTML = '<strong>Final Results:</strong><br>';
+
+          for (var i = 0; i < sortedScores.length; i++) {
+            var userId = sortedScores[i][0];
+            var score = sortedScores[i][1];
+            var hits = data.finalHits ? data.finalHits[userId] : 0;
+            var player =
+              gameState && gameState.players ? gameState.players[userId] : null;
+            var name = player ? player.username : 'Player';
+
+            scoresHTML +=
+              '<div style="margin:6px 0;">' +
+              '<span style="color:#10b981;font-weight:600;">' +
+              name +
+              ': +' +
+              score +
+              ' pts</span>' +
+              '<span style="color:#9ca3af;margin-left:8px;font-size:12px;">(❌ ' +
+              hits +
+              '/50)</span>' +
+              '</div>';
+          }
+
+          finalScoresDiv.innerHTML = scoresHTML;
+        }
+
+        /* ===============================
+          WINNER / POT DISPLAY
+          =============================== */
+
+        if (data.isTie) {
+          document.getElementById('winnerText').textContent = 'Tie Game!';
+
+          var potAmount = {{ match.totalPot|floatformat:0 }};
+        } else if (data.winnerId) {
+          var winnerPlayer = gameState.players[data.winnerId];
+          document.getElementById('winnerText').textContent =
+            '🏆 ' + (winnerPlayer ? winnerPlayer.username : 'Unknown') + ' Wins!';
+          winnerInfoDiv.style.display = 'block';
+        }
+
+        /* ===============================
+          SHOW MODAL
+          =============================== */
+
+        document.getElementById('gameOver').style.display = 'block';
+      };
+
+      // Wait for explosion if we died, otherwise show immediately
+      if (deathFrame !== null) {
+        setTimeout(showGameOverDialog, 1500);
+      } else {
+        showGameOverDialog();
       }
-
-      /* ===============================
-        WINNER / POT DISPLAY
-        =============================== */
-
-      if (data.isTie) {
-        document.getElementById('winnerText').textContent = 'Tie Game!';
-
-        var potAmount = {{ match.totalPot|floatformat:0 }};
+    }
         var playerCount = Object.keys(gameState.players).length;
         var splitAmount = Math.floor(potAmount / playerCount);
 

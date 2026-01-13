@@ -12,6 +12,32 @@ from shop.models import Transaction, SystemSettings
 import json
 
 
+def enforceReplayLimit():
+    """Delete oldest replays if count exceeds maxReplaysStored setting."""
+    maxReplays = SystemSettings.getInt('maxReplaysStored', 50)
+    
+    # Count total replays (both SoloRun and ProgressiveRun have replayData)
+    soloWithReplay = SoloRun.objects.filter(replayData__isnull=False).count()
+    progressiveWithReplay = ProgressiveRun.objects.filter(replayData__isnull=False).count()
+    totalReplays = soloWithReplay + progressiveWithReplay
+    
+    if totalReplays > maxReplays:
+        # Delete oldest solo replays first
+        replayToDelete = totalReplays - maxReplays
+        
+        oldestSolo = SoloRun.objects.filter(replayData__isnull=False).order_by('endedAt')[:replayToDelete]
+        deleteCount = oldestSolo.count()
+        
+        if deleteCount > 0:
+            oldestSolo.delete()
+            replayToDelete -= deleteCount
+        
+        # If we still need to delete more, delete from progressive
+        if replayToDelete > 0:
+            oldestProgressive = ProgressiveRun.objects.filter(replayData__isnull=False).order_by('endedAt')[:replayToDelete]
+            oldestProgressive.delete()
+
+
 @login_required
 def solo(request):
     profile = request.user.profile
@@ -84,6 +110,9 @@ def saveSoloRun(request):
                     balanceBefore=balanceBefore + coinsEarned if coinsEarned > 0 else balanceBefore,
                     balanceAfter=balanceAfter
                 )
+        
+        # Enforce replay storage limit (outside transaction)
+        enforceReplayLimit()
         
         return JsonResponse({
             'success': True,
@@ -187,6 +216,9 @@ def saveProgressiveRun(request):
                 isPublic=True,
                 endedAt=timezone.now()
             )
+        
+        # Enforce replay storage limit (outside transaction)
+        enforceReplayLimit()
         
         return JsonResponse({
             'success': True,

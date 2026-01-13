@@ -462,7 +462,15 @@
           if (currentFrame >= replayData.frames.length) {
             isPlaying = false;
             document.getElementById('playPauseBtn').textContent = '▶ Play';
-            document.getElementById('replayStatus').style.display = 'block';
+            // Don't hide status immediately - let explosion finish
+            if (deathFrame === null) {
+              document.getElementById('replayStatus').style.display = 'block';
+            } else {
+              // Wait for explosion to finish (10 frames)
+              setTimeout(function() {
+                document.getElementById('replayStatus').style.display = 'block';
+              }, 200);
+            }
             return;
           }
           

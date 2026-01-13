@@ -358,6 +358,11 @@
     var botImage = null;
     var playerImage = null;
 
+    // Death explosion animation
+    var deathFrame = null;
+    var deathLocation = null;
+    var explosionFrames = 0;
+
     class GameAudio {
       constructor() {
         this.audioContext = null;
@@ -637,6 +642,10 @@
           updateGame();
           render();
           updateHUD();
+          // Increment explosion animation frame
+          if (deathFrame !== null && explosionFrames < 10) {
+            explosionFrames++;
+          }
         }
       }, TICK_RATE);
     }
@@ -754,6 +763,11 @@
             // Bot attacks from side/back - player dies
             gameState.player.alive = false;
             gameAudio.playHit();
+            if (deathFrame === null) {
+              deathFrame = 0;
+              deathLocation = { x: gameState.player.x, y: gameState.player.y };
+              explosionFrames = 0;
+            }
             endGame();
             replayRecorder.recordFrame();
             return;
@@ -899,6 +913,38 @@
         
         ctx.restore();
       }
+      
+      // Draw explosion animation
+      if (deathFrame !== null && explosionFrames < 10) {
+        drawExplosion(deathLocation, CELL_SIZE, explosionFrames);
+      }
+    }
+
+    function drawExplosion(location, cellSize, animFrame) {
+      var px = location.x * cellSize + cellSize / 2;
+      var py = location.y * cellSize + cellSize / 2;
+      var maxRadius = cellSize * 1.5;
+      var radius = (maxRadius / 10) * animFrame;
+      
+      // Outer expanding circle
+      ctx.strokeStyle = 'rgba(255, 100, 0, ' + (1 - animFrame / 10) + ')';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(px, py, radius, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      // Inner brighter circle
+      ctx.strokeStyle = 'rgba(255, 200, 0, ' + (1 - animFrame / 10) * 0.7 + ')';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(px, py, radius * 0.6, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      // Flash at center
+      ctx.fillStyle = 'rgba(255, 255, 100, ' + (1 - animFrame / 10) * 0.3 + ')';
+      ctx.beginPath();
+      ctx.arc(px, py, cellSize * 0.3, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     function updateHUD() {
@@ -979,7 +1025,12 @@
       
       if (gameLoopInterval) clearInterval(gameLoopInterval);
       
-      showGameOver();
+      // Wait for explosion animation to finish (10 frames * 150ms = 1500ms)
+      if (deathFrame !== null) {
+        setTimeout(showGameOver, 1500);
+      } else {
+        showGameOver();
+      }
     }
 
     function showGameOver() {
