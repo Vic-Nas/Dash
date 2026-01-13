@@ -254,6 +254,12 @@
   </div>
 
   <script>
+    function getCookie(name) {
+      let value = '; ' + document.cookie;
+      let parts = value.split('; ' + name + '=');
+      if (parts.length === 2) return parts.pop().split(';').shift();
+    }
+
     function handlePlayClick() {
       const playBtn = document.getElementById('playPauseBtn');
       const paymentStatus = document.getElementById('paymentStatus');
@@ -272,11 +278,6 @@
             id: {{ replay_id }}
           })
         })
-            function getCookie(name) {
-              let value = '; ' + document.cookie;
-              let parts = value.split('; ' + name + '=');
-              if (parts.length === 2) return parts.pop().split(';').shift();
-            }
         .then(async response => {
           let data;
           try {
