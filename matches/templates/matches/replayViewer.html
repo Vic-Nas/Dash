@@ -208,7 +208,6 @@
     <div class="controls">
       <button class="control-btn" id="playPauseBtn" onclick="handlePlayClick()" {% if not already_paid %}data-payment-required="true"{% endif %}>▶ Play</button>
       <button class="control-btn" onclick="restartReplay()">🔄 Restart</button>
-      
       <div class="timeline">
         <input 
           type="range" 
@@ -222,7 +221,6 @@
           <span id="currentTime">0:00</span> / <span id="totalTime">0:00</span>
         </div>
       </div>
-
       <div class="speed-control">
         <span style="color:#9ca3af;font-size:13px;">Speed:</span>
         <button class="speed-btn" onclick="setSpeed(0.5)">0.5x</button>
@@ -231,12 +229,7 @@
         <button class="speed-btn" onclick="setSpeed(4)">4x</button>
       </div>
     </div>
-
-    {% if not already_paid %}
-    <div id="paymentStatus" style="color:#ef4444;text-align:center;margin-top:12px;">Payment required to play this replay.</div>
-    {% else %}
-    <div id="paymentStatus" style="color:#5b7bff;text-align:center;margin-top:12px;">You have already paid for this replay.</div>
-    {% endif %}
+    <div id="paymentStatus" style="color:#ef4444;text-align:center;margin-top:12px;display:none;"></div>
 
     <div class="replay-status" id="replayStatus" style="display:none;">
       <h2>Replay Ended</h2>
@@ -247,10 +240,12 @@
   <script>
     function handlePlayClick() {
       const playBtn = document.getElementById('playPauseBtn');
+      const paymentStatus = document.getElementById('paymentStatus');
       if (playBtn.getAttribute('data-payment-required')) {
-        // Trigger payment
+        // Show temp pay button and price only on first click
         playBtn.disabled = true;
-        document.getElementById('paymentStatus').textContent = 'Processing payment...';
+        paymentStatus.style.display = 'block';
+        paymentStatus.textContent = 'Processing payment...';
         fetch('/matches/watchReplay/', {
           method: 'POST',
           headers: {
@@ -267,16 +262,16 @@
           if (data.success && data.paid) {
             playBtn.removeAttribute('data-payment-required');
             playBtn.disabled = false;
-            document.getElementById('paymentStatus').textContent = 'Payment successful! Replay unlocked.';
+            paymentStatus.style.display = 'none';
             togglePlayPause();
           } else {
             playBtn.disabled = false;
-            document.getElementById('paymentStatus').textContent = data.error || 'Payment failed.';
+            paymentStatus.textContent = data.error || 'Payment failed.';
           }
         })
         .catch(() => {
           playBtn.disabled = false;
-          document.getElementById('paymentStatus').textContent = 'Payment failed.';
+          paymentStatus.textContent = 'Payment failed.';
         });
       } else {
         togglePlayPause();
