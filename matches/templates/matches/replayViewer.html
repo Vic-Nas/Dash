@@ -36,13 +36,23 @@
       left: 20px;
       background: rgba(18,20,40,0.95);
       padding: 16px;
-      border-radius: 8px;
+        border-radius: 0 !important;
       border: 1px solid #2a2f6b;
       min-width: 220px;
     }
     .info-item {
       margin-bottom: 8px;
       font-size: 14px;
+    }
+
+    /* Remove any circle or special background for replay mode/type */
+    .info-item .info-label, .info-item .info-value {
+      background: none !important;
+      border-radius: 0 !important;
+      padding: 0 !important;
+      color: inherit;
+      font-size: inherit;
+      font-weight: inherit;
     }
     .info-label {
       color: #9ca3af;
