@@ -264,13 +264,6 @@
           onclick="watchReplay('{{ replay.type }}', {{ replay.id }}, {{ replay.player_id }})"
         >
           Watch Replay
-          <span class="cost-badge" id="cost-{{ replay.type }}-{{ replay.id }}">
-            {% if replay.player_id == user.id %}
-              (Free)
-            {% else %}
-              ({{ other_replay_cost }} coins)
-            {% endif %}
-          </span>
         </button>
       </div>
       {% endfor %}

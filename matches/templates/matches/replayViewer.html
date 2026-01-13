@@ -216,7 +216,13 @@
     <canvas id="replayCanvas" width="600" height="600"></canvas>
 
     <div class="controls">
-      <button class="control-btn" id="playPauseBtn" onclick="handlePlayClick()" {% if not already_paid %}data-payment-required="true"{% endif %}>▶ Play</button>
+      {% if not already_paid %}
+        <button class="control-btn" id="playPauseBtn" onclick="handlePlayClick()" data-payment-required="true">
+          ▶ Play ({{ replay_type == 'solo' and profile.id == metadata.player_id|default:None }}{% if profile.id == metadata.player_id %}Free{% else %}{{ profile.coins >= 50|yesno:'50 coins,Insufficient coins' }}{% endif %})
+        </button>
+      {% else %}
+        <button class="control-btn" id="playPauseBtn" onclick="togglePlayPause()">▶ Play</button>
+      {% endif %}
       <button class="control-btn" onclick="restartReplay()">🔄 Restart</button>
       <div class="timeline">
         <input 
