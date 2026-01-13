@@ -585,18 +585,29 @@
         { dx: -1, dy: 0, dir: 'LEFT' },
         { dx: 1, dy: 0, dir: 'RIGHT' }
       ];
-      
+
+      // Prevent bots from reversing direction (no left-right or up-down in consecutive moves)
+      var opposite = {
+        'UP': 'DOWN',
+        'DOWN': 'UP',
+        'LEFT': 'RIGHT',
+        'RIGHT': 'LEFT'
+      };
+
       for (var i = 0; i < moves.length; i++) {
         var m = moves[i];
+        // Disallow reversing direction
+        if (bot.direction && m.dir === opposite[bot.direction]) continue;
+
         var newX = bot.x + m.dx;
         var newY = bot.y + m.dy;
-        
+
         if (newX < 0 || newX >= GRID_SIZE || newY < 0 || newY >= GRID_SIZE) continue;
-        
+
         var occupied = gameState.bots.some(function(b) {
           return b.alive && b !== bot && b.x === newX && b.y === newY;
         });
-        
+
         if (occupied) continue;
         
         var newDx = playerX - newX;
