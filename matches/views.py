@@ -692,16 +692,26 @@ def watchReplay(request):
         if not replay_exists:
             return JsonResponse({'success': False, 'error': 'Replay not found'}, status=404)
         
-        # Don't charge owner
+        # Don't charge owner, but always return redirect_url
         if owner_id == request.user.id:
-            return JsonResponse({'success': True, 'paid': False, 'message': 'Owner, no charge'})
-        
+            return JsonResponse({
+                'success': True,
+                'paid': False,
+                'message': 'Owner, no charge',
+                'redirect_url': f'/matches/replays/view/{replay_type}/{replay_id}/'
+            })
+
         # Check if already paid
         from .models import ReplayView
         already_paid = ReplayView.objects.filter(user=request.user.profile, replay_type=replay_type, replay_id=replay_id, paid=True).exists()
         if already_paid:
-            return JsonResponse({'success': True, 'paid': False, 'message': 'Already paid'})
-        
+            return JsonResponse({
+                'success': True,
+                'paid': False,
+                'message': 'Already paid',
+                'redirect_url': f'/matches/replays/view/{replay_type}/{replay_id}/'
+            })
+
         # Deduct coins and record payment
         profile = request.user.profile
         profile = type(profile).objects.select_for_update().get(pk=profile.pk)
@@ -725,7 +735,12 @@ def watchReplay(request):
             replay_id=replay_id,
             paid=True
         )
-        return JsonResponse({'success': True, 'paid': True, 'newBalance': float(balance_after)})
+        return JsonResponse({
+            'success': True,
+            'paid': True,
+            'newBalance': float(balance_after),
+            'redirect_url': f'/matches/replays/view/{replay_type}/{replay_id}/'
+        })
         
         if not replay_exists:
             return JsonResponse({
