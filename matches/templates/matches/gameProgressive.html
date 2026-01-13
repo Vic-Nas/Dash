@@ -306,7 +306,7 @@
     var CELL_SIZE = 0;
     var TICK_RATE = 150;
     var botMoveCounter = 0;
-    var BOT_MOVE_EVERY = 4; // Bots move every 4 ticks (player moves every tick)
+    var BOT_MOVE_EVERY = 5; // Bots move every 5 ticks (player moves every tick)
 
     var gameState = {
       player: null,
@@ -679,33 +679,35 @@
       
       // Check for side/back hits on bots
       var playerHitBot = false;
-      for (var i = 0; i < gameState.bots.length; i++) {
-        var bot = gameState.bots[i];
-        if (!bot.alive) continue;
+      if (!headOnCollision) {
+        for (var i = 0; i < gameState.bots.length; i++) {
+          var bot = gameState.bots[i];
+          if (!bot.alive) continue;
 
-        var dx = newPlayerX - bot.x;
-        var dy = newPlayerY - bot.y;
-        
-        if (newPlayerX === bot.x && newPlayerY === bot.y) {
-          // Check if player hits bot from back
-          var hitBack = false;
-          if (dx === 0 && dy === -1 && bot.direction === 'UP') hitBack = true;
-          if (dx === 0 && dy === 1 && bot.direction === 'DOWN') hitBack = true;
-          if (dx === -1 && dy === 0 && bot.direction === 'LEFT') hitBack = true;
-          if (dx === 1 && dy === 0 && bot.direction === 'RIGHT') hitBack = true;
+          var dx = newPlayerX - bot.x;
+          var dy = newPlayerY - bot.y;
+          
+          if (newPlayerX === bot.x && newPlayerY === bot.y) {
+            // Check if player hits bot from back
+            var hitBack = false;
+            if (dx === 0 && dy === -1 && bot.direction === 'UP') hitBack = true;
+            if (dx === 0 && dy === 1 && bot.direction === 'DOWN') hitBack = true;
+            if (dx === -1 && dy === 0 && bot.direction === 'LEFT') hitBack = true;
+            if (dx === 1 && dy === 0 && bot.direction === 'RIGHT') hitBack = true;
 
-          // Check if player hits bot from side
-          var hitSide = false;
-          if (dx === 0 && dy === -1 && (bot.direction === 'LEFT' || bot.direction === 'RIGHT')) hitSide = true;
-          if (dx === 0 && dy === 1 && (bot.direction === 'LEFT' || bot.direction === 'RIGHT')) hitSide = true;
-          if (dx === -1 && dy === 0 && (bot.direction === 'UP' || bot.direction === 'DOWN')) hitSide = true;
-          if (dx === 1 && dy === 0 && (bot.direction === 'UP' || bot.direction === 'DOWN')) hitSide = true;
+            // Check if player hits bot from side
+            var hitSide = false;
+            if (dx === 0 && dy === -1 && (bot.direction === 'LEFT' || bot.direction === 'RIGHT')) hitSide = true;
+            if (dx === 0 && dy === 1 && (bot.direction === 'LEFT' || bot.direction === 'RIGHT')) hitSide = true;
+            if (dx === -1 && dy === 0 && (bot.direction === 'UP' || bot.direction === 'DOWN')) hitSide = true;
+            if (dx === 1 && dy === 0 && (bot.direction === 'UP' || bot.direction === 'DOWN')) hitSide = true;
 
-          if (hitBack || hitSide) {
-            bot.alive = false;
-            gameState.botsEliminated++;
-            playerHitBot = true;
-            gameAudio.playScore();
+            if (hitBack || hitSide) {
+              bot.alive = false;
+              gameState.botsEliminated++;
+              playerHitBot = true;
+              gameAudio.playScore();
+            }
           }
         }
       }
