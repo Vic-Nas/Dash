@@ -265,13 +265,18 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': '{{ csrf_token }}'
+            'X-CSRFToken': getCookie('csrftoken')
           },
           body: JSON.stringify({
             type: '{{ replay_type }}',
             id: {{ replay_id }}
           })
         })
+            function getCookie(name) {
+              let value = '; ' + document.cookie;
+              let parts = value.split('; ' + name + '=');
+              if (parts.length === 2) return parts.pop().split(';').shift();
+            }
         .then(async response => {
           let data;
           try {
