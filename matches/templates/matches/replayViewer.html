@@ -353,7 +353,49 @@
       });
     }
 
-    var canvas = document.getElementById('replayCanvas');
+    var audioContext = null;
+    
+    function initAudio() {
+      if (!audioContext) {
+        try {
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        } catch (e) {
+          console.log('Audio context not available');
+        }
+      }
+    }
+    
+    function playSound(frequency, duration, type) {
+      if (!audioContext) return;
+      try {
+        var osc = audioContext.createOscillator();
+        var gain = audioContext.createGain();
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+        osc.frequency.value = frequency;
+        osc.type = type || 'sine';
+        gain.gain.setValueAtTime(0.1, audioContext.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+        osc.start(audioContext.currentTime);
+        osc.stop(audioContext.currentTime + duration);
+      } catch (e) {}
+    }
+    
+    function playMoveSound() {
+      playSound(600, 0.05, 'sine');
+    }
+    
+    function playWallHitSound() {
+      playSound(200, 0.15, 'square');
+    }
+    
+    function playWallPlacedSound() {
+      playSound(1000, 0.1, 'sine');
+    }
+    
+    function playGameOverSound() {
+      playSound(150, 0.3, 'sine');
+    }
     var ctx = canvas.getContext('2d');
     
     var currentFrame = 0;
@@ -403,10 +445,10 @@
     function playReplay() {
       if (!replayData || !replayData.frames) return;
       
-      var frameDelay = (replayData.frameDuration || 150) / playbackSpeed;
-      
       function animate(timestamp) {
         if (!isPlaying) return;
+        
+        var frameDelay = (replayData.frameDuration || 150) / playbackSpeed;
         
         if (!lastFrameTime) lastFrameTime = timestamp;
         var elapsed = timestamp - lastFrameTime;
@@ -481,9 +523,36 @@
     function renderFrame(frameIndex) {
       if (!replayData || !replayData.frames || !replayData.frames[frameIndex]) return;
       
+      initAudio();
+      
       var frame = replayData.frames[frameIndex];
+      var prevFrame = frameIndex > 0 ? replayData.frames[frameIndex - 1] : null;
       var gridSize = frame.gridSize || 20;
       var cellSize = canvas.width / gridSize;
+      
+      // Play sounds for game events
+      if (prevFrame) {
+        // Check for player movement
+        if (frame.player && prevFrame.player && 
+            (frame.player.x !== prevFrame.player.x || frame.player.y !== prevFrame.player.y)) {
+          playMoveSound();
+        }
+        
+        // Check for wall hit (wallsHit increased)
+        if (frame.wallsHit > prevFrame.wallsHit) {
+          playWallHitSound();
+        }
+        
+        // Check for wall placed (walls array increased)
+        if (frame.walls && prevFrame.walls && frame.walls.length > prevFrame.walls.length) {
+          playWallPlacedSound();
+        }
+        
+        // Check if game ended (wallsSurvived decreased which indicates hit)
+        if (frame.score < prevFrame.score && frameIndex === replayData.frames.length - 1) {
+          playGameOverSound();
+        }
+      }
       
       ctx.fillStyle = '#121428';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
