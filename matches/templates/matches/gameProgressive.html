@@ -198,6 +198,9 @@
         margin-bottom: 0;
         font-size: 12px;
       }
+      #soundBtn {
+        flex: 1 1 100%;
+      }
       #gameOver {
         min-width: 90%;
         padding: 20px;
@@ -234,6 +237,23 @@
         <span class="stat-label">Time:</span>
         <span class="stat-value" id="time">0s</span>
       </div>
+      <button
+        onclick="toggleSound()"
+        id="soundBtn"
+        style="
+          width:100%;
+          margin-top:8px;
+          padding:8px;
+          background:#2a2f6b;
+          border:none;
+          border-radius:6px;
+          color:#fff;
+          cursor:pointer;
+          font-size:13px;
+        "
+      >
+        🔊 Sound ON
+      </button>
     </div>
 
     <div id="mobile-controls" style="display:none;">
@@ -301,6 +321,112 @@
     var gameLoopInterval = null;
     var botImage = null;
     var playerImage = null;
+
+    class GameAudio {
+      constructor() {
+        this.audioContext = null;
+        this.enabled = true;
+      }
+      
+      init() {
+        if (!this.audioContext) {
+          this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+      }
+      
+      playMove() {
+        if (!this.enabled) return;
+        this.init();
+        
+        const oscillator = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+        
+        oscillator.frequency.value = 400;
+        oscillator.type = 'square';
+        
+        gainNode.gain.setValueAtTime(0.1, this.audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.05);
+        
+        oscillator.start(this.audioContext.currentTime);
+        oscillator.stop(this.audioContext.currentTime + 0.05);
+      }
+      
+      playHit() {
+        if (!this.enabled) return;
+        this.init();
+        
+        const oscillator = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+        
+        oscillator.frequency.value = 150;
+        oscillator.type = 'sawtooth';
+        
+        gainNode.gain.setValueAtTime(0.2, this.audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.15);
+        
+        oscillator.start(this.audioContext.currentTime);
+        oscillator.stop(this.audioContext.currentTime + 0.15);
+      }
+      
+      playScore() {
+        if (!this.enabled) return;
+        this.init();
+        
+        const oscillator = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+        
+        oscillator.frequency.value = 800;
+        oscillator.type = 'sine';
+        
+        gainNode.gain.setValueAtTime(0.15, this.audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.2);
+        
+        oscillator.start(this.audioContext.currentTime);
+        oscillator.stop(this.audioContext.currentTime + 0.2);
+      }
+      
+      playGameOver() {
+        if (!this.enabled) return;
+        this.init();
+        
+        const notes = [392, 330, 262];
+        const noteLength = 0.2;
+        
+        notes.forEach((freq, i) => {
+          const oscillator = this.audioContext.createOscillator();
+          const gainNode = this.audioContext.createGain();
+          
+          oscillator.connect(gainNode);
+          gainNode.connect(this.audioContext.destination);
+          
+          oscillator.frequency.value = freq;
+          oscillator.type = 'sine';
+          
+          const startTime = this.audioContext.currentTime + (i * noteLength);
+          gainNode.gain.setValueAtTime(0.2, startTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + noteLength);
+          
+          oscillator.start(startTime);
+          oscillator.stop(startTime + noteLength);
+        });
+      }
+      
+      toggle() {
+        this.enabled = !this.enabled;
+        return this.enabled;
+      }
+    }
+
+    const gameAudio = new GameAudio();
 
     function adjustCanvasSize() {
       var maxWidth = window.innerWidth - 40;
@@ -388,15 +514,19 @@
       var key = e.key.toUpperCase();
       if (key === 'W' || key === 'ARROWUP') {
         nextDirection = 'UP';
+        gameAudio.playMove();
       }
       else if (key === 'S' || key === 'ARROWDOWN') {
         nextDirection = 'DOWN';
+        gameAudio.playMove();
       }
       else if (key === 'A' || key === 'ARROWLEFT') {
         nextDirection = 'LEFT';
+        gameAudio.playMove();
       }
       else if (key === 'D' || key === 'ARROWRIGHT') {
         nextDirection = 'RIGHT';
+        gameAudio.playMove();
       }
     });
 
@@ -488,7 +618,6 @@
       
       // Prevent player from moving out of bounds
       if (newPlayerX < 0 || newPlayerX >= GRID_SIZE || newPlayerY < 0 || newPlayerY >= GRID_SIZE) {
-        // Do not update position, just skip movement
         newPlayerX = gameState.player.x;
         newPlayerY = gameState.player.y;
       }
@@ -510,24 +639,48 @@
         var bot = gameState.bots[i];
         if (!bot.alive) continue;
 
-        // Only allow player to eliminate bot if hitting the back
-        // Player must move into the cell behind the bot (opposite of bot's direction)
         var dx = newPlayerX - bot.x;
         var dy = newPlayerY - bot.y;
-        var hitBack = false;
-        if (dx === 0 && dy === -1 && bot.direction === 'UP') hitBack = true;
-        if (dx === 0 && dy === 1 && bot.direction === 'DOWN') hitBack = true;
-        if (dx === -1 && dy === 0 && bot.direction === 'LEFT') hitBack = true;
-        if (dx === 1 && dy === 0 && bot.direction === 'RIGHT') hitBack = true;
+        
+        if (newPlayerX === bot.x && newPlayerY === bot.y) {
+          // Check if it's a head-on collision (both facing each other)
+          var headOn = false;
+          if (dx === 0 && dy === 1 && currentDirection === 'DOWN' && bot.direction === 'UP') headOn = true;
+          if (dx === 0 && dy === -1 && currentDirection === 'UP' && bot.direction === 'DOWN') headOn = true;
+          if (dx === 1 && dy === 0 && currentDirection === 'RIGHT' && bot.direction === 'LEFT') headOn = true;
+          if (dx === -1 && dy === 0 && currentDirection === 'LEFT' && bot.direction === 'RIGHT') headOn = true;
 
-        if (newPlayerX === bot.x && newPlayerY === bot.y && hitBack) {
-          bot.alive = false;
-          gameState.botsEliminated++;
-          playerHitBot = true;
+          if (headOn) {
+            gameState.player.alive = false;
+            gameAudio.playHit();
+            endGame();
+            return;
+          }
+
+          // Check if player hits bot from back
+          var hitBack = false;
+          if (dx === 0 && dy === -1 && bot.direction === 'UP') hitBack = true;
+          if (dx === 0 && dy === 1 && bot.direction === 'DOWN') hitBack = true;
+          if (dx === -1 && dy === 0 && bot.direction === 'LEFT') hitBack = true;
+          if (dx === 1 && dy === 0 && bot.direction === 'RIGHT') hitBack = true;
+
+          // Check if player hits bot from side
+          var hitSide = false;
+          if (dx === 0 && dy === -1 && (bot.direction === 'LEFT' || bot.direction === 'RIGHT')) hitSide = true;
+          if (dx === 0 && dy === 1 && (bot.direction === 'LEFT' || bot.direction === 'RIGHT')) hitSide = true;
+          if (dx === -1 && dy === 0 && (bot.direction === 'UP' || bot.direction === 'DOWN')) hitSide = true;
+          if (dx === 1 && dy === 0 && (bot.direction === 'UP' || bot.direction === 'DOWN')) hitSide = true;
+
+          if (hitBack || hitSide) {
+            bot.alive = false;
+            gameState.botsEliminated++;
+            playerHitBot = true;
+            gameAudio.playScore();
+          }
         }
       }
 
-      // Only update player position if not hitting a bot's back
+      // Only update player position if not hitting a bot
       if (!playerHitBot) {
         gameState.player.x = newPlayerX;
         gameState.player.y = newPlayerY;
@@ -541,6 +694,7 @@
         
         if (move.x === gameState.player.x && move.y === gameState.player.y) {
           gameState.player.alive = false;
+          gameAudio.playHit();
           endGame();
           return;
         }
@@ -577,8 +731,6 @@
       var dy = playerY - bot.y;
       var distance = Math.sqrt(dx * dx + dy * dy);
       
-      var possibleMoves = [];
-      
       var moves = [
         { dx: 0, dy: -1, dir: 'UP' },
         { dx: 0, dy: 1, dir: 'DOWN' },
@@ -586,7 +738,7 @@
         { dx: 1, dy: 0, dir: 'RIGHT' }
       ];
 
-      // Prevent bots from reversing direction (no left-right or up-down in consecutive moves)
+      // Prevent bots from reversing direction
       var opposite = {
         'UP': 'DOWN',
         'DOWN': 'UP',
@@ -594,11 +746,11 @@
         'RIGHT': 'LEFT'
       };
 
-      var nonReverseMoves = [];
-      var reverseMoves = [];
+      var validMoves = [];
       for (var i = 0; i < moves.length; i++) {
         var m = moves[i];
         var isReverse = bot.direction && m.dir === opposite[bot.direction];
+        if (isReverse) continue;
 
         var newX = bot.x + m.dx;
         var newY = bot.y + m.dy;
@@ -614,36 +766,24 @@
         var newDx = playerX - newX;
         var newDy = playerY - newY;
         var newDistance = Math.sqrt(newDx * newDx + newDy * newDy);
-        var isPlayerMove = (newX === playerX && newY === playerY);
 
-        var moveObj = null;
-        if (distance < 3) {
-          if (isPlayerMove) {
-            moveObj = { x: newX, y: newY, direction: m.dir, priority: 1000 };
-          } else if (newDistance > distance) {
-            moveObj = { x: newX, y: newY, direction: m.dir, priority: 100 + newDistance };
-          }
+        // Always chase the player aggressively
+        var priority = 0;
+        if (newDistance < distance) {
+          priority = 100 - newDistance; // Prefer moves that get closer
         } else {
-          if (isPlayerMove) {
-            moveObj = { x: newX, y: newY, direction: m.dir, priority: 1000 };
-          } else if (newDistance < distance) {
-            moveObj = { x: newX, y: newY, direction: m.dir, priority: 50 - newDistance };
-          } else {
-            moveObj = { x: newX, y: newY, direction: m.dir, priority: 10 };
-          }
+          priority = 10; // Lower priority for moves that don't get closer
         }
-        if (moveObj) {
-          if (isReverse) reverseMoves.push(moveObj);
-          else nonReverseMoves.push(moveObj);
-        }
+
+        validMoves.push({ x: newX, y: newY, direction: m.dir, priority: priority });
       }
 
-      var allMoves = nonReverseMoves.length > 0 ? nonReverseMoves : reverseMoves;
-      if (allMoves.length === 0) {
+      if (validMoves.length === 0) {
         return { x: bot.x, y: bot.y, direction: bot.direction };
       }
-      allMoves.sort(function(a, b) { return b.priority - a.priority; });
-      return allMoves[0];
+      
+      validMoves.sort(function(a, b) { return b.priority - a.priority; });
+      return validMoves[0];
     }
 
     function render() {
@@ -789,6 +929,8 @@
     }
 
     function showGameOver() {
+      gameAudio.playGameOver();
+      
       var title = gameState.won ? '🎉 Victory!' : '💀 Defeated';
       document.getElementById('gameOverTitle').textContent = title;
       document.getElementById('finalLevel').textContent = gameState.level;
@@ -832,56 +974,61 @@
       renderLevelGrid();
     }
 
-function pressKey(key) {
-  document.dispatchEvent(new KeyboardEvent('keydown', { key: key }));
-}
-
-function releaseKey(key) {
-  document.dispatchEvent(new KeyboardEvent('keyup', { key: key }));
-}
-
-function renderLevelGrid() {
-  var grid = document.getElementById('levelGrid');
-  grid.innerHTML = '';
-
-  for (var i = 1; i <= MAX_LEVEL; i++) {
-    var btn = document.createElement('button');
-    btn.className = 'level-btn';
-    btn.textContent = i;
-
-    var isCompleted = i <= HIGHEST_LEVEL;
-    var isLocked = i > HIGHEST_LEVEL + 1;
-
-    if (isCompleted) {
-      btn.classList.add('completed');
-      btn.title = 'Completed ✓';
-    } else if (isLocked) {
-      btn.classList.add('locked');
-      btn.title = 'Locked 🔒';
-    } else {
-      btn.title = 'Click to play - ' + COST_PER_ATTEMPT + ' coins';
+    function pressKey(key) {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: key }));
     }
 
-    if (!isLocked) {
-      (function(level) {
-        btn.onclick = function() {
-          startGame(level);
-        };
-      })(i);
+    function releaseKey(key) {
+      document.dispatchEvent(new KeyboardEvent('keyup', { key: key }));
     }
 
-    grid.appendChild(btn);
-  }
-}
+    function renderLevelGrid() {
+      var grid = document.getElementById('levelGrid');
+      grid.innerHTML = '';
 
-window.addEventListener('resize', function() {
-  if (gameStarted && !gameState.gameOver) {
-    adjustCanvasSize();
-    render();
-  }
-});
+      for (var i = 1; i <= MAX_LEVEL; i++) {
+        var btn = document.createElement('button');
+        btn.className = 'level-btn';
+        btn.textContent = i;
 
-renderLevelGrid();
+        var isCompleted = i <= HIGHEST_LEVEL;
+        var isLocked = i > HIGHEST_LEVEL + 1;
+
+        if (isCompleted) {
+          btn.classList.add('completed');
+          btn.title = 'Completed ✓';
+        } else if (isLocked) {
+          btn.classList.add('locked');
+          btn.title = 'Locked 🔒';
+        } else {
+          btn.title = 'Click to play - ' + COST_PER_ATTEMPT + ' coins';
+        }
+
+        if (!isLocked) {
+          (function(level) {
+            btn.onclick = function() {
+              startGame(level);
+            };
+          })(i);
+        }
+
+        grid.appendChild(btn);
+      }
+    }
+
+    window.addEventListener('resize', function() {
+      if (gameStarted && !gameState.gameOver) {
+        adjustCanvasSize();
+        render();
+      }
+    });
+
+    function toggleSound() {
+      var enabled = gameAudio.toggle();
+      document.getElementById('soundBtn').textContent = enabled ? '🔊 Sound ON' : '🔇 Sound OFF';
+    }
+
+    renderLevelGrid();
   </script>
 </body>
 </html>
