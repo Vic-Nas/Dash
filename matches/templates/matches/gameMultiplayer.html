@@ -245,6 +245,7 @@
     var deathFrame = null;
     var deathLocation = null;
     var explosionFrames = 0;
+    var killerPlayerId = null;
 
     function adjustCanvasSize() {
       var maxWidth = window.innerWidth - 40;
@@ -342,6 +343,17 @@
               deathFrame = 0;
               deathLocation = { x: gameState.players[myPlayerId].x, y: gameState.players[myPlayerId].y };
               explosionFrames = 0;
+              
+              // Find who killed me
+              for (var otherId in data.players) {
+                if (otherId !== myPlayerId && data.players[otherId].alive) {
+                  // Check if they're at same location or nearby
+                  if (data.players[otherId].x === deathLocation.x && data.players[otherId].y === deathLocation.y) {
+                    killerPlayerId = otherId;
+                    break;
+                  }
+                }
+              }
             }
           }
           
@@ -552,6 +564,14 @@
 
         var px = player.x * CELL_SIZE + CELL_SIZE / 2;
         var py = player.y * CELL_SIZE + CELL_SIZE / 2;
+
+        // Highlight the killer player with a red glow
+        if (killerPlayerId === userId && deathFrame !== null) {
+          ctx.fillStyle = 'rgba(239, 68, 68, ' + (0.5 - (explosionFrames / 20)) + ')';
+          ctx.beginPath();
+          ctx.arc(px, py, CELL_SIZE * 1.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
 
         var botImg = getBotImage(player.playerColor);
 

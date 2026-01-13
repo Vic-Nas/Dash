@@ -362,6 +362,7 @@
     var deathFrame = null;
     var deathLocation = null;
     var explosionFrames = 0;
+    var killerBotIndex = null;
 
     class GameAudio {
       constructor() {
@@ -766,6 +767,7 @@
             if (deathFrame === null) {
               deathFrame = 0;
               deathLocation = { x: gameState.player.x, y: gameState.player.y };
+              killerBotIndex = i;
               explosionFrames = 0;
             }
             endGame();
@@ -877,6 +879,14 @@
         
         var bx = bot.x * CELL_SIZE + CELL_SIZE / 2;
         var by = bot.y * CELL_SIZE + CELL_SIZE / 2;
+        
+        // Highlight the killer bot with a red glow
+        if (killerBotIndex === i && deathFrame !== null) {
+          ctx.fillStyle = 'rgba(239, 68, 68, ' + (0.5 - (explosionFrames / 20)) + ')';
+          ctx.beginPath();
+          ctx.arc(bx, by, CELL_SIZE * 1.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
         
         ctx.save();
         ctx.translate(bx, by);
@@ -1023,14 +1033,25 @@
       if (gameState.gameOver) return;
       gameState.gameOver = true;
       
-      if (gameLoopInterval) clearInterval(gameLoopInterval);
-      
-      // Wait for explosion animation to finish (10 frames * 150ms = 1500ms)
+      // Keep rendering explosion animation even after game over
+      var explosionInterval = null;
       if (deathFrame !== null) {
-        setTimeout(showGameOver, 1500);
+        explosionInterval = setInterval(function() {
+          render();
+          updateHUD();
+          if (explosionFrames < 10) {
+            explosionFrames++;
+          } else {
+            clearInterval(explosionInterval);
+            showGameOver();
+          }
+        }, TICK_RATE);
       } else {
+        if (gameLoopInterval) clearInterval(gameLoopInterval);
         showGameOver();
       }
+      
+      if (gameLoopInterval) clearInterval(gameLoopInterval);
     }
 
     function showGameOver() {
