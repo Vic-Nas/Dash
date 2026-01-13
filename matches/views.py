@@ -653,100 +653,89 @@ def watchReplay(request):
     """Deduct coins and redirect to replay viewer"""
     try:
         data = json.loads(request.body)
-        replay_type = data.get('type')
-        replay_id = data.get('id')
+        replayType = data.get('type')
+        replayId = data.get('id')
         
-        if not replay_type or not replay_id:
+        if not replayType or not replayId:
             return JsonResponse({
                 'success': False,
                 'error': 'Missing type or id'
             }, status=400)
         
         # Get replay and check ownership
-        owner_id = None
-        replay_exists = False
-        replay_cost = 0
-        replay_obj = None
-        if replay_type == 'solo':
-            run = SoloRun.objects.filter(id=replay_id, replayData__isnull=False).first()
-            if run:
-                owner_id = run.player.id
-                replay_exists = True
-                replay_obj = run
-                replay_cost = SystemSettings.getInt('soloReplayCost', 1)
-        elif replay_type == 'progressive':
-            run = ProgressiveRun.objects.filter(id=replay_id, replayData__isnull=False).first()
-            if run:
-                owner_id = run.player.id
-                replay_exists = True
-                replay_obj = run
-                replay_cost = SystemSettings.getInt('progressiveReplayCost', 2)
-        elif replay_type == 'multiplayer':
-            participation = MatchParticipation.objects.filter(id=replay_id, replayData__isnull=False).first()
-            if participation:
-                owner_id = participation.player.id
-                replay_exists = True
-                replay_obj = participation
-                replay_cost = SystemSettings.getInt('multiplayerReplayCost', 3)
+        ownerId = None
+        replayExists = False
+        replayCost = SystemSettings.getInt('REPLAY_VIEW_COST', 10)
         
-        if not replay_exists:
+        if replayType == 'solo':
+            run = SoloRun.objects.filter(id=replayId, replayData__isnull=False).first()
+            if run:
+                ownerId = run.player.id
+                replayExists = True
+        elif replayType == 'progressive':
+            run = ProgressiveRun.objects.filter(id=replayId, replayData__isnull=False).first()
+            if run:
+                ownerId = run.player.id
+                replayExists = True
+        elif replayType == 'multiplayer':
+            participation = MatchParticipation.objects.filter(id=replayId, replayData__isnull=False).first()
+            if participation:
+                ownerId = participation.player.id
+                replayExists = True
+        
+        if not replayExists:
             return JsonResponse({'success': False, 'error': 'Replay not found'}, status=404)
         
-        # Don't charge owner, but always return redirect_url
-        if owner_id == request.user.id:
+        # Don't charge owner
+        if ownerId == request.user.id:
             return JsonResponse({
                 'success': True,
                 'paid': False,
-                'message': 'Owner, no charge',
-                'redirect_url': f'/matches/replays/view/{replay_type}/{replay_id}/'
+                'message': 'Owner, no charge'
             })
 
         # Check if already paid
         from .models import ReplayView
-        already_paid = ReplayView.objects.filter(user=request.user.profile, replay_type=replay_type, replay_id=replay_id, paid=True).exists()
-        if already_paid:
+        alreadyPaid = ReplayView.objects.filter(user=request.user.profile, replay_type=replayType, replay_id=replayId, paid=True).exists()
+        if alreadyPaid:
             return JsonResponse({
                 'success': True,
                 'paid': False,
-                'message': 'Already paid',
-                'redirect_url': f'/matches/replays/view/{replay_type}/{replay_id}/'
+                'message': 'Already paid'
             })
 
         # Deduct coins and record payment
         profile = request.user.profile
         profile = type(profile).objects.select_for_update().get(pk=profile.pk)
-        balance_before = profile.coins
-        if profile.coins < replay_cost:
+        balanceBefore = profile.coins
+        if profile.coins < replayCost:
             return JsonResponse({'success': False, 'error': 'Insufficient coins'}, status=402)
-        profile.coins -= replay_cost
+        profile.coins -= replayCost
         profile.save(update_fields=['coins'])
-        balance_after = profile.coins
+        balanceAfter = profile.coins
         Transaction.objects.create(
             user=request.user,
-            amount=-replay_cost,
+            amount=-replayCost,
             transactionType='REPLAY_VIEW',
-            description=f'Paid to view {replay_type} replay #{replay_id}',
-            balanceBefore=balance_before,
-            balanceAfter=balance_after
+            description=f'Paid to view {replayType} replay #{replayId}',
+            balanceBefore=balanceBefore,
+            balanceAfter=balanceAfter
         )
         ReplayView.objects.create(
             user=profile,
-            replay_type=replay_type,
-            replay_id=replay_id,
+            replay_type=replayType,
+            replay_id=replayId,
             paid=True
         )
         return JsonResponse({
             'success': True,
             'paid': True,
-            'newBalance': float(balance_after),
-            'redirect_url': f'/matches/replays/view/{replay_type}/{replay_id}/'
+            'cost': replayCost,
+            'newBalance': float(balanceAfter)
         })
         
-        if not replay_exists:
-            return JsonResponse({
-                'success': False,
-                'error': 'Replay not found'
-            }, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
         
         # Check if user owns this replay
         is_owner = (owner_id == request.user.id)

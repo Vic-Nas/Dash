@@ -242,11 +242,11 @@
     <canvas id="replayCanvas" width="600" height="600"></canvas>
 
     <div class="controls">
-      {% if has_access %}
+      {% if hasAccess %}
         <button class="control-btn primary" id="playPauseBtn" onclick="togglePlayPause()">▶ Play</button>
       {% else %}
         <button class="control-btn primary" id="playPauseBtn" onclick="handlePayment()">
-          ▶ Pay {{ replay_cost }} coins to watch
+          ▶ Pay {{ replayCost }} coins to watch
         </button>
       {% endif %}
       <button class="control-btn" onclick="restartReplay()">🔄 Restart</button>
