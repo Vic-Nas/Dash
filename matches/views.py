@@ -845,7 +845,7 @@ def replayViewer(request, replay_type, replay_id):
     # Check if user needs to pay for this replay
     from .models import ReplayView
     profile = request.user.profile
-    already_paid = (profile.id == (metadata.get('player_id') if 'player_id' in metadata else None)) or ReplayView.objects.filter(user=profile, replay_type=replay_type, replay_id=replay_id, paid=True).exists()
+    already_paid = (profile.user.id == (metadata.get('player_id') if 'player_id' in metadata else None)) or ReplayView.objects.filter(user=profile, replay_type=replay_type, replay_id=replay_id, paid=True).exists()
     context = {
         'replay_data': json.dumps(replay_data),
         'metadata': metadata,
