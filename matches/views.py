@@ -703,28 +703,29 @@ def watchReplay(request):
             })
 
         # Deduct coins and record payment
-        profile = request.user.profile
-        profile = type(profile).objects.select_for_update().get(pk=profile.pk)
-        balanceBefore = profile.coins
-        if profile.coins < replayCost:
-            return JsonResponse({'success': False, 'error': 'Insufficient coins'}, status=402)
-        profile.coins -= replayCost
-        profile.save(update_fields=['coins'])
-        balanceAfter = profile.coins
-        Transaction.objects.create(
-            user=request.user,
-            amount=-replayCost,
-            transactionType='REPLAY_VIEW',
-            description=f'Paid to view {replayType} replay #{replayId}',
-            balanceBefore=balanceBefore,
-            balanceAfter=balanceAfter
-        )
-        ReplayView.objects.create(
-            user=profile,
-            replay_type=replayType,
-            replay_id=replayId,
-            paid=True
-        )
+        with transaction.atomic():
+            profile = request.user.profile
+            profile = type(profile).objects.select_for_update().get(pk=profile.pk)
+            balanceBefore = profile.coins
+            if profile.coins < replayCost:
+                return JsonResponse({'success': False, 'error': 'Insufficient coins'}, status=402)
+            profile.coins -= replayCost
+            profile.save(update_fields=['coins'])
+            balanceAfter = profile.coins
+            Transaction.objects.create(
+                user=request.user,
+                amount=-replayCost,
+                transactionType='REPLAY_VIEW',
+                description=f'Paid to view {replayType} replay #{replayId}',
+                balanceBefore=balanceBefore,
+                balanceAfter=balanceAfter
+            )
+            ReplayView.objects.create(
+                user=profile,
+                replay_type=replayType,
+                replay_id=replayId,
+                paid=True
+            )
         return JsonResponse({
             'success': True,
             'paid': True,
@@ -734,59 +735,6 @@ def watchReplay(request):
         
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
-        
-        # Check if user owns this replay
-        is_owner = (owner_id == request.user.id)
-        
-        # Determine cost
-        if is_owner:
-            cost = Decimal(str(SystemSettings.getInt('replayViewCostOwn', 0)))
-        else:
-            cost = Decimal(str(SystemSettings.getInt('replayViewCostOther', 50)))
-        
-        # Deduct coins if cost > 0
-        if cost > 0:
-            with transaction.atomic():
-                profile = request.user.profile
-                profile = type(profile).objects.select_for_update().get(pk=profile.pk)
-                
-                if profile.coins < cost:
-                    return JsonResponse({
-                        'success': False,
-                        'error': f'Insufficient coins. Need {cost}, have {profile.coins}'
-                    }, status=400)
-                
-                balanceBefore = profile.coins
-                profile.coins = F('coins') - cost
-                profile.save(update_fields=['coins'])
-                profile.refresh_from_db()
-                balanceAfter = profile.coins
-                
-                # Create transaction record
-                Transaction.objects.create(
-                    user=request.user,
-                    amount=-cost,
-                    transactionType='EXTRA_LIFE',  # Reusing existing type or could add new one
-                    description=f'Watched replay: {replay_type} #{replay_id}',
-                    balanceBefore=balanceBefore,
-                    balanceAfter=balanceAfter
-                )
-        
-        return JsonResponse({
-            'success': True,
-            'redirect_url': f'/matches/replays/view/{replay_type}/{replay_id}/',
-            'cost': float(cost)
-        })
-        
-    except json.JSONDecodeError:
-        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
-    except Exception as e:
-        import traceback
-        return JsonResponse({
-            'success': False,
-            'error': str(e),
-            'traceback': traceback.format_exc()
-        }, status=500)
 
 
 @login_required
