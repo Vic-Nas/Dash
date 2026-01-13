@@ -81,13 +81,14 @@
     }
     .replay-card {
       background: rgba(18, 20, 40, 0.9);
-      border: 2px solid #2a2f6b;
-      border-radius: 12px;
+      border: none !important;
+      border-radius: 0 !important;
       padding: 20px;
       transition: all 0.2s;
     }
     .replay-card:hover {
-      border-color: #2a2f6b;
+      border: none !important;
+      border-radius: 0 !important;
       transform: translateY(-2px);
     }
     .replay-header {
@@ -97,19 +98,7 @@
       margin-bottom: 16px;
     }
     .replay-type {
-      display: inline;
-      padding: 0;
-      background: none !important;
-      border-radius: 0 !important;
-      font-size: 13px;
-      font-weight: 600;
-      color: #9ca3af;
-    }
-    .replay-type.solo,
-    .replay-type.progressive,
-    .replay-type.multiplayer {
-      background: none !important;
-      color: #9ca3af !important;
+      /* Remove all custom styling, use default text style */
     }
     .replay-player {
       font-size: 20px;
