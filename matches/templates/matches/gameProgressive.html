@@ -1035,6 +1035,9 @@
       if (gameState.gameOver) return;
       gameState.gameOver = true;
       
+      // Clear the main game loop first
+      if (gameLoopInterval) clearInterval(gameLoopInterval);
+      
       // Keep rendering explosion animation even after game over
       var explosionInterval = null;
       if (deathFrame !== null) {
@@ -1049,11 +1052,8 @@
           }
         }, TICK_RATE);
       } else {
-        if (gameLoopInterval) clearInterval(gameLoopInterval);
         showGameOver();
       }
-      
-      if (gameLoopInterval) clearInterval(gameLoopInterval);
     }
 
     function showGameOver() {
