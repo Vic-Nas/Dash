@@ -206,7 +206,7 @@
     <canvas id="replayCanvas" width="600" height="600"></canvas>
 
     <div class="controls">
-      <button class="control-btn" id="playPauseBtn" onclick="togglePlayPause()">▶ Play</button>
+      <button class="control-btn" id="playPauseBtn" onclick="handlePlayClick()" {% if not already_paid %}data-payment-required="true"{% endif %}>▶ Play</button>
       <button class="control-btn" onclick="restartReplay()">🔄 Restart</button>
       
       <div class="timeline">
@@ -232,6 +232,12 @@
       </div>
     </div>
 
+    {% if not already_paid %}
+    <div id="paymentStatus" style="color:#ef4444;text-align:center;margin-top:12px;">Payment required to play this replay.</div>
+    {% else %}
+    <div id="paymentStatus" style="color:#5b7bff;text-align:center;margin-top:12px;">You have already paid for this replay.</div>
+    {% endif %}
+
     <div class="replay-status" id="replayStatus" style="display:none;">
       <h2>Replay Ended</h2>
       <p style="color:#9ca3af;margin-bottom:20px;">Click Restart to watch again</p>
@@ -239,6 +245,43 @@
   </div>
 
   <script>
+    function handlePlayClick() {
+      const playBtn = document.getElementById('playPauseBtn');
+      if (playBtn.getAttribute('data-payment-required')) {
+        // Trigger payment
+        playBtn.disabled = true;
+        document.getElementById('paymentStatus').textContent = 'Processing payment...';
+        fetch('/matches/watchReplay/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+          },
+          body: JSON.stringify({
+            type: '{{ replay_type }}',
+            id: {{ replay_id }}
+          })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success && data.paid) {
+            playBtn.removeAttribute('data-payment-required');
+            playBtn.disabled = false;
+            document.getElementById('paymentStatus').textContent = 'Payment successful! Replay unlocked.';
+            togglePlayPause();
+          } else {
+            playBtn.disabled = false;
+            document.getElementById('paymentStatus').textContent = data.error || 'Payment failed.';
+          }
+        })
+        .catch(() => {
+          playBtn.disabled = false;
+          document.getElementById('paymentStatus').textContent = 'Payment failed.';
+        });
+      } else {
+        togglePlayPause();
+      }
+    }
     const canvas = document.getElementById('replayCanvas');
     const ctx = canvas.getContext('2d');
     

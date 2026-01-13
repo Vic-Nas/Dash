@@ -1,5 +1,16 @@
+
 from django.db import models
 from django.contrib.auth import get_user_model
+
+class ReplayView(models.Model):
+    user = models.ForeignKey('accounts.Profile', on_delete=models.CASCADE, related_name='replayViews')
+    replay_type = models.CharField(max_length=16)
+    replay_id = models.IntegerField()
+    paid = models.BooleanField(default=False)
+    viewed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'replay_type', 'replay_id')
 
 
 class MatchType(models.Model):
