@@ -277,8 +277,7 @@
           try {
             data = await response.json();
           } catch (err) {
-            const text = await response.text();
-            paymentStatus.textContent = 'Server error: ' + text.substring(0, 500);
+            paymentStatus.textContent = 'Server error: Could not parse response as JSON.';
             playBtn.disabled = false;
             return;
           }
