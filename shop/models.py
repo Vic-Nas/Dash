@@ -46,7 +46,8 @@ class Transaction(models.Model):
         ('PROGRESSIVE_REWARD','PROGRESSIVE_REWARD'),
         ('EXTRA_LIFE','EXTRA_LIFE'), 
         ('REFUND','REFUND'), 
-        ('USERNAME_CHANGE','USERNAME_CHANGE')
+        ('USERNAME_CHANGE','USERNAME_CHANGE'),
+        ('REPLAY_VIEW','REPLAY_VIEW')
     ])
     relatedMatch = models.ForeignKey('matches.Match', on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions')
     description = models.CharField(max_length=255)

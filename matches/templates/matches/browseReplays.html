@@ -50,6 +50,8 @@
       cursor: pointer;
       font-size: 15px;
       transition: all 0.2s;
+      text-decoration: none;
+      display: inline-block;
     }
     .filter-btn:hover {
       background: #3940a3;
@@ -81,14 +83,13 @@
     }
     .replay-card {
       background: rgba(18, 20, 40, 0.9);
-      border: none !important;
-      border-radius: 0 !important;
+      border: 1px solid #2a2f6b;
       padding: 20px;
       transition: all 0.2s;
+      cursor: pointer;
     }
     .replay-card:hover {
-      border: none !important;
-      border-radius: 0 !important;
+      border-color: #5b7bff;
       transform: translateY(-2px);
     }
     .replay-header {
@@ -98,7 +99,10 @@
       margin-bottom: 16px;
     }
     .replay-type {
-      /* Remove all custom styling, use default text style */
+      font-size: 13px;
+      text-transform: uppercase;
+      color: #9ca3af;
+      font-weight: 600;
     }
     .replay-player {
       font-size: 20px;
@@ -139,12 +143,6 @@
       cursor: not-allowed;
       opacity: 0.5;
     }
-    .cost-badge {
-      display: inline-block;
-      margin-left: 8px;
-      font-size: 13px;
-      color: #fbbf24;
-    }
     .pagination {
       display: flex;
       justify-content: center;
@@ -159,6 +157,7 @@
       border-radius: 6px;
       cursor: pointer;
       text-decoration: none;
+      display: inline-block;
     }
     .page-btn:hover {
       background: #3940a3;
@@ -226,9 +225,9 @@
     {% if replays %}
     <div class="replays-grid">
       {% for replay in replays %}
-      <div class="replay-card">
+      <div class="replay-card" onclick="viewReplay('{{ replay.type }}', {{ replay.id }})">
         <div class="replay-header">
-          <span class="replay-type {{ replay.type }}">{{ replay.type|title }}</span>
+          <span class="replay-type">{{ replay.type|title }}</span>
           <span style="font-size:12px;color:#6b7280;">{{ replay.date|date:"M d, Y" }}</span>
         </div>
         
@@ -242,17 +241,13 @@
           {% endif %}
         </div>
         
-        <button 
-          class="watch-btn" 
-          onclick="watchReplay('{{ replay.type }}', {{ replay.id }}, {{ replay.player_id }})"
-        >
+        <button class="watch-btn" onclick="event.stopPropagation(); viewReplay('{{ replay.type }}', {{ replay.id }})">
           Watch Replay
         </button>
       </div>
       {% endfor %}
     </div>
 
-    <!-- Pagination -->
     {% if replays.has_other_pages %}
     <div class="pagination">
       {% if replays.has_previous %}
@@ -273,67 +268,15 @@
 
     {% else %}
     <div class="no-replays">
-      <p>No replays available for this filter.</p>
+      <p>No replays available.</p>
       <p style="margin-top:16px;font-size:14px;">Play some games to create replays!</p>
     </div>
     {% endif %}
   </div>
 
   <script>
-    function getCookie(name) {
-      let value = '; ' + document.cookie;
-      let parts = value.split('; ' + name + '=');
-      if (parts.length === 2) return parts.pop().split(';').shift();
-    }
-
-    async function watchReplay(type, id, playerId) {
-      const btn = event.target;
-      const isOwner = playerId === {{ user.id }};
-      const cost = isOwner ? {{ own_replay_cost }} : {{ other_replay_cost }};
-      
-      // Check balance
-      const currentBalance = parseFloat(document.getElementById('coinBalance').textContent);
-      if (currentBalance < cost) {
-        alert(`Insufficient coins! Need ${cost} coins, you have ${currentBalance}.`);
-        return;
-      }
-      
-      btn.disabled = true;
-      btn.textContent = 'Loading...';
-      
-      try {
-        const response = await fetch('/matches/replays/watch/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCookie('csrftoken')
-          },
-          body: JSON.stringify({ type, id })
-        });
-        let data;
-        try {
-          data = await response.json();
-        } catch (jsonErr) {
-          // If not JSON, show error and log response
-          const text = await response.text();
-          alert('Server error: ' + text.substring(0, 200));
-          btn.disabled = false;
-          btn.textContent = 'Watch Replay';
-          return;
-        }
-        if (data.success) {
-          document.getElementById('coinBalance').textContent = currentBalance - cost;
-          window.location.href = data.redirect_url;
-        } else {
-          alert('Error: ' + data.error);
-          btn.disabled = false;
-          btn.textContent = 'Watch Replay';
-        }
-      } catch (error) {
-        alert('Error: ' + error.message);
-        btn.disabled = false;
-        btn.textContent = 'Watch Replay';
-      }
+    function viewReplay(type, id) {
+      window.location.href = `/matches/replays/view/${type}/${id}/`;
     }
   </script>
 </body>

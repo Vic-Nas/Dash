@@ -36,23 +36,13 @@
       left: 20px;
       background: rgba(18,20,40,0.95);
       padding: 16px;
-        border-radius: 0 !important;
+      border-radius: 8px;
       border: 1px solid #2a2f6b;
       min-width: 220px;
     }
     .info-item {
       margin-bottom: 8px;
       font-size: 14px;
-    }
-
-    /* Remove any circle or special background for replay mode/type */
-    .info-item .info-label, .info-item .info-value {
-      background: none !important;
-      border-radius: 0 !important;
-      padding: 0 !important;
-      color: inherit;
-      font-size: inherit;
-      font-weight: inherit;
     }
     .info-label {
       color: #9ca3af;
@@ -92,6 +82,12 @@
     .control-btn:disabled {
       opacity: 0.5;
       cursor: not-allowed;
+    }
+    .control-btn.primary {
+      background: #5b7bff;
+    }
+    .control-btn.primary:hover {
+      background: #4a6aef;
     }
     .speed-control {
       display: flex;
@@ -160,6 +156,12 @@
       font-size: 28px;
       margin-bottom: 16px;
     }
+    .payment-status {
+      color: #ef4444;
+      text-align: center;
+      margin-top: 12px;
+      font-size: 14px;
+    }
     @media (max-width: 768px) {
       .info-panel {
         position: static;
@@ -216,12 +218,12 @@
     <canvas id="replayCanvas" width="600" height="600"></canvas>
 
     <div class="controls">
-      {% if not already_paid %}
-        <button class="control-btn" id="playPauseBtn" onclick="handlePlayClick()" data-payment-required="true">
-          ▶ Play {% if profile.user.id == metadata.player_id %}(Free){% else %}(50 coins){% endif %}
-        </button>
+      {% if has_access %}
+        <button class="control-btn primary" id="playPauseBtn" onclick="togglePlayPause()">▶ Play</button>
       {% else %}
-        <button class="control-btn" id="playPauseBtn" onclick="togglePlayPause()">▶ Play</button>
+        <button class="control-btn primary" id="playPauseBtn" onclick="handlePayment()">
+          ▶ Pay {{ replay_cost }} coins to watch
+        </button>
       {% endif %}
       <button class="control-btn" onclick="restartReplay()">🔄 Restart</button>
       <div class="timeline">
@@ -245,7 +247,7 @@
         <button class="speed-btn" onclick="setSpeed(4)">4x</button>
       </div>
     </div>
-    <div id="paymentStatus" style="color:#ef4444;text-align:center;margin-top:12px;display:none;"></div>
+    <div id="paymentStatus" class="payment-status" style="display:none;"></div>
 
     <div class="replay-status" id="replayStatus" style="display:none;">
       <h2>Replay Ended</h2>
@@ -254,63 +256,68 @@
   </div>
 
   <script>
+    const hasAccess = {{ has_access|lower }};
+    const replayType = '{{ replay_type }}';
+    const replayId = {{ replay_id }};
+    const replayData = {{ replay_data|safe }};
+    
     function getCookie(name) {
       let value = '; ' + document.cookie;
       let parts = value.split('; ' + name + '=');
       if (parts.length === 2) return parts.pop().split(';').shift();
     }
 
-    function handlePlayClick() {
+    async function handlePayment() {
       const playBtn = document.getElementById('playPauseBtn');
       const paymentStatus = document.getElementById('paymentStatus');
-      if (playBtn.getAttribute('data-payment-required')) {
-        playBtn.disabled = true;
-        paymentStatus.style.display = 'block';
-        paymentStatus.textContent = 'Processing payment...';
-        fetch('/matches/watchReplay/', {
+      
+      playBtn.disabled = true;
+      paymentStatus.style.display = 'block';
+      paymentStatus.textContent = 'Processing payment...';
+      
+      try {
+        const response = await fetch('/matches/replays/watch/', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'X-CSRFToken': getCookie('csrftoken')
           },
           body: JSON.stringify({
-            type: '{{ replay_type }}',
-            id: {{ replay_id }}
+            type: replayType,
+            id: replayId
           })
-        })
-        .then(async response => {
-          let data;
-          try {
-            data = await response.json();
-          } catch (err) {
-            paymentStatus.textContent = 'Server error: Could not parse response as JSON.';
-            playBtn.disabled = false;
-            return;
-          }
-          if (data.success && data.paid) {
-            playBtn.removeAttribute('data-payment-required');
-            playBtn.disabled = false;
-            paymentStatus.style.display = 'none';
-            togglePlayPause();
-          } else {
-            playBtn.disabled = false;
-            paymentStatus.textContent = (data.error ? data.error : 'Payment failed.') + (data.traceback ? '\n' + data.traceback : '');
-          }
-        })
-        .catch((err) => {
-          playBtn.disabled = false;
-          paymentStatus.textContent = 'Payment failed: ' + err;
         });
-      } else {
-        togglePlayPause();
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          if (data.paid) {
+            paymentStatus.style.color = '#10b981';
+            paymentStatus.textContent = `Payment successful! ${data.cost} coins deducted.`;
+            setTimeout(() => {
+              location.reload();
+            }, 1000);
+          } else {
+            paymentStatus.style.color = '#10b981';
+            paymentStatus.textContent = data.message;
+            setTimeout(() => {
+              location.reload();
+            }, 1000);
+          }
+        } else {
+          playBtn.disabled = false;
+          paymentStatus.style.color = '#ef4444';
+          paymentStatus.textContent = data.error || 'Payment failed';
+        }
+      } catch (err) {
+        playBtn.disabled = false;
+        paymentStatus.style.color = '#ef4444';
+        paymentStatus.textContent = 'Network error: ' + err.message;
       }
     }
+
     const canvas = document.getElementById('replayCanvas');
     const ctx = canvas.getContext('2d');
-    
-    // Parse replay data from server
-    const replayData = {{ replay_data|safe }};
-    const replayType = '{{ replay_type }}';
     
     let currentFrame = 0;
     let isPlaying = false;
@@ -318,7 +325,6 @@
     let animationFrameId = null;
     let lastFrameTime = 0;
     
-    // Adjust canvas size
     function adjustCanvasSize() {
       const maxWidth = window.innerWidth - 40;
       const maxHeight = window.innerHeight - 300;
@@ -329,7 +335,6 @@
     
     adjustCanvasSize();
     
-    // Check if replay data exists
     if (!replayData || !replayData.frames || replayData.frames.length === 0) {
       document.getElementById('replayStatus').style.display = 'block';
       document.getElementById('replayStatus').innerHTML = '<h2>No Replay Data</h2><p style="color:#9ca3af;">This replay does not contain playback data.</p>';
@@ -339,6 +344,11 @@
     }
     
     function togglePlayPause() {
+      if (!hasAccess) {
+        handlePayment();
+        return;
+      }
+      
       isPlaying = !isPlaying;
       const btn = document.getElementById('playPauseBtn');
       
@@ -388,14 +398,14 @@
     function restartReplay() {
       currentFrame = 0;
       isPlaying = false;
-      document.getElementById('playPauseBtn').textContent = '▶ Play';
+      document.getElementById('playPauseBtn').textContent = hasAccess ? '▶ Play' : '▶ Pay {{ replay_cost }} coins to watch';
       document.getElementById('replayStatus').style.display = 'none';
       renderFrame(0);
       updateTimeline();
     }
     
     function seekReplay(value) {
-      if (!replayData || !replayData.frames) return;
+      if (!replayData || !replayData.frames || !hasAccess) return;
       
       const frameIndex = Math.floor((value / 100) * (replayData.frames.length - 1));
       currentFrame = frameIndex;
@@ -405,7 +415,6 @@
     
     function setSpeed(speed) {
       playbackSpeed = speed;
-      
       document.querySelectorAll('.speed-btn').forEach(btn => {
         btn.classList.remove('active');
       });
@@ -438,11 +447,9 @@
       const gridSize = frame.gridSize || 20;
       const cellSize = canvas.width / gridSize;
       
-      // Clear canvas
       ctx.fillStyle = '#121428';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
-      // Draw grid
       ctx.strokeStyle = '#23264a';
       ctx.lineWidth = 1;
       for (let i = 0; i <= gridSize; i++) {
@@ -457,7 +464,6 @@
         ctx.stroke();
       }
       
-      // Draw walls
       ctx.fillStyle = '#ef4444';
       if (frame.walls) {
         frame.walls.forEach(wall => {
@@ -470,7 +476,6 @@
         });
       }
       
-      // Draw countdown walls
       if (frame.countdownWalls) {
         frame.countdownWalls.forEach(wall => {
           const alpha = 0.3 + (0.7 * (3 - wall.secondsLeft) / 3);
@@ -494,12 +499,10 @@
         });
       }
       
-      // Draw player(s)
       if (frame.player) {
         drawPlayer(frame.player, cellSize, '#5b7bff');
       }
       
-      // Draw bots (for progressive mode)
       if (frame.bots) {
         frame.bots.forEach(bot => {
           if (bot.alive) {
@@ -508,7 +511,6 @@
         });
       }
       
-      // Draw multiplayer players
       if (frame.players) {
         Object.values(frame.players).forEach(player => {
           if (player.alive) {
@@ -532,7 +534,6 @@
       
       ctx.rotate(angle);
       
-      // Draw arrow
       ctx.fillStyle = color;
       ctx.strokeStyle = '#fff';
       ctx.lineWidth = 2;
