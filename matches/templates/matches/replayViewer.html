@@ -258,7 +258,6 @@
       const playBtn = document.getElementById('playPauseBtn');
       const paymentStatus = document.getElementById('paymentStatus');
       if (playBtn.getAttribute('data-payment-required')) {
-        // Show temp pay button and price only on first click
         playBtn.disabled = true;
         paymentStatus.style.display = 'block';
         paymentStatus.textContent = 'Processing payment...';
@@ -273,8 +272,16 @@
             id: {{ replay_id }}
           })
         })
-        .then(response => response.json())
-        .then(data => {
+        .then(async response => {
+          let data;
+          try {
+            data = await response.json();
+          } catch (err) {
+            const text = await response.text();
+            paymentStatus.textContent = 'Server error: ' + text.substring(0, 500);
+            playBtn.disabled = false;
+            return;
+          }
           if (data.success && data.paid) {
             playBtn.removeAttribute('data-payment-required');
             playBtn.disabled = false;
@@ -282,12 +289,12 @@
             togglePlayPause();
           } else {
             playBtn.disabled = false;
-            paymentStatus.textContent = data.error || 'Payment failed.';
+            paymentStatus.textContent = (data.error ? data.error : 'Payment failed.') + (data.traceback ? '\n' + data.traceback : '');
           }
         })
-        .catch(() => {
+        .catch((err) => {
           playBtn.disabled = false;
-          paymentStatus.textContent = 'Payment failed.';
+          paymentStatus.textContent = 'Payment failed: ' + err;
         });
       } else {
         togglePlayPause();
