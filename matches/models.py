@@ -52,6 +52,8 @@ class MatchParticipation(models.Model):
     coinReward = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     joinedAt = models.DateTimeField(auto_now_add=True)
     eliminatedAt = models.DateTimeField(null=True, blank=True)
+    replayData = models.JSONField(null=True, blank=True)
+    isPublic = models.BooleanField(default=True)
 
     class Meta:
         unique_together = ('match', 'player')
@@ -85,6 +87,8 @@ class SoloRun(models.Model):
     netCoins = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     survivalTime = models.IntegerField()
     finalGridState = models.JSONField(null=True, blank=True)
+    replayData = models.JSONField(null=True, blank=True)
+    isPublic = models.BooleanField(default=True)
     startedAt = models.DateTimeField(auto_now_add=True)
     endedAt = models.DateTimeField(null=True, blank=True)
 
@@ -101,6 +105,8 @@ class ProgressiveRun(models.Model):
     coinsSpent = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     coinsEarned = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     finalGridState = models.JSONField(null=True, blank=True)
+    replayData = models.JSONField(null=True, blank=True)
+    isPublic = models.BooleanField(default=True)
     startedAt = models.DateTimeField(auto_now_add=True)
     endedAt = models.DateTimeField(null=True, blank=True)
 

@@ -3,8 +3,9 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.db import transaction
-from django.db.models import F
+from django.db.models import F, Q
 from django.utils import timezone
+from django.core.paginator import Paginator
 from decimal import Decimal
 from .models import MatchType, Match, MatchParticipation, SoloRun, ProgressiveRun
 from shop.models import Transaction, SystemSettings
@@ -29,6 +30,7 @@ def saveSoloRun(request):
         wallsHit = int(data.get('wallsHit', 0))
         survivalTime = int(data.get('survivalTime', 0))
         finalGridState = data.get('finalGridState')
+        replayData = data.get('replayData')
         
         coinsEarned = Decimal(str(wallsSurvived))
         coinsLost = Decimal(str(wallsHit))
@@ -58,6 +60,8 @@ def saveSoloRun(request):
                 netCoins=netCoins,
                 survivalTime=survivalTime,
                 finalGridState=finalGridState,
+                replayData=replayData,
+                isPublic=True,
                 endedAt=timezone.now()
             )
             
@@ -120,6 +124,7 @@ def saveProgressiveRun(request):
         won = bool(data.get('won', False))
         survivalTime = int(data.get('survivalTime', 0))
         finalGridState = data.get('finalGridState')
+        replayData = data.get('replayData')
         
         costPerAttempt = Decimal(str(SystemSettings.getInt('progressiveCostPerAttempt', 10)))
         
@@ -178,6 +183,8 @@ def saveProgressiveRun(request):
                 coinsSpent=costPerAttempt,
                 coinsEarned=coinsEarned,
                 finalGridState=finalGridState,
+                replayData=replayData,
+                isPublic=True,
                 endedAt=timezone.now()
             )
         
@@ -548,3 +555,238 @@ def checkActivity(request):
     ).exists()
     
     return JsonResponse({'hasActivity': hasActivity})
+
+
+# ============================================
+# NEW REPLAY BROWSER VIEWS
+# ============================================
+
+@login_required
+def browseReplays(request):
+    """Browse public replays with filtering and pagination"""
+    mode = request.GET.get('mode', 'all')
+    page = request.GET.get('page', 1)
+    
+    replays = []
+    
+    # Solo replays
+    if mode in ['all', 'solo']:
+        solo_runs = SoloRun.objects.filter(
+            isPublic=True,
+            replayData__isnull=False
+        ).select_related('player').order_by('-wallsSurvived', '-endedAt')[:50]
+        
+        for run in solo_runs:
+            replays.append({
+                'type': 'solo',
+                'id': run.id,
+                'player': run.player.username,
+                'player_id': run.player.id,
+                'score': run.wallsSurvived,
+                'score_label': f'{run.wallsSurvived} walls',
+                'date': run.endedAt,
+                'time': run.survivalTime,
+            })
+    
+    # Progressive replays (only victories)
+    if mode in ['all', 'progressive']:
+        progressive_runs = ProgressiveRun.objects.filter(
+            isPublic=True,
+            replayData__isnull=False,
+            won=True
+        ).select_related('player').order_by('-level', '-endedAt')[:50]
+        
+        for run in progressive_runs:
+            replays.append({
+                'type': 'progressive',
+                'id': run.id,
+                'player': run.player.username,
+                'player_id': run.player.id,
+                'score': run.level,
+                'score_label': f'Level {run.level}',
+                'date': run.endedAt,
+                'time': run.survivalTime,
+            })
+    
+    # Multiplayer replays (winners only)
+    if mode in ['all', 'multiplayer']:
+        match_participations = MatchParticipation.objects.filter(
+            isPublic=True,
+            replayData__isnull=False,
+            placement=1
+        ).select_related('player', 'match', 'match__matchType').order_by('-match__completedAt')[:50]
+        
+        for participation in match_participations:
+            replays.append({
+                'type': 'multiplayer',
+                'id': participation.id,
+                'player': participation.player.username,
+                'player_id': participation.player.id,
+                'score': int(participation.coinReward),
+                'score_label': f'{int(participation.coinReward)} coins won',
+                'date': participation.match.completedAt,
+                'time': participation.survivalTime or 0,
+                'match_type': participation.match.matchType.name,
+            })
+    
+    # Sort by date (most recent first)
+    replays.sort(key=lambda x: x['date'], reverse=True)
+    
+    # Pagination
+    paginator = Paginator(replays, 20)
+    page_obj = paginator.get_page(page)
+    
+    context = {
+        'replays': page_obj,
+        'mode': mode,
+        'profile': request.user.profile,
+        'own_replay_cost': SystemSettings.getInt('replayViewCostOwn', 0),
+        'other_replay_cost': SystemSettings.getInt('replayViewCostOther', 50),
+    }
+    
+    return render(request, 'matches/browseReplays.html', context)
+
+
+@login_required
+@require_POST
+def watchReplay(request):
+    """Deduct coins and redirect to replay viewer"""
+    try:
+        data = json.loads(request.body)
+        replay_type = data.get('type')
+        replay_id = data.get('id')
+        
+        if not replay_type or not replay_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Missing type or id'
+            }, status=400)
+        
+        # Get replay and check ownership
+        owner_id = None
+        replay_exists = False
+        
+        if replay_type == 'solo':
+            run = SoloRun.objects.filter(id=replay_id, replayData__isnull=False).first()
+            if run:
+                owner_id = run.player_id
+                replay_exists = True
+        elif replay_type == 'progressive':
+            run = ProgressiveRun.objects.filter(id=replay_id, replayData__isnull=False).first()
+            if run:
+                owner_id = run.player_id
+                replay_exists = True
+        elif replay_type == 'multiplayer':
+            participation = MatchParticipation.objects.filter(id=replay_id, replayData__isnull=False).first()
+            if participation:
+                owner_id = participation.player_id
+                replay_exists = True
+        
+        if not replay_exists:
+            return JsonResponse({
+                'success': False,
+                'error': 'Replay not found'
+            }, status=404)
+        
+        # Check if user owns this replay
+        is_owner = (owner_id == request.user.id)
+        
+        # Determine cost
+        if is_owner:
+            cost = Decimal(str(SystemSettings.getInt('replayViewCostOwn', 0)))
+        else:
+            cost = Decimal(str(SystemSettings.getInt('replayViewCostOther', 50)))
+        
+        # Deduct coins if cost > 0
+        if cost > 0:
+            with transaction.atomic():
+                profile = request.user.profile
+                profile = type(profile).objects.select_for_update().get(pk=profile.pk)
+                
+                if profile.coins < cost:
+                    return JsonResponse({
+                        'success': False,
+                        'error': f'Insufficient coins. Need {cost}, have {profile.coins}'
+                    }, status=400)
+                
+                balanceBefore = profile.coins
+                profile.coins = F('coins') - cost
+                profile.save(update_fields=['coins'])
+                profile.refresh_from_db()
+                balanceAfter = profile.coins
+                
+                # Create transaction record
+                Transaction.objects.create(
+                    user=request.user,
+                    amount=-cost,
+                    transactionType='EXTRA_LIFE',  # Reusing existing type or could add new one
+                    description=f'Watched replay: {replay_type} #{replay_id}',
+                    balanceBefore=balanceBefore,
+                    balanceAfter=balanceAfter
+                )
+        
+        return JsonResponse({
+            'success': True,
+            'redirect_url': f'/matches/replays/view/{replay_type}/{replay_id}/',
+            'cost': float(cost)
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        import traceback
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=500)
+
+
+@login_required
+def replayViewer(request, replay_type, replay_id):
+    """Render replay viewer page"""
+    replay_data = None
+    metadata = {}
+    
+    if replay_type == 'solo':
+        run = get_object_or_404(SoloRun, id=replay_id, replayData__isnull=False)
+        replay_data = run.replayData
+        metadata = {
+            'type': 'Solo Mode',
+            'player': run.player.username,
+            'score': f'{run.wallsSurvived} walls survived',
+            'time': f'{run.survivalTime}s',
+            'date': run.endedAt,
+        }
+    elif replay_type == 'progressive':
+        run = get_object_or_404(ProgressiveRun, id=replay_id, replayData__isnull=False)
+        replay_data = run.replayData
+        metadata = {
+            'type': 'Progressive Mode',
+            'player': run.player.username,
+            'score': f'Level {run.level}' + (' (Victory)' if run.won else ' (Defeated)'),
+            'time': f'{run.survivalTime}s',
+            'date': run.endedAt,
+        }
+    elif replay_type == 'multiplayer':
+        participation = get_object_or_404(MatchParticipation, id=replay_id, replayData__isnull=False)
+        replay_data = participation.replayData
+        metadata = {
+            'type': 'Multiplayer',
+            'player': participation.player.username,
+            'score': f'{int(participation.coinReward)} coins won',
+            'time': f'{participation.survivalTime or 0}s',
+            'date': participation.match.completedAt,
+            'match_type': participation.match.matchType.name,
+        }
+    else:
+        return redirect('matches:browseReplays')
+    
+    context = {
+        'replay_data': json.dumps(replay_data),
+        'metadata': metadata,
+        'replay_type': replay_type,
+        'profile': request.user.profile,
+    }
+    
+    return render(request, 'matches/replayViewer.html', context)

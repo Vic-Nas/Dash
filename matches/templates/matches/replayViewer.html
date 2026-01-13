@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Replay: {{ metadata.player }} - Dash Arena</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0d0f1a;
+      color: #e6e6e6;
+      overflow: hidden;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      padding: 20px;
+    }
+    #replayCanvas {
+      border: 2px solid #2a2f6b;
+      background: #121428;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+    .info-panel {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(18,20,40,0.95);
+      padding: 16px;
+      border-radius: 8px;
+      border: 1px solid #2a2f6b;
+      min-width: 220px;
+    }
+    .info-item {
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+    .info-label {
+      color: #9ca3af;
+      margin-right: 8px;
+    }
+    .info-value {
+      color: #fff;
+      font-weight: 600;
+    }
+    .controls {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(18,20,40,0.95);
+      padding: 16px;
+      border-radius: 8px;
+      border: 1px solid #2a2f6b;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .control-btn {
+      padding: 10px 20px;
+      background: #2a2f6b;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .control-btn:hover {
+      background: #3940a3;
+    }
+    .control-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .speed-control {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .speed-btn {
+      padding: 6px 12px;
+      background: #2a2f6b;
+      color: #9ca3af;
+      border: 1px solid #3940a3;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .speed-btn.active {
+      background: #5b7bff;
+      color: #fff;
+      border-color: #5b7bff;
+    }
+    .timeline {
+      flex: 1;
+      max-width: 400px;
+      margin: 0 16px;
+    }
+    .timeline input[type="range"] {
+      width: 100%;
+      cursor: pointer;
+    }
+    .timeline-time {
+      text-align: center;
+      font-size: 13px;
+      color: #9ca3af;
+      margin-top: 4px;
+    }
+    .back-link {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      padding: 10px 20px;
+      background: #1a1d2e;
+      color: #9ca3af;
+      border: 2px solid #2a2f6b;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 14px;
+    }
+    .back-link:hover {
+      background: #2a2f6b;
+      color: #fff;
+    }
+    .replay-status {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(18,20,40,0.98);
+      padding: 40px;
+      border-radius: 12px;
+      border: 2px solid #2a2f6b;
+      text-align: center;
+      z-index: 100;
+    }
+    .replay-status h2 {
+      color: #5b7bff;
+      font-size: 28px;
+      margin-bottom: 16px;
+    }
+    @media (max-width: 768px) {
+      .info-panel {
+        position: static;
+        margin-bottom: 12px;
+        min-width: auto;
+        width: 100%;
+      }
+      .controls {
+        position: static;
+        margin-top: 12px;
+        flex-wrap: wrap;
+        transform: none;
+      }
+      .timeline {
+        flex-basis: 100%;
+        max-width: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="/matches/replays/" class="back-link">← Back to Replays</a>
+
+    <div class="info-panel">
+      <div class="info-item">
+        <span class="info-label">Type:</span>
+        <span class="info-value">{{ metadata.type }}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Player:</span>
+        <span class="info-value">{{ metadata.player }}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Score:</span>
+        <span class="info-value">{{ metadata.score }}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Time:</span>
+        <span class="info-value">{{ metadata.time }}</span>
+      </div>
+      {% if metadata.match_type %}
+      <div class="info-item">
+        <span class="info-label">Match:</span>
+        <span class="info-value">{{ metadata.match_type }}</span>
+      </div>
+      {% endif %}
+      <div class="info-item">
+        <span class="info-label">Date:</span>
+        <span class="info-value">{{ metadata.date|date:"M d, Y" }}</span>
+      </div>
+    </div>
+
+    <canvas id="replayCanvas" width="600" height="600"></canvas>
+
+    <div class="controls">
+      <button class="control-btn" id="playPauseBtn" onclick="togglePlayPause()">▶ Play</button>
+      <button class="control-btn" onclick="restartReplay()">🔄 Restart</button>
+      
+      <div class="timeline">
+        <input 
+          type="range" 
+          id="timelineSlider" 
+          min="0" 
+          max="100" 
+          value="0" 
+          oninput="seekReplay(this.value)"
+        >
+        <div class="timeline-time">
+          <span id="currentTime">0:00</span> / <span id="totalTime">0:00</span>
+        </div>
+      </div>
+
+      <div class="speed-control">
+        <span style="color:#9ca3af;font-size:13px;">Speed:</span>
+        <button class="speed-btn" onclick="setSpeed(0.5)">0.5x</button>
+        <button class="speed-btn active" onclick="setSpeed(1)">1x</button>
+        <button class="speed-btn" onclick="setSpeed(2)">2x</button>
+        <button class="speed-btn" onclick="setSpeed(4)">4x</button>
+      </div>
+    </div>
+
+    <div class="replay-status" id="replayStatus" style="display:none;">
+      <h2>Replay Ended</h2>
+      <p style="color:#9ca3af;margin-bottom:20px;">Click Restart to watch again</p>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('replayCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Parse replay data from server
+    const replayData = {{ replay_data|safe }};
+    const replayType = '{{ replay_type }}';
+    
+    let currentFrame = 0;
+    let isPlaying = false;
+    let playbackSpeed = 1;
+    let animationFrameId = null;
+    let lastFrameTime = 0;
+    
+    // Adjust canvas size
+    function adjustCanvasSize() {
+      const maxWidth = window.innerWidth - 40;
+      const maxHeight = window.innerHeight - 300;
+      const size = Math.min(600, maxWidth, maxHeight);
+      canvas.width = size;
+      canvas.height = size;
+    }
+    
+    adjustCanvasSize();
+    
+    // Check if replay data exists
+    if (!replayData || !replayData.frames || replayData.frames.length === 0) {
+      document.getElementById('replayStatus').style.display = 'block';
+      document.getElementById('replayStatus').innerHTML = '<h2>No Replay Data</h2><p style="color:#9ca3af;">This replay does not contain playback data.</p>';
+    } else {
+      renderFrame(0);
+      updateTimeline();
+    }
+    
+    function togglePlayPause() {
+      isPlaying = !isPlaying;
+      const btn = document.getElementById('playPauseBtn');
+      
+      if (isPlaying) {
+        btn.textContent = '⏸ Pause';
+        playReplay();
+      } else {
+        btn.textContent = '▶ Play';
+        if (animationFrameId) {
+          cancelAnimationFrame(animationFrameId);
+        }
+      }
+    }
+    
+    function playReplay() {
+      if (!replayData || !replayData.frames) return;
+      
+      const frameDelay = (replayData.frameDuration || 150) / playbackSpeed;
+      
+      function animate(timestamp) {
+        if (!isPlaying) return;
+        
+        if (!lastFrameTime) lastFrameTime = timestamp;
+        const elapsed = timestamp - lastFrameTime;
+        
+        if (elapsed >= frameDelay) {
+          currentFrame++;
+          
+          if (currentFrame >= replayData.frames.length) {
+            isPlaying = false;
+            document.getElementById('playPauseBtn').textContent = '▶ Play';
+            document.getElementById('replayStatus').style.display = 'block';
+            return;
+          }
+          
+          renderFrame(currentFrame);
+          updateTimeline();
+          lastFrameTime = timestamp;
+        }
+        
+        animationFrameId = requestAnimationFrame(animate);
+      }
+      
+      animationFrameId = requestAnimationFrame(animate);
+    }
+    
+    function restartReplay() {
+      currentFrame = 0;
+      isPlaying = false;
+      document.getElementById('playPauseBtn').textContent = '▶ Play';
+      document.getElementById('replayStatus').style.display = 'none';
+      renderFrame(0);
+      updateTimeline();
+    }
+    
+    function seekReplay(value) {
+      if (!replayData || !replayData.frames) return;
+      
+      const frameIndex = Math.floor((value / 100) * (replayData.frames.length - 1));
+      currentFrame = frameIndex;
+      renderFrame(currentFrame);
+      updateTimeline();
+    }
+    
+    function setSpeed(speed) {
+      playbackSpeed = speed;
+      
+      document.querySelectorAll('.speed-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      event.target.classList.add('active');
+    }
+    
+    function updateTimeline() {
+      if (!replayData || !replayData.frames) return;
+      
+      const progress = (currentFrame / (replayData.frames.length - 1)) * 100;
+      document.getElementById('timelineSlider').value = progress;
+      
+      const currentSeconds = Math.floor(currentFrame * (replayData.frameDuration || 150) / 1000);
+      const totalSeconds = Math.floor((replayData.frames.length - 1) * (replayData.frameDuration || 150) / 1000);
+      
+      document.getElementById('currentTime').textContent = formatTime(currentSeconds);
+      document.getElementById('totalTime').textContent = formatTime(totalSeconds);
+    }
+    
+    function formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+    
+    function renderFrame(frameIndex) {
+      if (!replayData || !replayData.frames || !replayData.frames[frameIndex]) return;
+      
+      const frame = replayData.frames[frameIndex];
+      const gridSize = frame.gridSize || 20;
+      const cellSize = canvas.width / gridSize;
+      
+      // Clear canvas
+      ctx.fillStyle = '#121428';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw grid
+      ctx.strokeStyle = '#23264a';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= gridSize; i++) {
+        ctx.beginPath();
+        ctx.moveTo(i * cellSize, 0);
+        ctx.lineTo(i * cellSize, canvas.height);
+        ctx.stroke();
+        
+        ctx.beginPath();
+        ctx.moveTo(0, i * cellSize);
+        ctx.lineTo(canvas.width, i * cellSize);
+        ctx.stroke();
+      }
+      
+      // Draw walls
+      ctx.fillStyle = '#ef4444';
+      if (frame.walls) {
+        frame.walls.forEach(wall => {
+          ctx.fillRect(
+            wall.x * cellSize + 2,
+            wall.y * cellSize + 2,
+            cellSize - 4,
+            cellSize - 4
+          );
+        });
+      }
+      
+      // Draw countdown walls
+      if (frame.countdownWalls) {
+        frame.countdownWalls.forEach(wall => {
+          const alpha = 0.3 + (0.7 * (3 - wall.secondsLeft) / 3);
+          ctx.fillStyle = `rgba(239, 68, 68, ${alpha})`;
+          ctx.fillRect(
+            wall.x * cellSize + 2,
+            wall.y * cellSize + 2,
+            cellSize - 4,
+            cellSize - 4
+          );
+          
+          ctx.fillStyle = '#fff';
+          ctx.font = `bold ${Math.max(12, cellSize * 0.5)}px system-ui`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(
+            wall.secondsLeft,
+            (wall.x + 0.5) * cellSize,
+            (wall.y + 0.5) * cellSize
+          );
+        });
+      }
+      
+      // Draw player(s)
+      if (frame.player) {
+        drawPlayer(frame.player, cellSize, '#5b7bff');
+      }
+      
+      // Draw bots (for progressive mode)
+      if (frame.bots) {
+        frame.bots.forEach(bot => {
+          if (bot.alive) {
+            drawPlayer(bot, cellSize, '#ef4444');
+          }
+        });
+      }
+      
+      // Draw multiplayer players
+      if (frame.players) {
+        Object.values(frame.players).forEach(player => {
+          if (player.alive) {
+            drawPlayer(player, cellSize, player.playerColor || '#5b7bff');
+          }
+        });
+      }
+    }
+    
+    function drawPlayer(player, cellSize, color) {
+      const px = player.x * cellSize + cellSize / 2;
+      const py = player.y * cellSize + cellSize / 2;
+      
+      ctx.save();
+      ctx.translate(px, py);
+      
+      let angle = 0;
+      if (player.direction === 'DOWN') angle = Math.PI;
+      else if (player.direction === 'LEFT') angle = -Math.PI / 2;
+      else if (player.direction === 'RIGHT') angle = Math.PI / 2;
+      
+      ctx.rotate(angle);
+      
+      // Draw arrow
+      ctx.fillStyle = color;
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.lineJoin = 'miter';
+      
+      const size = cellSize * 0.7;
+      
+      ctx.beginPath();
+      ctx.moveTo(0, -size / 2);
+      ctx.lineTo(size / 3, size / 6);
+      ctx.lineTo(size / 6, size / 6);
+      ctx.lineTo(size / 6, size / 2);
+      ctx.lineTo(-size / 6, size / 2);
+      ctx.lineTo(-size / 6, size / 6);
+      ctx.lineTo(-size / 3, size / 6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      
+      ctx.restore();
+    }
+    
+    window.addEventListener('resize', () => {
+      adjustCanvasSize();
+      renderFrame(currentFrame);
+    });
+  </script>
+</body>
+</html>

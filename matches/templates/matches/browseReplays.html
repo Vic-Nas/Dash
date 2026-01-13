@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Browse Replays - Dash Arena</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0d0f1a;
+      color: #e6e6e6;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    h1 {
+      font-size: 48px;
+      color: #5b7bff;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .filters {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .filter-btn {
+      padding: 10px 20px;
+      background: #2a2f6b;
+      color: #fff;
+      border: 2px solid #3940a3;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 15px;
+      transition: all 0.2s;
+    }
+    .filter-btn:hover {
+      background: #3940a3;
+    }
+    .filter-btn.active {
+      background: #5b7bff;
+      border-color: #5b7bff;
+    }
+    .back-btn {
+      padding: 10px 20px;
+      background: #1a1d2e;
+      color: #9ca3af;
+      border: 2px solid #2a2f6b;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 15px;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .back-btn:hover {
+      background: #2a2f6b;
+      color: #fff;
+    }
+    .replays-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      gap: 20px;
+      margin-bottom: 32px;
+    }
+    .replay-card {
+      background: rgba(18, 20, 40, 0.9);
+      border: 2px solid #2a2f6b;
+      border-radius: 12px;
+      padding: 20px;
+      transition: all 0.2s;
+    }
+    .replay-card:hover {
+      border-color: #5b7bff;
+      transform: translateY(-2px);
+    }
+    .replay-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      margin-bottom: 16px;
+    }
+    .replay-type {
+      display: inline-block;
+      padding: 4px 12px;
+      background: #2a2f6b;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #9ca3af;
+    }
+    .replay-type.solo {
+      background: #10b981;
+      color: #fff;
+    }
+    .replay-type.progressive {
+      background: #f59e0b;
+      color: #fff;
+    }
+    .replay-type.multiplayer {
+      background: #ec4899;
+      color: #fff;
+    }
+    .replay-player {
+      font-size: 20px;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+    .replay-score {
+      font-size: 24px;
+      font-weight: 700;
+      color: #5b7bff;
+      margin-bottom: 12px;
+    }
+    .replay-meta {
+      display: flex;
+      gap: 16px;
+      font-size: 14px;
+      color: #9ca3af;
+      margin-bottom: 16px;
+    }
+    .watch-btn {
+      width: 100%;
+      padding: 12px;
+      background: #5b7bff;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .watch-btn:hover {
+      background: #4a6aef;
+    }
+    .watch-btn:disabled {
+      background: #2a2f6b;
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+    .cost-badge {
+      display: inline-block;
+      margin-left: 8px;
+      font-size: 13px;
+      color: #fbbf24;
+    }
+    .pagination {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 32px;
+    }
+    .page-btn {
+      padding: 8px 16px;
+      background: #2a2f6b;
+      color: #fff;
+      border: 2px solid #3940a3;
+      border-radius: 6px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .page-btn:hover {
+      background: #3940a3;
+    }
+    .page-btn.active {
+      background: #5b7bff;
+      border-color: #5b7bff;
+    }
+    .page-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .no-replays {
+      text-align: center;
+      padding: 60px 20px;
+      color: #9ca3af;
+      font-size: 18px;
+    }
+    .balance-display {
+      padding: 10px 20px;
+      background: rgba(42, 47, 107, 0.5);
+      border-radius: 8px;
+      font-size: 16px;
+    }
+    .balance-amount {
+      color: #fbbf24;
+      font-weight: 700;
+    }
+    @media (max-width: 768px) {
+      h1 {
+        font-size: 32px;
+      }
+      .replays-grid {
+        grid-template-columns: 1fr;
+      }
+      .header {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .filters {
+        justify-content: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎬 Browse Replays</h1>
+    
+    <div class="header">
+      <div class="filters">
+        <a href="?mode=all" class="filter-btn {% if mode == 'all' %}active{% endif %}">All</a>
+        <a href="?mode=solo" class="filter-btn {% if mode == 'solo' %}active{% endif %}">Solo</a>
+        <a href="?mode=progressive" class="filter-btn {% if mode == 'progressive' %}active{% endif %}">Progressive</a>
+        <a href="?mode=multiplayer" class="filter-btn {% if mode == 'multiplayer' %}active{% endif %}">Multiplayer</a>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <div class="balance-display">
+          💰 <span class="balance-amount" id="coinBalance">{{ profile.coins }}</span> coins
+        </div>
+        <a href="/" class="back-btn">← Dashboard</a>
+      </div>
+    </div>
+
+    {% if replays %}
+    <div class="replays-grid">
+      {% for replay in replays %}
+      <div class="replay-card">
+        <div class="replay-header">
+          <span class="replay-type {{ replay.type }}">{{ replay.type|title }}</span>
+          <span style="font-size:12px;color:#6b7280;">{{ replay.date|date:"M d, Y" }}</span>
+        </div>
+        
+        <div class="replay-player">{{ replay.player }}</div>
+        <div class="replay-score">{{ replay.score_label }}</div>
+        
+        <div class="replay-meta">
+          <span>⏱️ {{ replay.time }}s</span>
+          {% if replay.match_type %}
+          <span>🎯 {{ replay.match_type }}</span>
+          {% endif %}
+        </div>
+        
+        <button 
+          class="watch-btn" 
+          onclick="watchReplay('{{ replay.type }}', {{ replay.id }}, {{ replay.player_id }})"
+        >
+          Watch Replay
+          <span class="cost-badge" id="cost-{{ replay.type }}-{{ replay.id }}">
+            {% if replay.player_id == user.id %}
+              (Free)
+            {% else %}
+              ({{ other_replay_cost }} coins)
+            {% endif %}
+          </span>
+        </button>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if replays.has_other_pages %}
+    <div class="pagination">
+      {% if replays.has_previous %}
+        <a href="?mode={{ mode }}&page={{ replays.previous_page_number }}" class="page-btn">← Previous</a>
+      {% else %}
+        <button class="page-btn" disabled>← Previous</button>
+      {% endif %}
+      
+      <span class="page-btn active">Page {{ replays.number }} of {{ replays.paginator.num_pages }}</span>
+      
+      {% if replays.has_next %}
+        <a href="?mode={{ mode }}&page={{ replays.next_page_number }}" class="page-btn">Next →</a>
+      {% else %}
+        <button class="page-btn" disabled>Next →</button>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="no-replays">
+      <p>No replays available for this filter.</p>
+      <p style="margin-top:16px;font-size:14px;">Play some games to create replays!</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <script>
+    function getCookie(name) {
+      let value = '; ' + document.cookie;
+      let parts = value.split('; ' + name + '=');
+      if (parts.length === 2) return parts.pop().split(';').shift();
+    }
+
+    async function watchReplay(type, id, playerId) {
+      const btn = event.target;
+      const isOwner = playerId === {{ user.id }};
+      const cost = isOwner ? {{ own_replay_cost }} : {{ other_replay_cost }};
+      
+      // Check balance
+      const currentBalance = parseFloat(document.getElementById('coinBalance').textContent);
+      if (currentBalance < cost) {
+        alert(`Insufficient coins! Need ${cost} coins, you have ${currentBalance}.`);
+        return;
+      }
+      
+      btn.disabled = true;
+      btn.textContent = 'Loading...';
+      
+      try {
+        const response = await fetch('/matches/replays/watch/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+          },
+          body: JSON.stringify({ type, id })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          // Update balance display
+          document.getElementById('coinBalance').textContent = currentBalance - cost;
+          
+          // Redirect to viewer
+          window.location.href = data.redirect_url;
+        } else {
+          alert('Error: ' + data.error);
+          btn.disabled = false;
+          btn.innerHTML = 'Watch Replay <span class="cost-badge">(' + cost + ' coins)</span>';
+        }
+      } catch (error) {
+        alert('Error: ' + error.message);
+        btn.disabled = false;
+        btn.innerHTML = 'Watch Replay <span class="cost-badge">(' + cost + ' coins)</span>';
+      }
+    }
+  </script>
+</body>
+</html>

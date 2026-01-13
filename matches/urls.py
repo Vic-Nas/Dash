@@ -14,4 +14,9 @@ urlpatterns = [
     path('api/leave-lobby/', views.leaveLobby, name='leaveLobby'),
     path('api/force-start/', views.forceStart, name='forceStart'),
     path('api/check-activity/', views.checkActivity, name='checkActivity'),
+    
+    # Replay browser
+    path('replays/', views.browseReplays, name='browseReplays'),
+    path('replays/watch/', views.watchReplay, name='watchReplay'),
+    path('replays/view/<str:replay_type>/<int:replay_id>/', views.replayViewer, name='replayViewer'),
 ]
