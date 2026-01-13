@@ -24,6 +24,13 @@
 - **Last player standing** wins entire pot
 - Walls spawn every 5 seconds / no walls
 
+### Progressive Mode
+Progressive mode is a solo challenge where you face more bots each level. Survive and eliminate all bots to progress. Each level bring one more bot. 
+
+**Rules:**
+- Survive and eliminate all bots to advance.
+- Each level increases bot count and difficulty.
+
 ### Player Interactions
 - **Side/back collision**: Attacker eliminates victim, gains their score
 - **Head-on collision**: Both players get a hit (may eliminate both if at 50 hits)

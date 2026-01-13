@@ -19,6 +19,10 @@ Fast-paced grid game. Bots auto-move, players change direction. Survive walls, e
 - Eliminate opponent → gain their points
 - Last standing wins pot (or split if all die)
 
+### Progressive Mode
+- Survive and eliminate all bots to advance.
+- Each level increases bot count and difficulty.
+
 ### Collisions
 - Wall/edge hit → +1 hit counter
 - Side/back collision → victim eliminated, attacker gains their score
