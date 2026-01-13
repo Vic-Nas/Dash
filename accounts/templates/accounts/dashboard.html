@@ -252,15 +252,15 @@
             </thead>
             <tbody>
               {% for p in topProgressive %}
-              <tr {% if p.user == user %}style="background:#1a1d35;"{% endif %}>
+              <tr {% if p.username == user.username %}style="background:#1a1d35;"{% endif %}>
                 <td class="rank">#{{ forloop.counter }}</td>
                 <td>
-                  <a href="{% url 'publicProfile' p.user.username %}" style="color:#5b7bff;text-decoration:none;">
-                    {{ p.user.username }}
+                  <a href="{% url 'publicProfile' p.username %}" style="color:#5b7bff;text-decoration:none;">
+                    {{ p.username }}
                   </a>
-                  {% if p.user == user %} (You){% endif %}
+                  {% if p.username == user.username %} (You){% endif %}
                 </td>
-                <td>{{ p.progressiveLevel }} <span style="color:#9ca3af;">({{ p.progressiveTime }}s)</span></td>
+                <td>{{ p.level }} <span style="color:#9ca3af;">({{ p.time }}s)</span></td>
               </tr>
               {% empty %}
               <tr><td colspan="3" style="text-align:center;color:#9ca3af;">No scores yet</td></tr>
