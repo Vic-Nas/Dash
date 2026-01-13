@@ -724,11 +724,28 @@
         
         var move = botNewPositions[i];
         
+        // Check if bot is moving into player position
         if (move.x === gameState.player.x && move.y === gameState.player.y) {
-          gameState.player.alive = false;
-          gameAudio.playHit();
-          endGame();
-          return;
+          // Check if this would be a head-on collision (bot facing player)
+          var dx = move.x - bot.x;
+          var dy = move.y - bot.y;
+          
+          var isHeadOn = false;
+          if (dx === 0 && dy === -1 && gameState.player.direction === 'DOWN') isHeadOn = true;
+          if (dx === 0 && dy === 1 && gameState.player.direction === 'UP') isHeadOn = true;
+          if (dx === -1 && dy === 0 && gameState.player.direction === 'RIGHT') isHeadOn = true;
+          if (dx === 1 && dy === 0 && gameState.player.direction === 'LEFT') isHeadOn = true;
+          
+          if (isHeadOn) {
+            // Don't move the bot - it's blocked too
+            continue;
+          } else {
+            // Bot attacks from side/back - player dies
+            gameState.player.alive = false;
+            gameAudio.playHit();
+            endGame();
+            return;
+          }
         }
         
         var collision = false;
