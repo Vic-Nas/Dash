@@ -87,7 +87,7 @@
       transition: all 0.2s;
     }
     .replay-card:hover {
-      border-color: #5b7bff;
+      border-color: #2a2f6b;
       transform: translateY(-2px);
     }
     .replay-header {
@@ -321,24 +321,29 @@
           },
           body: JSON.stringify({ type, id })
         });
-        
-        const data = await response.json();
-        
+        let data;
+        try {
+          data = await response.json();
+        } catch (jsonErr) {
+          // If not JSON, show error and log response
+          const text = await response.text();
+          alert('Server error: ' + text.substring(0, 200));
+          btn.disabled = false;
+          btn.textContent = 'Watch Replay';
+          return;
+        }
         if (data.success) {
-          // Update balance display
           document.getElementById('coinBalance').textContent = currentBalance - cost;
-          
-          // Redirect to viewer
           window.location.href = data.redirect_url;
         } else {
           alert('Error: ' + data.error);
           btn.disabled = false;
-          btn.innerHTML = 'Watch Replay <span class="cost-badge">(' + cost + ' coins)</span>';
+          btn.textContent = 'Watch Replay';
         }
       } catch (error) {
         alert('Error: ' + error.message);
         btn.disabled = false;
-        btn.innerHTML = 'Watch Replay <span class="cost-badge">(' + cost + ' coins)</span>';
+        btn.textContent = 'Watch Replay';
       }
     }
   </script>
