@@ -294,6 +294,39 @@
   </div>
 
   <script>
+        // Replay recording
+        var replayRecorder = {
+          frames: [],
+          recording: true,
+          frameDuration: TICK_RATE,
+          recordFrame: function() {
+            if (!this.recording) return;
+            this.frames.push({
+              gridSize: GRID_SIZE,
+              player: {
+                x: gameState.player.x,
+                y: gameState.player.y,
+                direction: gameState.player.direction,
+                alive: gameState.player.alive
+              },
+              bots: gameState.bots.map(bot => ({
+                x: bot.x,
+                y: bot.y,
+                direction: bot.direction,
+                alive: bot.alive
+              })),
+              level: gameState.level,
+              botsEliminated: gameState.botsEliminated
+            });
+          },
+          getReplayData: function() {
+            return {
+              frames: this.frames,
+              frameDuration: this.frameDuration,
+              mode: 'progressive'
+            };
+          }
+        };
     var canvas = document.getElementById('gameCanvas');
     var ctx = canvas.getContext('2d');
 
@@ -611,54 +644,46 @@
     function updateGame() {
       currentDirection = nextDirection;
       gameState.player.direction = currentDirection;
-      
       var newPlayerX = gameState.player.x;
       var newPlayerY = gameState.player.y;
-      
       if (currentDirection === 'UP') newPlayerY--;
       else if (currentDirection === 'DOWN') newPlayerY++;
       else if (currentDirection === 'LEFT') newPlayerX--;
       else if (currentDirection === 'RIGHT') newPlayerX++;
-      
       // Prevent player from moving out of bounds
       if (newPlayerX < 0 || newPlayerX >= GRID_SIZE || newPlayerY < 0 || newPlayerY >= GRID_SIZE) {
+        replayRecorder.recordFrame();
         return; // Don't move, just exit
       }
-      
       // Check for head-on collision BEFORE moving - this blocks movement
       var headOnCollision = false;
       for (var i = 0; i < gameState.bots.length; i++) {
         var bot = gameState.bots[i];
         if (!bot.alive) continue;
-
         // Only check if we're trying to move into the bot's cell
         if (newPlayerX === bot.x && newPlayerY === bot.y) {
           var dx = newPlayerX - gameState.player.x; // Direction player is moving
           var dy = newPlayerY - gameState.player.y;
-          
           // Check if bot is facing towards the player
           var botFacingPlayer = false;
           if (dx === 0 && dy === -1 && bot.direction === 'DOWN') botFacingPlayer = true; // Player moving UP, bot facing DOWN
           if (dx === 0 && dy === 1 && bot.direction === 'UP') botFacingPlayer = true;    // Player moving DOWN, bot facing UP
           if (dx === -1 && dy === 0 && bot.direction === 'RIGHT') botFacingPlayer = true; // Player moving LEFT, bot facing RIGHT
           if (dx === 1 && dy === 0 && bot.direction === 'LEFT') botFacingPlayer = true;   // Player moving RIGHT, bot facing LEFT
-
           if (botFacingPlayer) {
             headOnCollision = true;
+            replayRecorder.recordFrame();
             return; // Block movement completely
           }
         }
       }
-      
       // MOVE PLAYER FIRST
       gameState.player.x = newPlayerX;
       gameState.player.y = newPlayerY;
-      
       // Check for side/back hits on bots - IMMEDIATELY after player moves
       for (var i = 0; i < gameState.bots.length; i++) {
         var bot = gameState.bots[i];
         if (!bot.alive) continue;
-
         if (gameState.player.x === bot.x && gameState.player.y === bot.y) {
           // Player is now on bot's position - check if it's side or back
           var hitBack = false;
@@ -666,14 +691,12 @@
           if (currentDirection === 'DOWN' && bot.direction === 'DOWN') hitBack = true;
           if (currentDirection === 'LEFT' && bot.direction === 'LEFT') hitBack = true;
           if (currentDirection === 'RIGHT' && bot.direction === 'RIGHT') hitBack = true;
-
           // Check if player hits bot from side
           var hitSide = false;
           if (currentDirection === 'UP' && (bot.direction === 'LEFT' || bot.direction === 'RIGHT')) hitSide = true;
           if (currentDirection === 'DOWN' && (bot.direction === 'LEFT' || bot.direction === 'RIGHT')) hitSide = true;
           if (currentDirection === 'LEFT' && (bot.direction === 'UP' || bot.direction === 'DOWN')) hitSide = true;
           if (currentDirection === 'RIGHT' && (bot.direction === 'UP' || bot.direction === 'DOWN')) hitSide = true;
-
           if (hitBack || hitSide) {
             bot.alive = false;
             gameState.botsEliminated++;
@@ -681,24 +704,24 @@
           }
         }
       }
-      
       // Check if won
       var aliveBotsCount = gameState.bots.filter(function(b) { return b.alive; }).length;
       if (aliveBotsCount === 0) {
         gameState.won = true;
         endGame();
+        replayRecorder.recordFrame();
         return;
       }
-      
       // NOW move bots (only if they're still alive)
       botMoveCounter++;
       var shouldMoveBots = (botMoveCounter >= BOT_MOVE_EVERY);
       if (shouldMoveBots) {
         botMoveCounter = 0;
       }
-      
-      if (!shouldMoveBots) return; // Skip bot movement this tick
-      
+      if (!shouldMoveBots) {
+        replayRecorder.recordFrame();
+        return; // Skip bot movement this tick
+      }
       var botNewPositions = [];
       for (var i = 0; i < gameState.bots.length; i++) {
         var bot = gameState.bots[i];
@@ -706,30 +729,24 @@
           botNewPositions.push(null);
           continue;
         }
-        
         var botMove = calculateBotMove(bot);
         botNewPositions.push(botMove);
       }
-      
       // Apply bot movements
       for (var i = 0; i < gameState.bots.length; i++) {
         var bot = gameState.bots[i];
         if (!bot.alive || !botNewPositions[i]) continue;
-        
         var move = botNewPositions[i];
-        
         // Check if bot is moving into player position
         if (move.x === gameState.player.x && move.y === gameState.player.y) {
           // Check if this would be a head-on collision (bot facing player)
           var dx = move.x - bot.x;
           var dy = move.y - bot.y;
-          
           var isHeadOn = false;
           if (dx === 0 && dy === -1 && gameState.player.direction === 'DOWN') isHeadOn = true;
           if (dx === 0 && dy === 1 && gameState.player.direction === 'UP') isHeadOn = true;
           if (dx === -1 && dy === 0 && gameState.player.direction === 'RIGHT') isHeadOn = true;
           if (dx === 1 && dy === 0 && gameState.player.direction === 'LEFT') isHeadOn = true;
-          
           if (isHeadOn) {
             // Don't move the bot - it's blocked too
             continue;
@@ -738,26 +755,25 @@
             gameState.player.alive = false;
             gameAudio.playHit();
             endGame();
+            replayRecorder.recordFrame();
             return;
           }
         }
-        
         var collision = false;
         for (var j = 0; j < gameState.bots.length; j++) {
           if (i === j || !gameState.bots[j].alive) continue;
-          
           if (move.x === gameState.bots[j].x && move.y === gameState.bots[j].y) {
             collision = true;
             break;
           }
         }
-        
         if (!collision) {
           bot.x = move.x;
           bot.y = move.y;
           bot.direction = move.direction;
         }
       }
+      replayRecorder.recordFrame();
     }
 
     function calculateBotMove(bot) {
@@ -919,7 +935,8 @@
             finalGridState: {
               player: gameState.player,
               bots: gameState.bots
-            }
+            },
+            replayData: replayRecorder.getReplayData() // ADD THIS
           })
         });
 

@@ -21,11 +21,9 @@ class GameEngine:
         self.gridSize = gridSize
         self.speed = speed
         self.wallSpawnInterval = wallSpawnInterval
-        
         # Speed to tick rate mapping (ms)
         speedMap = {'SLOW': 200, 'MEDIUM': 150, 'FAST': 100, 'EXTREME': 75}
         self.tickRate = speedMap.get(speed, 150) / 1000
-        
         self.players = {}
         self.walls = []
         self.countdownWalls = []
@@ -33,11 +31,11 @@ class GameEngine:
         self.running = False
         self.task = None
         self.wallSpawnTask = None
-        
         self.availableColors = [
             '#5b7bff', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6',
             '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#14b8a6',
         ]
+        self.replayFrames = []  # ADD THIS
     
     def addPlayer(self, userId, username, playerColor):
         if userId in self.players:
@@ -107,73 +105,84 @@ class GameEngine:
                 if otherId == userId or not otherPlayer['alive']:
                     continue
                 
-                if otherId in newPositions:
-                    otherNewX, otherNewY = newPositions[otherId]
-                    # Head-on collision (both moving to same spot)
-                    if newX == otherNewX and newY == otherNewY:
-                        self.handleWallHit(userId)
-                        self.handleWallHit(otherId)
-                        collision = True
-                        break
-                
-                # Hit another player from side/back (moving into their current position)
-                if newX == otherPlayer['x'] and newY == otherPlayer['y']:
-                    self.handlePlayerCollision(attackerId=userId, victimId=otherId)
-                    collision = True
-                    break
-            
-            if collision:
-                # Don't update position
-                continue
-            
-            # ONLY update position if no collision occurred
-            player['x'] = newX
-            player['y'] = newY
-    
-    def handleWallHit(self, userId):
-        """Player hit wall or edge - increment hits counter"""
-        player = self.players[userId]
-        player['hits'] += 1
-        
-        # Eliminate after 50 hits
-        if player['hits'] >= 50:
-            player['alive'] = False
-    
-    def handlePlayerCollision(self, attackerId, victimId):
-        """Attacker eliminates victim and gains their score"""
-        attacker = self.players[attackerId]
-        victim = self.players[victimId]
-        
-        victim['alive'] = False
-        
-        # Gain victim's positive score (not their hits)
-        pointsGained = max(0, victim['score'])
-        attacker['score'] += pointsGained
-    
-    def spawnWall(self):
-        attempts = 0
-        while attempts < 100:
-            x = random.randint(0, self.gridSize - 1)
-            y = random.randint(0, self.gridSize - 1)
-            
-            occupied = any(w['x'] == x and w['y'] == y for w in self.walls)
-            occupied = occupied or any(w['x'] == x and w['y'] == y for w in self.countdownWalls)
-            occupied = occupied or any(p['x'] == x and p['y'] == y and p['alive'] for p in self.players.values())
-            
-            if not occupied:
-                self.countdownWalls.append({'x': x, 'y': y, 'secondsLeft': 3})
-                break
-            
-            attempts += 1
-    
-    def updateCountdownWalls(self):
-        toRemove = []
-        for wall in self.countdownWalls:
-            wall['secondsLeft'] -= 1
-            if wall['secondsLeft'] <= 0:
-                self.walls.append({'x': wall['x'], 'y': wall['y']})
-                
-                # All alive players gain +1 point
+                def tick(self):
+                    self.tickNumber += 1
+                    # ...existing code...
+                    # Calculate new positions for all players
+                    newPositions = {}
+                    for userId, player in self.players.items():
+                        if not player['alive']:
+                            continue
+                        newX, newY = player['x'], player['y']
+                        if player['direction'] == 'UP':
+                            newY -= 1
+                        elif player['direction'] == 'DOWN':
+                            newY += 1
+                        elif player['direction'] == 'LEFT':
+                            newX -= 1
+                        elif player['direction'] == 'RIGHT':
+                            newX += 1
+                        newPositions[userId] = (newX, newY)
+                    # Process each player's move
+                    for userId, (newX, newY) in newPositions.items():
+                        player = self.players[userId]
+                        # CRITICAL FIX: Check boundaries FIRST before any other collision
+                        # Grid boundaries are 0 to gridSize-1 (inclusive)
+                        if newX < 0 or newX >= self.gridSize or newY < 0 or newY >= self.gridSize:
+                            self.handleWallHit(userId)
+                            # Don't update position - player stays where they are
+                            continue
+                        # Check wall collision
+                        if any(w['x'] == newX and w['y'] == newY for w in self.walls):
+                            self.handleWallHit(userId)
+                            continue
+                        # Check player-to-player collisions
+                        collision = False
+                        for otherId, otherPlayer in self.players.items():
+                            if otherId == userId or not otherPlayer['alive']:
+                                continue
+                            if otherId in newPositions:
+                                otherNewX, otherNewY = newPositions[otherId]
+                                # Head-on collision (both moving to same spot)
+                                if newX == otherNewX and newY == otherNewY:
+                                    self.handleWallHit(userId)
+                                    self.handleWallHit(otherId)
+                                    collision = True
+                                    break
+                            # Hit another player from side/back (moving into their current position)
+                            if newX == otherPlayer['x'] and newY == otherPlayer['y']:
+                                self.handlePlayerCollision(attackerId=userId, victimId=otherId)
+                                collision = True
+                                break
+                        if collision:
+                            # Don't update position
+                            continue
+                        # ONLY update position if no collision occurred
+                        player['x'] = newX
+                        player['y'] = newY
+                    # Record frame for replay
+                    self.recordFrame()
+
+                def recordFrame(self):
+                    """Record current game state for replay"""
+                    frame = {
+                        'gridSize': self.gridSize,
+                        'players': {},
+                        'walls': [{'x': w['x'], 'y': w['y']} for w in self.walls],
+                        'countdownWalls': [{'x': w['x'], 'y': w['y'], 'secondsLeft': w['secondsLeft']} for w in self.countdownWalls],
+                    }
+                    for userId, player in self.players.items():
+                        frame['players'][str(userId)] = {
+                            'x': player['x'],
+                            'y': player['y'],
+                            'direction': player['direction'],
+                            'alive': player['alive'],
+                            'score': player['score'],
+                            'hits': player['hits'],
+                            'username': player['username'],
+                            'playerColor': player['playerColor']
+                        }
+                    self.replayFrames.append(frame)
                 for player in self.players.values():
                     if player['alive']:
                         player['score'] += 1
@@ -245,10 +254,8 @@ class GameEngine:
     async def endGame(self, winnerId, roomGroupName, handleGameOverCallback):
         self.running = False
         channel_layer = get_channel_layer()
-        
         alivePlayers = [uid for uid, p in self.players.items() if p['alive']]
         isTie = len(alivePlayers) == 0
-        
         gameOverState = {
             'type': 'gameOver',
             'winnerId': winnerId if not isTie else None,
@@ -258,10 +265,16 @@ class GameEngine:
             'finalScores': {str(uid): p['score'] for uid, p in self.players.items()},
             'finalHits': {str(uid): p['hits'] for uid, p in self.players.items()}
         }
-        
+        # Build replay data
+        replayData = {
+            'frames': self.replayFrames,
+            'frameDuration': int(self.tickRate * 1000),  # Convert to ms
+            'mode': 'multiplayer'
+        }
+        # Pass replay data to callback
+        gameOverState['replayData'] = replayData
         # Handle rewards
         await handleGameOverCallback(gameOverState)
-        
         # Broadcast game over
         await channel_layer.group_send(
             roomGroupName,
@@ -384,7 +397,22 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                 participation = MatchParticipation.objects.get(match=match, player=winner)
                 participation.coinReward = match.totalPot
                 participation.placement = 1
-                participation.save(update_fields=['coinReward', 'placement'])
+                # Save replayData if present in state
+                from django.contrib.postgres.fields import JSONField
+                import json
+                if hasattr(match, 'replayData') or 'replayData' in locals():
+                    # Try to get replayData from state if available
+                    try:
+                        import inspect
+                        frame = inspect.currentframe()
+                        while frame:
+                            if 'state' in frame.f_locals and 'replayData' in frame.f_locals['state']:
+                                participation.replayData = frame.f_locals['state']['replayData']
+                                break
+                            frame = frame.f_back
+                    except Exception:
+                        pass
+                participation.save(update_fields=['coinReward', 'placement', 'replayData'])
                 
                 Transaction.objects.create(
                     user=winner,

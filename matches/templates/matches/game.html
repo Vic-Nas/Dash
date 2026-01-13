@@ -264,6 +264,37 @@
   </div>
 
   <script>
+    // Replay recording
+    var replayRecorder = {
+      frames: [],
+      recording: true,
+      frameDuration: TICK_RATE, // 150ms
+      recordFrame: function() {
+        if (!this.recording) return;
+        this.frames.push({
+          gridSize: GRID_SIZE,
+          player: {
+            x: gameState.player.x,
+            y: gameState.player.y,
+            direction: gameState.player.direction,
+            alive: gameState.player.alive
+          },
+          walls: JSON.parse(JSON.stringify(gameState.walls)),
+          countdownWalls: JSON.parse(JSON.stringify(gameState.countdownWalls)),
+          score: gameState.currentScore,
+          wallsSurvived: gameState.wallsSurvived,
+          wallsHit: gameState.wallsHit
+        });
+      },
+      getReplayData: function() {
+        return {
+          frames: this.frames,
+          frameDuration: this.frameDuration,
+          mode: 'solo'
+        };
+      }
+    };
+
     var canvas = document.getElementById('gameCanvas');
     var ctx = canvas.getContext('2d');
 
@@ -422,43 +453,38 @@
     function updateGame() {
       currentDirection = nextDirection;
       gameState.player.direction = currentDirection;
-      
       var newX = gameState.player.x;
       var newY = gameState.player.y;
-      
       if (currentDirection === 'UP') newY--;
       else if (currentDirection === 'DOWN') newY++;
       else if (currentDirection === 'LEFT') newX--;
       else if (currentDirection === 'RIGHT') newX++;
-      
       if (newX < 0 || newX >= GRID_SIZE || newY < 0 || newY >= GRID_SIZE) {
         gameState.wallsHit++;
         gameState.currentScore--;
         gameAudio.playHit();
-        
         if (gameState.currentScore <= -50) {
           endGame();
         }
+        replayRecorder.recordFrame(); // Record frame after all updates
         return;
       }
-      
       var hitWall = gameState.walls.some(function(w) {
         return w.x === newX && w.y === newY;
       });
-      
       if (hitWall) {
         gameState.wallsHit++;
         gameState.currentScore--;
         gameAudio.playHit();
-        
         if (gameState.currentScore <= -50) {
           endGame();
         }
+        replayRecorder.recordFrame(); // Record frame after all updates
         return;
       }
-      
       gameState.player.x = newX;
       gameState.player.y = newY;
+      replayRecorder.recordFrame(); // Record frame after all updates
     }
 
     function spawnWall() {
@@ -608,7 +634,8 @@
             finalGridState: {
               walls: gameState.walls,
               score: gameState.currentScore
-            }
+            },
+            replayData: replayRecorder.getReplayData() // ADD THIS
           })
         });
 
