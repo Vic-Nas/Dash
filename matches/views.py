@@ -838,7 +838,7 @@ def replayViewer(request, replayType, replayId):
     # Check if user needs to pay for this replay
     from .models import ReplayView
     profile = request.user.profile
-    isOwner = profile.user.id == playerId
+    isOwner = request.user.id == playerId
     hasPaid = isOwner or ReplayView.objects.filter(user=profile, replay_type=replayType, replay_id=replayId, paid=True).exists()
     replayCost = SystemSettings.getInt('REPLAY_VIEW_COST', 10)
     
