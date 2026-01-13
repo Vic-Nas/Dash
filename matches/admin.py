@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import MatchType, Match, MatchParticipation, GameState, SoloRun
+from .models import MatchType, Match, MatchParticipation, GameState, SoloRun, ProgressiveRun
 
 @admin.register(MatchType)
 class MatchTypeAdmin(admin.ModelAdmin):
@@ -24,3 +24,8 @@ class GameStateAdmin(admin.ModelAdmin):
 @admin.register(SoloRun)
 class SoloRunAdmin(admin.ModelAdmin):
     list_display = ("player", "wallsSurvived", "netCoins", "startedAt", "endedAt")
+
+@admin.register(ProgressiveRun)
+class ProgressiveRunAdmin(admin.ModelAdmin):
+    list_display = ("player", "level", "won", "botsEliminated", "coinsEarned", "startedAt")
+    list_filter = ("won", "level")

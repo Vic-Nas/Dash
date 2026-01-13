@@ -90,3 +90,19 @@ class SoloRun(models.Model):
 
     def __str__(self):
         return f"SoloRun({self.player_id}, {self.startedAt})"
+
+
+class ProgressiveRun(models.Model):
+    player = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='progressiveRuns')
+    level = models.IntegerField()
+    botsEliminated = models.IntegerField(default=0)
+    won = models.BooleanField(default=False)
+    survivalTime = models.IntegerField()
+    coinsSpent = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    coinsEarned = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    finalGridState = models.JSONField(null=True, blank=True)
+    startedAt = models.DateTimeField(auto_now_add=True)
+    endedAt = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"ProgressiveRun({self.player_id}, Level {self.level})"

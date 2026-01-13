@@ -1,0 +1,860 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Progressive Mode - Dash Arena</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0d0f1a;
+      color: #e6e6e6;
+      overflow: hidden;
+    }
+    #gameContainer {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      padding: 20px;
+    }
+    #gameCanvas {
+      border: 2px solid #2a2f6b;
+      background: #121428;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+    #hud {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(18,20,40,0.9);
+      padding: 16px;
+      border-radius: 8px;
+      border: 1px solid #2a2f6b;
+      min-width: 200px;
+      display: block;
+    }
+    .stat {
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+    .stat-label {
+      color: #9ca3af;
+      margin-right: 8px;
+    }
+    .stat-value {
+      color: #fff;
+      font-weight: 600;
+    }
+    #gameOver {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(18,20,40,0.98);
+      padding: 40px;
+      border-radius: 12px;
+      border: 2px solid #2a2f6b;
+      text-align: center;
+      min-width: 400px;
+      z-index: 1000;
+    }
+    #gameOver h2 {
+      margin-bottom: 16px;
+      font-size: 28px;
+      color: #5b7bff;
+    }
+    #gameOver .result {
+      margin-bottom: 24px;
+    }
+    #gameOver .result-item {
+      margin: 8px 0;
+      font-size: 16px;
+    }
+    #gameOver button {
+      background: #2a2f6b;
+      color: #fff;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 15px;
+      margin: 0 8px;
+    }
+    #gameOver button:hover {
+      background: #3940a3;
+    }
+    #mobile-controls {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: repeat(3, 70px);
+      grid-template-rows: repeat(3, 70px);
+      gap: 8px;
+      justify-content: center;
+    }
+    #mobile-controls button {
+      font-size: 24px;
+      padding: 0;
+      border-radius: 10px;
+      border: 2px solid #2a2f6b;
+      background: rgba(42, 47, 107, 0.8);
+      color: white;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+    #mobile-controls button:active {
+      background: rgba(57, 64, 163, 0.9);
+    }
+    .btn-up { grid-column: 2; grid-row: 1; }
+    .btn-left { grid-column: 1; grid-row: 2; }
+    .btn-down { grid-column: 2; grid-row: 2; }
+    .btn-right { grid-column: 3; grid-row: 2; }
+    .btn-escape {
+      grid-column: 2;
+      grid-row: 3;
+      font-size: 14px;
+      background: rgba(239, 68, 68, 0.8);
+    }
+    .btn-escape:active {
+      background: rgba(239, 68, 68, 1);
+    }
+    #levelSelector {
+      text-align: center;
+      max-width: 800px;
+      width: 100%;
+    }
+    #levelSelector h1 {
+      font-size: 48px;
+      margin-bottom: 16px;
+      color: #5b7bff;
+    }
+    #levelGrid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+      gap: 12px;
+      margin: 32px 0;
+      max-height: 60vh;
+      overflow-y: auto;
+      padding: 20px;
+      background: rgba(18,20,40,0.5);
+      border-radius: 12px;
+    }
+    .level-btn {
+      padding: 20px;
+      background: #2a2f6b;
+      border: 2px solid #3940a3;
+      border-radius: 8px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 18px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .level-btn:hover:not(.locked) {
+      background: #3940a3;
+      transform: scale(1.05);
+    }
+    .level-btn.locked {
+      background: #1a1d2e;
+      border-color: #2a2f6b;
+      color: #6b7280;
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+    .level-btn.completed {
+      background: #10b981;
+      border-color: #059669;
+    }
+    .level-info {
+      margin-top: 24px;
+      padding: 16px;
+      background: rgba(42, 47, 107, 0.3);
+      border-radius: 8px;
+      font-size: 14px;
+      color: #9ca3af;
+    }
+    @media (max-width: 768px) {
+      #hud {
+        position: static;
+        margin-top: 10px;
+        padding: 12px;
+        min-width: 150px;
+        font-size: 12px;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-around;
+        gap: 8px;
+      }
+      .stat {
+        margin-bottom: 0;
+        font-size: 12px;
+      }
+      #gameOver {
+        min-width: 90%;
+        padding: 20px;
+      }
+      #levelGrid {
+        grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+        gap: 8px;
+      }
+      .level-btn {
+        padding: 15px;
+        font-size: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="gameContainer">
+    <canvas id="gameCanvas" width="600" height="600" style="display:none;"></canvas>
+    
+    <div id="hud" style="display:none;">
+      <div class="stat">
+        <span class="stat-label">Level:</span>
+        <span class="stat-value" id="currentLevel">1</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Bots Left:</span>
+        <span class="stat-value" id="botsLeft">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Eliminated:</span>
+        <span class="stat-value" id="botsEliminated">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Time:</span>
+        <span class="stat-value" id="time">0s</span>
+      </div>
+    </div>
+
+    <div id="mobile-controls" style="display:none;">
+      <button class="btn-up" onmousedown="pressKey('ArrowUp')" onmouseup="releaseKey('ArrowUp')" ontouchstart="pressKey('ArrowUp')" ontouchend="releaseKey('ArrowUp')">▲</button>
+      <button class="btn-left" onmousedown="pressKey('ArrowLeft')" onmouseup="releaseKey('ArrowLeft')" ontouchstart="pressKey('ArrowLeft')" ontouchend="releaseKey('ArrowLeft')">◀</button>
+      <button class="btn-down" onmousedown="pressKey('ArrowDown')" onmouseup="releaseKey('ArrowDown')" ontouchstart="pressKey('ArrowDown')" ontouchend="releaseKey('ArrowDown')">▼</button>
+      <button class="btn-right" onmousedown="pressKey('ArrowRight')" onmouseup="releaseKey('ArrowRight')" ontouchstart="pressKey('ArrowRight')" ontouchend="releaseKey('ArrowRight')">▶</button>
+      <button class="btn-escape" onclick="endGame()">ESC</button>
+    </div>
+
+    <div id="levelSelector">
+      <h1>Progressive Mode</h1>
+      <p style="color:#9ca3af;margin-bottom:16px;">Choose Your Level</p>
+      <div id="levelGrid"></div>
+      <div class="level-info">
+        <div>💰 Cost: {{ costPerAttempt }} coins per attempt</div>
+        <div>🎯 Goal: Eliminate all bots to win</div>
+        <div>💎 Reward: Level × 10 coins on victory</div>
+        <div>🔒 Unlock levels by beating previous ones</div>
+      </div>
+      <button onclick="location.href='/'" style="margin-top:20px;background:#2a2f6b;color:#fff;border:none;padding:12px 24px;border-radius:8px;cursor:pointer;">Back to Dashboard</button>
+    </div>
+  </div>
+
+  <div id="gameOver">
+    <h2 id="gameOverTitle">Game Over</h2>
+    <div class="result">
+      <div class="result-item">Level: <strong id="finalLevel">1</strong></div>
+      <div class="result-item">Bots Eliminated: <strong id="finalBotsEliminated">0</strong></div>
+      <div class="result-item">Time: <strong id="finalTime">0s</strong></div>
+      <div class="result-item" id="savingStatus" style="color:#f59e0b;margin-top:16px;">Saving...</div>
+    </div>
+    <div id="gameOverActions" style="display:none;">
+      <button onclick="backToLevelSelect()">Level Select</button>
+      <button onclick="location.href='/'">Dashboard</button>
+    </div>
+  </div>
+
+  <script>
+    var canvas = document.getElementById('gameCanvas');
+    var ctx = canvas.getContext('2d');
+
+    var MAX_LEVEL = {{ maxLevel }};
+    var COST_PER_ATTEMPT = {{ costPerAttempt }};
+    var HIGHEST_LEVEL = {{ profile.progressiveHighestLevel }};
+    var CURRENT_BALANCE = {{ profile.coins }};
+
+    var GRID_SIZE = 20;
+    var CELL_SIZE = 0;
+    var TICK_RATE = 150;
+
+    var gameState = {
+      player: null,
+      bots: [],
+      level: 1,
+      botsEliminated: 0,
+      startTime: 0,
+      gameOver: false,
+      won: false
+    };
+
+    var currentDirection = 'UP';
+    var nextDirection = 'UP';
+    var gameStarted = false;
+    var gameLoopInterval = null;
+    var botImage = null;
+    var playerImage = null;
+
+    function adjustCanvasSize() {
+      var maxWidth = window.innerWidth - 40;
+      var maxHeight = window.innerHeight - 400;
+      var size = Math.min(600, maxWidth, maxHeight);
+      
+      canvas.width = size;
+      canvas.height = size;
+      
+      if (size < 400) {
+        GRID_SIZE = 15;
+      } else if (size < 500) {
+        GRID_SIZE = 18;
+      } else {
+        GRID_SIZE = 20;
+      }
+      
+      CELL_SIZE = canvas.width / GRID_SIZE;
+    }
+
+    function createBotImage() {
+      var size = 128;
+      var img = document.createElement('canvas');
+      img.width = size;
+      img.height = size;
+      var c = img.getContext('2d');
+      
+      c.fillStyle = '#ef4444';
+      c.strokeStyle = '#fff';
+      c.lineWidth = 4;
+      c.lineJoin = 'miter';
+      c.lineCap = 'square';
+      
+      c.beginPath();
+      c.moveTo(size * 0.5, size * 0.15);
+      c.lineTo(size * 0.85, size * 0.5);
+      c.lineTo(size * 0.65, size * 0.5);
+      c.lineTo(size * 0.65, size * 0.85);
+      c.lineTo(size * 0.35, size * 0.85);
+      c.lineTo(size * 0.35, size * 0.5);
+      c.lineTo(size * 0.15, size * 0.5);
+      c.closePath();
+      c.fill();
+      c.stroke();
+      
+      return img;
+    }
+
+    function createPlayerImage() {
+      var size = 128;
+      var img = document.createElement('canvas');
+      img.width = size;
+      img.height = size;
+      var c = img.getContext('2d');
+      
+      c.fillStyle = '#5b7bff';
+      c.strokeStyle = '#fff';
+      c.lineWidth = 4;
+      c.lineJoin = 'miter';
+      c.lineCap = 'square';
+      
+      c.beginPath();
+      c.moveTo(size * 0.5, size * 0.15);
+      c.lineTo(size * 0.85, size * 0.5);
+      c.lineTo(size * 0.65, size * 0.5);
+      c.lineTo(size * 0.65, size * 0.85);
+      c.lineTo(size * 0.35, size * 0.85);
+      c.lineTo(size * 0.35, size * 0.5);
+      c.lineTo(size * 0.15, size * 0.5);
+      c.closePath();
+      c.fill();
+      c.stroke();
+      
+      return img;
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (!gameStarted || gameState.gameOver) return;
+
+      if (e.key === 'Escape') {
+        endGame();
+        return;
+      }
+
+      var key = e.key.toUpperCase();
+      if (key === 'W' || key === 'ARROWUP') {
+        nextDirection = 'UP';
+      }
+      else if (key === 'S' || key === 'ARROWDOWN') {
+        nextDirection = 'DOWN';
+      }
+      else if (key === 'A' || key === 'ARROWLEFT') {
+        nextDirection = 'LEFT';
+      }
+      else if (key === 'D' || key === 'ARROWRIGHT') {
+        nextDirection = 'RIGHT';
+      }
+    });
+
+    function initGame(level) {
+      adjustCanvasSize();
+      
+      var centerX = Math.floor(GRID_SIZE / 2);
+      var centerY = Math.floor(GRID_SIZE / 2);
+      
+      gameState.level = level;
+      gameState.player = {
+        x: centerX,
+        y: centerY,
+        direction: 'UP',
+        alive: true
+      };
+      gameState.bots = [];
+      gameState.botsEliminated = 0;
+      gameState.startTime = Date.now();
+      gameState.gameOver = false;
+      gameState.won = false;
+      
+      currentDirection = 'UP';
+      nextDirection = 'UP';
+      
+      botImage = createBotImage();
+      playerImage = createPlayerImage();
+      
+      for (var i = 0; i < level; i++) {
+        spawnBot();
+      }
+      
+      startGameLoop();
+    }
+
+    function spawnBot() {
+      var x, y;
+      var attempts = 0;
+      
+      do {
+        x = Math.floor(Math.random() * GRID_SIZE);
+        y = Math.floor(Math.random() * GRID_SIZE);
+        attempts++;
+      } while (
+        attempts < 100 &&
+        isPositionOccupied(x, y)
+      );
+      
+      if (attempts < 100) {
+        gameState.bots.push({
+          x: x,
+          y: y,
+          direction: ['UP', 'DOWN', 'LEFT', 'RIGHT'][Math.floor(Math.random() * 4)],
+          alive: true
+        });
+      }
+    }
+
+    function isPositionOccupied(x, y) {
+      if (gameState.player.x === x && gameState.player.y === y) return true;
+      return gameState.bots.some(function(bot) {
+        return bot.alive && bot.x === x && bot.y === y;
+      });
+    }
+
+    function startGameLoop() {
+      if (gameLoopInterval) clearInterval(gameLoopInterval);
+      
+      gameLoopInterval = setInterval(function() {
+        if (!gameState.gameOver) {
+          updateGame();
+          render();
+          updateHUD();
+        }
+      }, TICK_RATE);
+    }
+
+    function updateGame() {
+      currentDirection = nextDirection;
+      gameState.player.direction = currentDirection;
+      
+      var newPlayerX = gameState.player.x;
+      var newPlayerY = gameState.player.y;
+      
+      if (currentDirection === 'UP') newPlayerY--;
+      else if (currentDirection === 'DOWN') newPlayerY++;
+      else if (currentDirection === 'LEFT') newPlayerX--;
+      else if (currentDirection === 'RIGHT') newPlayerX++;
+      
+      if (newPlayerX < 0 || newPlayerX >= GRID_SIZE || newPlayerY < 0 || newPlayerY >= GRID_SIZE) {
+        gameState.player.alive = false;
+        endGame();
+        return;
+      }
+      
+      var botNewPositions = [];
+      for (var i = 0; i < gameState.bots.length; i++) {
+        var bot = gameState.bots[i];
+        if (!bot.alive) {
+          botNewPositions.push(null);
+          continue;
+        }
+        
+        var botMove = calculateBotMove(bot);
+        botNewPositions.push(botMove);
+      }
+      
+      var playerHitBot = false;
+      for (var i = 0; i < gameState.bots.length; i++) {
+        var bot = gameState.bots[i];
+        if (!bot.alive) continue;
+        
+        if (newPlayerX === bot.x && newPlayerY === bot.y) {
+          bot.alive = false;
+          gameState.botsEliminated++;
+          playerHitBot = true;
+        }
+      }
+      
+      if (!playerHitBot) {
+        gameState.player.x = newPlayerX;
+        gameState.player.y = newPlayerY;
+      }
+      
+      for (var i = 0; i < gameState.bots.length; i++) {
+        var bot = gameState.bots[i];
+        if (!bot.alive || !botNewPositions[i]) continue;
+        
+        var move = botNewPositions[i];
+        
+        if (move.x === gameState.player.x && move.y === gameState.player.y) {
+          gameState.player.alive = false;
+          endGame();
+          return;
+        }
+        
+        var collision = false;
+        for (var j = 0; j < gameState.bots.length; j++) {
+          if (i === j || !gameState.bots[j].alive) continue;
+          
+          if (move.x === gameState.bots[j].x && move.y === gameState.bots[j].y) {
+            collision = true;
+            break;
+          }
+        }
+        
+        if (!collision) {
+          bot.x = move.x;
+          bot.y = move.y;
+          bot.direction = move.direction;
+        }
+      }
+      
+      var aliveBotsCount = gameState.bots.filter(function(b) { return b.alive; }).length;
+      if (aliveBotsCount === 0) {
+        gameState.won = true;
+        endGame();
+      }
+    }
+
+    function calculateBotMove(bot) {
+      var playerX = gameState.player.x;
+      var playerY = gameState.player.y;
+      
+      var dx = playerX - bot.x;
+      var dy = playerY - bot.y;
+      var distance = Math.sqrt(dx * dx + dy * dy);
+      
+      var possibleMoves = [];
+      
+      var moves = [
+        { dx: 0, dy: -1, dir: 'UP' },
+        { dx: 0, dy: 1, dir: 'DOWN' },
+        { dx: -1, dy: 0, dir: 'LEFT' },
+        { dx: 1, dy: 0, dir: 'RIGHT' }
+      ];
+      
+      for (var i = 0; i < moves.length; i++) {
+        var m = moves[i];
+        var newX = bot.x + m.dx;
+        var newY = bot.y + m.dy;
+        
+        if (newX < 0 || newX >= GRID_SIZE || newY < 0 || newY >= GRID_SIZE) continue;
+        
+        var occupied = gameState.bots.some(function(b) {
+          return b.alive && b !== bot && b.x === newX && b.y === newY;
+        });
+        
+        if (occupied) continue;
+        
+        var newDx = playerX - newX;
+        var newDy = playerY - newY;
+        var newDistance = Math.sqrt(newDx * newDx + newDy * newDy);
+        
+        var isPlayerMove = (newX === playerX && newY === playerY);
+        
+        if (distance < 3) {
+          if (isPlayerMove) {
+            possibleMoves.push({ x: newX, y: newY, direction: m.dir, priority: 1000 });
+          } else if (newDistance > distance) {
+            possibleMoves.push({ x: newX, y: newY, direction: m.dir, priority: 100 + newDistance });
+          }
+        } else {
+          if (isPlayerMove) {
+            possibleMoves.push({ x: newX, y: newY, direction: m.dir, priority: 1000 });
+          } else if (newDistance < distance) {
+            possibleMoves.push({ x: newX, y: newY, direction: m.dir, priority: 50 - newDistance });
+          } else {
+            possibleMoves.push({ x: newX, y: newY, direction: m.dir, priority: 10 });
+          }
+        }
+      }
+      
+      if (possibleMoves.length === 0) {
+        return { x: bot.x, y: bot.y, direction: bot.direction };
+      }
+      
+      possibleMoves.sort(function(a, b) { return b.priority - a.priority; });
+      
+      return possibleMoves[0];
+    }
+
+    function render() {
+      ctx.fillStyle = '#121428';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      ctx.strokeStyle = '#23264a';
+      ctx.lineWidth = 1;
+      for (var i = 0; i <= GRID_SIZE; i++) {
+        ctx.beginPath();
+        ctx.moveTo(i * CELL_SIZE, 0);
+        ctx.lineTo(i * CELL_SIZE, canvas.height);
+        ctx.stroke();
+        
+        ctx.beginPath();
+        ctx.moveTo(0, i * CELL_SIZE);
+        ctx.lineTo(canvas.width, i * CELL_SIZE);
+        ctx.stroke();
+      }
+      
+      for (var i = 0; i < gameState.bots.length; i++) {
+        var bot = gameState.bots[i];
+        if (!bot.alive) continue;
+        
+        var bx = bot.x * CELL_SIZE + CELL_SIZE / 2;
+        var by = bot.y * CELL_SIZE + CELL_SIZE / 2;
+        
+        ctx.save();
+        ctx.translate(bx, by);
+        
+        var angle = 0;
+        if (bot.direction === 'DOWN') angle = Math.PI;
+        else if (bot.direction === 'LEFT') angle = -Math.PI / 2;
+        else if (bot.direction === 'RIGHT') angle = Math.PI / 2;
+        
+        ctx.rotate(angle);
+        
+        var drawSize = CELL_SIZE * 1.5;
+        ctx.drawImage(botImage, -drawSize/2, -drawSize/2, drawSize, drawSize);
+        
+        ctx.restore();
+      }
+      
+      if (gameState.player.alive) {
+        var px = gameState.player.x * CELL_SIZE + CELL_SIZE / 2;
+        var py = gameState.player.y * CELL_SIZE + CELL_SIZE / 2;
+        
+        ctx.save();
+        ctx.translate(px, py);
+        
+        var angle = 0;
+        if (currentDirection === 'DOWN') angle = Math.PI;
+        else if (currentDirection === 'LEFT') angle = -Math.PI / 2;
+        else if (currentDirection === 'RIGHT') angle = Math.PI / 2;
+        
+        ctx.rotate(angle);
+        
+        var drawSize = CELL_SIZE * 1.5;
+        ctx.drawImage(playerImage, -drawSize/2, -drawSize/2, drawSize, drawSize);
+        
+        ctx.restore();
+      }
+    }
+
+    function updateHUD() {
+      document.getElementById('currentLevel').textContent = gameState.level;
+      var aliveBotsCount = gameState.bots.filter(function(b) { return b.alive; }).length;
+      document.getElementById('botsLeft').textContent = aliveBotsCount;
+      document.getElementById('botsEliminated').textContent = gameState.botsEliminated;
+      
+      var elapsed = Math.floor((Date.now() - gameState.startTime) / 1000);
+      document.getElementById('time').textContent = elapsed + 's';
+    }
+
+    function getCookie(name) {
+      let value = '; ' + document.cookie;
+      let parts = value.split('; ' + name + '=');
+      if (parts.length === 2) return parts.pop().split(';').shift();
+    }
+
+    async function saveGameResults() {
+      var survivalTime = Math.floor((Date.now() - gameState.startTime) / 1000);
+      
+      try {
+        const response = await fetch('/matches/save-progressive-run/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+          },
+          body: JSON.stringify({
+            level: gameState.level,
+            botsEliminated: gameState.botsEliminated,
+            won: gameState.won,
+            survivalTime: survivalTime,
+            finalGridState: {
+              player: gameState.player,
+              bots: gameState.bots
+            }
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          var statusEl = document.getElementById('savingStatus');
+          if (data.won) {
+            statusEl.style.color = '#10b981';
+            statusEl.textContent = '✅ Victory! Earned: +' + data.coinsEarned + ' coins';
+            
+            if (data.newHighestLevel) {
+              statusEl.textContent += ' 🏆 NEW RECORD!';
+            }
+            
+            HIGHEST_LEVEL = Math.max(HIGHEST_LEVEL, gameState.level);
+          } else {
+            statusEl.style.color = '#ef4444';
+            statusEl.textContent = '💀 Defeated';
+          }
+          
+          CURRENT_BALANCE = data.newBalance;
+        } else {
+          var statusEl = document.getElementById('savingStatus');
+          statusEl.style.color = '#ef4444';
+          statusEl.textContent = '❌ Error saving: ' + (data.error || 'Unknown error');
+        }
+      } catch (error) {
+        var statusEl = document.getElementById('savingStatus');
+        statusEl.style.color = '#ef4444';
+        statusEl.textContent = '❌ Error saving: ' + error.message;
+      } finally {
+        document.getElementById('gameOverActions').style.display = 'block';
+      }
+    }
+
+    function endGame() {
+      if (gameState.gameOver) return;
+      gameState.gameOver = true;
+      
+      if (gameLoopInterval) clearInterval(gameLoopInterval);
+      
+      showGameOver();
+    }
+
+    function showGameOver() {
+      var title = gameState.won ? '🎉 Victory!' : '💀 Defeated';
+      document.getElementById('gameOverTitle').textContent = title;
+      document.getElementById('finalLevel').textContent = gameState.level;
+      document.getElementById('finalBotsEliminated').textContent = gameState.botsEliminated;
+      var elapsed = Math.floor((Date.now() - gameState.startTime) / 1000);
+      document.getElementById('finalTime').textContent = elapsed + 's';
+      
+      document.getElementById('savingStatus').style.color = '#f59e0b';
+      document.getElementById('savingStatus').textContent = 'Saving...';
+      document.getElementById('gameOverActions').style.display = 'none';
+      
+      document.getElementById('gameOver').style.display = 'block';
+      
+      saveGameResults();
+    }
+
+    function startGame(level) {
+      if (CURRENT_BALANCE < COST_PER_ATTEMPT) {
+        alert('Insufficient coins! Need ' + COST_PER_ATTEMPT + ' coins.');
+        return;
+      }
+      
+      CURRENT_BALANCE -= COST_PER_ATTEMPT;
+      
+      gameStarted = true;
+      document.getElementById('levelSelector').style.display = 'none';
+      document.getElementById('gameCanvas').style.display = 'block';
+      document.getElementById('hud').style.display = 'block';
+      document.getElementById('mobile-controls').style.display = 'grid';
+      initGame(level);
+    }
+
+    function backToLevelSelect() {
+      gameStarted = false;
+      document.getElementById('gameOver').style.display = 'none';
+      document.getElementById('gameCanvas').style.display = 'none';
+      document.getElementById('hud').style.display = 'none';
+      document.getElementById('mobile-controls').style.display = 'none';
+      document.getElementById('levelSelector').style.display = 'block';
+      
+      renderLevelGrid();
+    }
+
+function pressKey(key) {
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: key }));
+}
+
+function releaseKey(key) {
+  document.dispatchEvent(new KeyboardEvent('keyup', { key: key }));
+}
+
+function renderLevelGrid() {
+  var grid = document.getElementById('levelGrid');
+  grid.innerHTML = '';
+
+  for (var i = 1; i <= MAX_LEVEL; i++) {
+    var btn = document.createElement('button');
+    btn.className = 'level-btn';
+    btn.textContent = i;
+
+    var isCompleted = i <= HIGHEST_LEVEL;
+    var isLocked = i > HIGHEST_LEVEL + 1;
+
+    if (isCompleted) {
+      btn.classList.add('completed');
+      btn.title = 'Completed ✓';
+    } else if (isLocked) {
+      btn.classList.add('locked');
+      btn.title = 'Locked 🔒';
+    } else {
+      btn.title = 'Click to play - ' + COST_PER_ATTEMPT + ' coins';
+    }
+
+    if (!isLocked) {
+      (function(level) {
+        btn.onclick = function() {
+          startGame(level);
+        };
+      })(i);
+    }
+
+    grid.appendChild(btn);
+  }
+}
+
+window.addEventListener('resize', function() {
+  if (gameStarted && !gameState.gameOver) {
+    adjustCanvasSize();
+    render();
+  }
+});
+
+renderLevelGrid();
+  </script>
+</body>
+</html>

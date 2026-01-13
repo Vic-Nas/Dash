@@ -12,6 +12,7 @@ class Profile(models.Model):
     profilePic = models.ImageField(upload_to='dash/profiles/', null=True, blank=True)
     coins = models.DecimalField(max_digits=12, decimal_places=2, default=100)
     soloHighScore = models.IntegerField(default=0)
+    progressiveHighestLevel = models.IntegerField(default=0)
     totalWins = models.IntegerField(default=0)
     totalMatches = models.IntegerField(default=0)
     createdAt = models.DateTimeField(auto_now_add=True)
@@ -32,5 +33,3 @@ class Profile(models.Model):
 def createProfile(sender, instance, created, **kwargs):
     if created:
         Profile.objects.create(user=instance)
-
-    # isAnonymous logic fully removed; migration will handle schema cleanup

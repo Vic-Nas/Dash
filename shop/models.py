@@ -36,10 +36,17 @@ class CoinPurchase(models.Model):
 class Transaction(models.Model):
     user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='transactions')
     amount = models.DecimalField(max_digits=12, decimal_places=2)
-    transactionType = models.CharField(max_length=16, choices=[
-        ('PURCHASE','PURCHASE'), ('MATCH_ENTRY','MATCH_ENTRY'), ('MATCH_WIN','MATCH_WIN'),
-        ('SOLO_REWARD','SOLO_REWARD'), ('SOLO_PENALTY','SOLO_PENALTY'),
-        ('EXTRA_LIFE','EXTRA_LIFE'), ('REFUND','REFUND'), ('USERNAME_CHANGE','USERNAME_CHANGE')
+    transactionType = models.CharField(max_length=20, choices=[
+        ('PURCHASE','PURCHASE'), 
+        ('MATCH_ENTRY','MATCH_ENTRY'), 
+        ('MATCH_WIN','MATCH_WIN'),
+        ('SOLO_REWARD','SOLO_REWARD'), 
+        ('SOLO_PENALTY','SOLO_PENALTY'),
+        ('PROGRESSIVE_ENTRY','PROGRESSIVE_ENTRY'),
+        ('PROGRESSIVE_REWARD','PROGRESSIVE_REWARD'),
+        ('EXTRA_LIFE','EXTRA_LIFE'), 
+        ('REFUND','REFUND'), 
+        ('USERNAME_CHANGE','USERNAME_CHANGE')
     ])
     relatedMatch = models.ForeignKey('matches.Match', on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions')
     description = models.CharField(max_length=255)

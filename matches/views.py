@@ -6,8 +6,8 @@ from django.db import transaction
 from django.db.models import F
 from django.utils import timezone
 from decimal import Decimal
-from .models import MatchType, Match, MatchParticipation, SoloRun
-from shop.models import Transaction
+from .models import MatchType, Match, MatchParticipation, SoloRun, ProgressiveRun
+from shop.models import Transaction, SystemSettings
 import json
 
 
@@ -30,30 +30,25 @@ def saveSoloRun(request):
         survivalTime = int(data.get('survivalTime', 0))
         finalGridState = data.get('finalGridState')
         
-        # NEW SCORING: +1 coin per wall survived, -1 coin per hit
         coinsEarned = Decimal(str(wallsSurvived))
         coinsLost = Decimal(str(wallsHit))
         netCoins = coinsEarned - coinsLost
         
         with transaction.atomic():
-            # Lock profile
             profile = request.user.profile
             profile = type(profile).objects.select_for_update().get(pk=profile.pk)
             
             balanceBefore = profile.coins
             
-            # Update coins - balance can go negative but game ends at -50
             newBalance = profile.coins + netCoins
             profile.coins = newBalance
             
-            # Update high score if needed
             if wallsSurvived > profile.soloHighScore:
                 profile.soloHighScore = wallsSurvived
             
             profile.save(update_fields=['coins', 'soloHighScore'])
             balanceAfter = profile.coins
             
-            # Create solo run record
             soloRun = SoloRun.objects.create(
                 player=request.user,
                 wallsSurvived=wallsSurvived,
@@ -66,7 +61,6 @@ def saveSoloRun(request):
                 endedAt=timezone.now()
             )
             
-            # Create transaction records
             if coinsEarned > 0:
                 Transaction.objects.create(
                     user=request.user,
@@ -102,10 +96,109 @@ def saveSoloRun(request):
 
 
 @login_required
-def multiplayer(request):
+def progressive(request):
+    profile = request.user.profile
+    
+    maxLevel = SystemSettings.getInt('progressiveMaxLevel', 30)
+    costPerAttempt = SystemSettings.getInt('progressiveCostPerAttempt', 10)
+    
+    context = {
+        'profile': profile,
+        'maxLevel': maxLevel,
+        'costPerAttempt': costPerAttempt,
+    }
+    return render(request, 'matches/gameProgressive.html', context)
+
+
+@login_required
+@require_POST
+def saveProgressiveRun(request):
+    try:
+        data = json.loads(request.body)
+        level = int(data.get('level', 1))
+        botsEliminated = int(data.get('botsEliminated', 0))
+        won = bool(data.get('won', False))
+        survivalTime = int(data.get('survivalTime', 0))
+        finalGridState = data.get('finalGridState')
+        
+        costPerAttempt = Decimal(str(SystemSettings.getInt('progressiveCostPerAttempt', 10)))
+        
+        with transaction.atomic():
+            profile = request.user.profile
+            profile = type(profile).objects.select_for_update().get(pk=profile.pk)
+            
+            balanceBefore = profile.coins
+            
+            # Deduct entry cost
+            profile.coins = F('coins') - costPerAttempt
+            profile.save(update_fields=['coins'])
+            profile.refresh_from_db()
+            balanceAfterEntry = profile.coins
+            
+            # Create entry transaction
+            Transaction.objects.create(
+                user=request.user,
+                amount=-costPerAttempt,
+                transactionType='PROGRESSIVE_ENTRY',
+                description=f'Progressive level {level} attempt',
+                balanceBefore=balanceBefore,
+                balanceAfter=balanceAfterEntry
+            )
+            
+            coinsEarned = Decimal('0')
+            if won:
+                coinsEarned = Decimal(str(level * 10))
+                profile.coins = F('coins') + coinsEarned
+                
+                if level > profile.progressiveHighestLevel:
+                    profile.progressiveHighestLevel = level
+                
+                profile.save(update_fields=['coins', 'progressiveHighestLevel'])
+                profile.refresh_from_db()
+                balanceAfter = profile.coins
+                
+                # Create reward transaction
+                Transaction.objects.create(
+                    user=request.user,
+                    amount=coinsEarned,
+                    transactionType='PROGRESSIVE_REWARD',
+                    description=f'Progressive level {level} victory',
+                    balanceBefore=balanceAfterEntry,
+                    balanceAfter=balanceAfter
+                )
+            else:
+                balanceAfter = balanceAfterEntry
+            
+            ProgressiveRun.objects.create(
+                player=request.user,
+                level=level,
+                botsEliminated=botsEliminated,
+                won=won,
+                survivalTime=survivalTime,
+                coinsSpent=costPerAttempt,
+                coinsEarned=coinsEarned,
+                finalGridState=finalGridState,
+                endedAt=timezone.now()
+            )
+        
+        return JsonResponse({
+            'success': True,
+            'won': won,
+            'level': level,
+            'botsEliminated': botsEliminated,
+            'coinsEarned': float(coinsEarned),
+            'newBalance': float(balanceAfter),
+            'newHighestLevel': level > (profile.progressiveHighestLevel - level if won else profile.progressiveHighestLevel)
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+def matchmaking(request):
     matchTypes = MatchType.objects.filter(isActive=True)
     
-    # Add waiting player count and match info for each match type
     for mt in matchTypes:
         waitingMatch = Match.objects.filter(
             matchType=mt,
@@ -114,7 +207,6 @@ def multiplayer(request):
         mt.waitingCount = waitingMatch.currentPlayers if waitingMatch else 0
         mt.hasWaitingPlayers = mt.waitingCount > 0
     
-    # Check if ANY match has waiting players
     hasAnyWaitingPlayers = any(mt.hasWaitingPlayers for mt in matchTypes)
     
     context = {
@@ -141,7 +233,6 @@ def joinMatch(request):
         matchType = get_object_or_404(MatchType, id=matchTypeId, isActive=True)
         profile = request.user.profile
         
-        # Check if user has enough coins
         if profile.coins < matchType.entryFee:
             return JsonResponse({
                 'success': False,
@@ -149,17 +240,14 @@ def joinMatch(request):
             }, status=400)
         
         with transaction.atomic():
-            # Lock profile
             profile = type(profile).objects.select_for_update().get(pk=profile.pk)
             
-            # Find or create waiting match
             match = Match.objects.filter(
                 matchType=matchType,
                 status='WAITING'
             ).first()
             
             if not match:
-                # Create new match
                 match = Match.objects.create(
                     matchType=matchType,
                     status='WAITING',
@@ -170,7 +258,6 @@ def joinMatch(request):
                     totalPot=Decimal('0')
                 )
             
-            # Check if already in this match
             if MatchParticipation.objects.filter(match=match, player=request.user).exists():
                 return JsonResponse({
                     'success': True,
@@ -180,34 +267,29 @@ def joinMatch(request):
                     'message': 'Already in this match'
                 })
             
-            # Check if match is full
             if match.currentPlayers >= matchType.maxPlayers:
                 return JsonResponse({
                     'success': False,
                     'error': 'Match is full'
                 }, status=400)
             
-            # Deduct entry fee
             balanceBefore = profile.coins
             profile.coins = F('coins') - matchType.entryFee
             profile.save(update_fields=['coins'])
             profile.refresh_from_db()
             balanceAfter = profile.coins
             
-            # Update match pot
             match.totalPot = F('totalPot') + matchType.entryFee
             match.currentPlayers = F('currentPlayers') + 1
             match.save(update_fields=['totalPot', 'currentPlayers'])
             match.refresh_from_db()
             
-            # Create participation
             participation = MatchParticipation.objects.create(
                 match=match,
                 player=request.user,
                 entryFeePaid=matchType.entryFee
             )
             
-            # Create transaction
             Transaction.objects.create(
                 user=request.user,
                 amount=-matchType.entryFee,
@@ -218,7 +300,6 @@ def joinMatch(request):
                 balanceAfter=balanceAfter
             )
             
-            # Only auto-start when maxPlayers is reached
             shouldAutoStart = match.currentPlayers >= matchType.maxPlayers
             if shouldAutoStart:
                 match.status = 'STARTING'
@@ -247,14 +328,12 @@ def joinMatch(request):
 @login_required
 @require_POST
 def forceStart(request):
-    """Force start a match by paying for missing players"""
     try:
         data = json.loads(request.body)
         matchId = data.get('matchId')
         
         match = get_object_or_404(Match, id=matchId, status='WAITING')
         
-        # Check if user is in this match
         participation = MatchParticipation.objects.filter(
             match=match,
             player=request.user
@@ -266,14 +345,12 @@ def forceStart(request):
                 'error': 'You are not in this match'
             }, status=400)
         
-        # Check minimum player requirement
         if match.currentPlayers < match.playersRequired:
             return JsonResponse({
                 'success': False,
                 'error': f'Need at least {match.playersRequired} players to start. Currently have {match.currentPlayers}.'
             }, status=400)
         
-        # Calculate cost for missing slots up to maxPlayers
         missingPlayers = match.matchType.maxPlayers - match.currentPlayers
         
         if missingPlayers <= 0:
@@ -282,7 +359,6 @@ def forceStart(request):
                 'error': 'Match is already full'
             }, status=400)
         
-        # Calculate cost (entry fee × missing players)
         forceCost = match.matchType.entryFee * missingPlayers
         
         profile = request.user.profile
@@ -294,24 +370,20 @@ def forceStart(request):
             }, status=400)
         
         with transaction.atomic():
-            # Lock profile
             profile = type(profile).objects.select_for_update().get(pk=profile.pk)
             
-            # Deduct force cost
             balanceBefore = profile.coins
             profile.coins = F('coins') - forceCost
             profile.save(update_fields=['coins'])
             profile.refresh_from_db()
             balanceAfter = profile.coins
             
-            # Add to pot
             match.totalPot = F('totalPot') + forceCost
             match.forceStartedBy = request.user
             match.status = 'STARTING'
             match.save(update_fields=['totalPot', 'forceStartedBy', 'status'])
             match.refresh_from_db()
             
-            # Create transaction
             Transaction.objects.create(
                 user=request.user,
                 amount=-forceCost,
@@ -343,16 +415,14 @@ def forceStart(request):
 def lobby(request, matchId):
     match = get_object_or_404(Match, id=matchId)
     
-    # Check if user is in this match
     participation = MatchParticipation.objects.filter(
         match=match,
         player=request.user
     ).first()
     
     if not participation:
-        return redirect('multiplayer')
+        return redirect('matches:matchmaking')
     
-    # If match is IN_PROGRESS or STARTING, redirect to game
     if match.status in ['STARTING', 'IN_PROGRESS']:
         return render(request, 'matches/gameMultiplayer.html', {
             'match': match,
@@ -360,7 +430,6 @@ def lobby(request, matchId):
             'profile': request.user.profile,
         })
     
-    # Otherwise show lobby
     participants = match.participants.select_related('player').all()
     
     context = {
@@ -379,7 +448,6 @@ def leaveLobby(request):
         data = json.loads(request.body)
         matchId = data.get('matchId')
         
-        # Use filter().first() instead of get() to avoid exception
         match = Match.objects.filter(id=matchId).first()
         
         if not match:
@@ -388,7 +456,6 @@ def leaveLobby(request):
                 'error': 'Match not found or already deleted'
             }, status=404)
         
-        # Only allow leaving WAITING matches
         if match.status != 'WAITING':
             return JsonResponse({
                 'success': False,
@@ -407,24 +474,20 @@ def leaveLobby(request):
             }, status=400)
         
         with transaction.atomic():
-            # Lock profile
             profile = request.user.profile
             profile = type(profile).objects.select_for_update().get(pk=profile.pk)
             
-            # Refund entry fee
             balanceBefore = profile.coins
             profile.coins = F('coins') + participation.entryFeePaid
             profile.save(update_fields=['coins'])
             profile.refresh_from_db()
             balanceAfter = profile.coins
             
-            # Update match
             match.totalPot = F('totalPot') - participation.entryFeePaid
             match.currentPlayers = F('currentPlayers') - 1
             match.save(update_fields=['totalPot', 'currentPlayers'])
             match.refresh_from_db()
             
-            # Create refund transaction
             Transaction.objects.create(
                 user=request.user,
                 amount=participation.entryFeePaid,
@@ -435,10 +498,8 @@ def leaveLobby(request):
                 balanceAfter=balanceAfter
             )
             
-            # Delete participation
             participation.delete()
             
-            # If match is now empty, delete it
             if match.currentPlayers == 0:
                 match.delete()
         
@@ -462,14 +523,12 @@ def leaveLobby(request):
 @login_required
 @require_POST
 def checkAutoStart(request):
-    """Check if a match should auto-start and trigger it"""
     try:
         data = json.loads(request.body)
         matchId = data.get('matchId')
         
         match = get_object_or_404(Match, id=matchId, status='WAITING')
         
-        # Only auto-start if we have minimum players
         if match.currentPlayers >= match.playersRequired:
             match.status = 'STARTING'
             match.save(update_fields=['status'])
@@ -483,7 +542,6 @@ def checkAutoStart(request):
         
 @login_required
 def checkActivity(request):
-    """Check if any lobbies have waiting players"""
     hasActivity = Match.objects.filter(
         status='WAITING',
         currentPlayers__gt=0
