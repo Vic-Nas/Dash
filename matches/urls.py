@@ -18,5 +18,5 @@ urlpatterns = [
     # Replay browser
     path('replays/', views.browseReplays, name='browseReplays'),
     path('replays/watch/', views.watchReplay, name='watchReplay'),
-    path('replays/view/<str:replay_type>/<int:replay_id>/', views.replayViewer, name='replayViewer'),
+    path('replays/view/<str:replayType>/<int:replayId>/', views.replayViewer, name='replayViewer'),
 ]
