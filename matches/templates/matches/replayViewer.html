@@ -266,10 +266,10 @@
       </div>
       <div class="speed-control">
         <span style="color:#9ca3af;font-size:13px;">Speed:</span>
-        <button class="speed-btn" onclick="setSpeed(0.5)">0.5x</button>
-        <button class="speed-btn active" onclick="setSpeed(1)">1x</button>
-        <button class="speed-btn" onclick="setSpeed(2)">2x</button>
-        <button class="speed-btn" onclick="setSpeed(4)">4x</button>
+        <button class="speed-btn" onclick="setSpeed(0.5, this)">0.5x</button>
+        <button class="speed-btn active" onclick="setSpeed(1, this)">1x</button>
+        <button class="speed-btn" onclick="setSpeed(2, this)">2x</button>
+        <button class="speed-btn" onclick="setSpeed(4, this)">4x</button>
       </div>
     </div>
     <div id="paymentStatus" class="payment-status"></div>
@@ -450,13 +450,13 @@
       updateTimeline();
     }
     
-    function setSpeed(speed) {
+    function setSpeed(speed, btn) {
       playbackSpeed = speed;
       var buttons = document.querySelectorAll('.speed-btn');
-      buttons.forEach(function(btn) {
-        btn.classList.remove('active');
+      buttons.forEach(function(button) {
+        button.classList.remove('active');
       });
-      event.target.classList.add('active');
+      btn.classList.add('active');
     }
     
     function updateTimeline() {
