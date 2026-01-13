@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login, get_user_model, logout, update_session_auth_hash
 from django.http import JsonResponse
 from django.db import transaction
-from django.db.models import F
+from django.db.models import F, Min, Max
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from .forms import ProfilePictureForm
@@ -76,8 +76,34 @@ def dashboard(request):
     profile.lastActivityAt = timezone.now()
     profile.save(update_fields=['lastActivityAt'])
     
-    # Leaderboard - sort by solo high score, refresh from database
+    # Leaderboard - sort by solo high score (Solo)
     topPlayers = Profile.objects.filter(soloHighScore__gt=0).select_related('user').order_by('-soloHighScore')[:10]
+
+    # Leaderboard - Multiplayer: by totalWins, then totalMatches (descending), then username
+    topMultiplayer = Profile.objects.filter(totalWins__gt=0).select_related('user').order_by('-totalWins', '-totalMatches', 'user__username')[:10]
+
+    # Leaderboard - Progressive: by highest level, then best survival time (lowest), then username
+    from matches.models import ProgressiveRun
+    from django.db.models import Min
+    # Get top 10 users by highest level, then by best (lowest) survivalTime at that level
+    progressive_leaderboard = (
+        ProgressiveRun.objects.values('player__username', 'player__profile__profilePic')
+        .annotate(
+            max_level=Max('level'),
+            best_time=Min('survivalTime')
+        )
+        .order_by('-max_level', 'best_time', 'player__username')[:10]
+    )
+    # For template compatibility, build a list of dicts with username, profilePic, level, and time
+    topProgressive = [
+        {
+            'username': entry['player__username'],
+            'profilePic': entry['player__profile__profilePic'],
+            'level': entry['max_level'],
+            'time': entry['best_time'],
+        }
+        for entry in progressive_leaderboard
+    ]
     
     # Get unread message count
     unreadCount = DirectMessage.objects.filter(
@@ -95,6 +121,8 @@ def dashboard(request):
         'profile': profile,
         'matchTypes': matchTypes,
         'topPlayers': topPlayers,
+        'topMultiplayer': topMultiplayer,
+        'topProgressive': topProgressive,
         'unreadCount': unreadCount,
         'tempPassword': tempPassword,
         'willDeleteOnLogout': willDeleteOnLogout,
