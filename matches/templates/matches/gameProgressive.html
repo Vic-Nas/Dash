@@ -338,7 +338,6 @@
     var HIGHEST_LEVEL = {{ profile.progressiveHighestLevel }};
     var CURRENT_BALANCE = {{ profile.coins }};
 
-    var GRID_SIZE = 20;
     var CELL_SIZE = 0;
     var botMoveCounter = 0;
     var BOT_MOVE_EVERY = 3; 
@@ -575,6 +574,10 @@
     });
 
     function initGame(level) {
+      // Reset replay recorder for new game
+      replayRecorder.frames = [];
+      replayRecorder.recording = true;
+      
       adjustCanvasSize();
       
       var centerX = Math.floor(GRID_SIZE / 2);
