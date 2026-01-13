@@ -569,13 +569,15 @@ def browseReplays(request):
     
     replays = []
     
+    user_id = request.user.id if request.user.is_authenticated else None
+
+    # Only show replays where the user is the player/owner
     # Solo replays
     if mode in ['all', 'solo']:
         solo_runs = SoloRun.objects.filter(
-            isPublic=True,
+            player_id=user_id,
             replayData__isnull=False
         ).select_related('player').order_by('-wallsSurvived', '-endedAt')[:50]
-        
         for run in solo_runs:
             replays.append({
                 'type': 'solo',
@@ -587,15 +589,14 @@ def browseReplays(request):
                 'date': run.endedAt,
                 'time': run.survivalTime,
             })
-    
+
     # Progressive replays (only victories)
     if mode in ['all', 'progressive']:
         progressive_runs = ProgressiveRun.objects.filter(
-            isPublic=True,
+            player_id=user_id,
             replayData__isnull=False,
             won=True
         ).select_related('player').order_by('-level', '-endedAt')[:50]
-        
         for run in progressive_runs:
             replays.append({
                 'type': 'progressive',
@@ -607,15 +608,14 @@ def browseReplays(request):
                 'date': run.endedAt,
                 'time': run.survivalTime,
             })
-    
+
     # Multiplayer replays (winners only)
     if mode in ['all', 'multiplayer']:
         match_participations = MatchParticipation.objects.filter(
-            isPublic=True,
+            player_id=user_id,
             replayData__isnull=False,
             placement=1
         ).select_related('player', 'match', 'match__matchType').order_by('-match__completedAt')[:50]
-        
         for participation in match_participations:
             replays.append({
                 'type': 'multiplayer',
