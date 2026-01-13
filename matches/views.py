@@ -665,7 +665,6 @@ def watchReplay(request):
         # Get replay and check ownership
         ownerId = None
         replayExists = False
-        replayCost = SystemSettings.getInt('REPLAY_VIEW_COST', 10)
         
         if replayType == 'solo':
             run = SoloRun.objects.filter(id=replayId, replayData__isnull=False).first()
@@ -686,13 +685,12 @@ def watchReplay(request):
         if not replayExists:
             return JsonResponse({'success': False, 'error': 'Replay not found'}, status=404)
         
-        # Don't charge owner
-        if ownerId == request.user.id:
-            return JsonResponse({
-                'success': True,
-                'paid': False,
-                'message': 'Owner, no charge'
-            })
+        # Get cost based on ownership
+        isOwner = ownerId == request.user.id
+        if isOwner:
+            replayCost = SystemSettings.getInt('REPLAY_VIEW_COST_OWNER', 5)
+        else:
+            replayCost = SystemSettings.getInt('REPLAY_VIEW_COST_OTHER', 10)
 
         # Check if already paid
         from .models import ReplayView
@@ -839,8 +837,13 @@ def replayViewer(request, replayType, replayId):
     from .models import ReplayView
     profile = request.user.profile
     isOwner = request.user.id == playerId
-    hasPaid = isOwner or ReplayView.objects.filter(user=profile, replay_type=replayType, replay_id=replayId, paid=True).exists()
-    replayCost = SystemSettings.getInt('REPLAY_VIEW_COST', 10)
+    hasPaid = ReplayView.objects.filter(user=profile, replay_type=replayType, replay_id=replayId, paid=True).exists()
+    
+    # Get appropriate cost based on ownership
+    if isOwner:
+        replayCost = SystemSettings.getInt('REPLAY_VIEW_COST_OWNER', 5)
+    else:
+        replayCost = SystemSettings.getInt('REPLAY_VIEW_COST_OTHER', 10)
     
     context = {
         'replayData': json.dumps(replayData),
@@ -850,5 +853,6 @@ def replayViewer(request, replayType, replayId):
         'hasAccess': hasPaid,
         'replayId': replayId,
         'replayCost': replayCost,
+        'isOwner': isOwner,
     }
     return render(request, 'matches/replayViewer.html', context)
