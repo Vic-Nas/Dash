@@ -673,7 +673,8 @@
         var scoreSign = player.score >= 0 ? '+' : '';
         
         div.innerHTML = '<span>' + colorBadge + '<span class="player-name">' + player.username + '</span></span>' +
-          '<span class="player-score ' + scoreClass + '">' + scoreSign + player.score + '</span>';
+          '<span class="player-score ' + scoreClass + '">' + scoreSign + player.score + '</span>' +
+          '<span style="color:#9ca3af;font-size:11px;margin-left:4px;">(❌ ' + player.hits + '/50)</span>';
         
         playerList.appendChild(div);
       }
@@ -748,10 +749,22 @@
           document.getElementById('winnerText').textContent = 'Tie Game!';
 
           var potAmount = {{ match.totalPot|floatformat:0 }};
+          winnerInfoDiv.innerHTML =
+            '<div style="font-size:16px;color:#9ca3af;">Split pot among ' + data.alivePlayers.length + ' players:</div>' +
+            '<div style="margin-top:12px;font-size:24px;font-weight:700;color:#fbbf24;">💰 +' + 
+            Math.floor(potAmount / (Object.keys(gameState.players).length)) + 
+            ' coins each</div>';
         } else if (data.winnerId) {
           var winnerPlayer = gameState.players[data.winnerId];
           document.getElementById('winnerText').textContent =
             '🏆 ' + (winnerPlayer ? winnerPlayer.username : 'Unknown') + ' Wins!';
+          
+          var potAmount = {{ match.totalPot|floatformat:0 }};
+          winnerInfoDiv.innerHTML =
+            '<div style="font-size:16px;color:#9ca3af;">Winner takes all!</div>' +
+            '<div style="margin-top:12px;font-size:24px;font-weight:700;color:#fbbf24;">💰 +' + 
+            potAmount + 
+            ' coins</div>';
           winnerInfoDiv.style.display = 'block';
         }
 
