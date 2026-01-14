@@ -115,7 +115,6 @@ class GameEngine:
             newPositions[userId] = (newX, newY)
         
         # Track which collisions have been processed to avoid duplicates
-        processedHeadOns = set()
         
         # Process each player's move
         for userId, (newX, newY) in newPositions.items():
@@ -143,12 +142,9 @@ class GameEngine:
                     otherNewX, otherNewY = newPositions[otherId]
                     # Head-on collision (both moving to same spot)
                     if newX == otherNewX and newY == otherNewY:
-                        # Only process head-on collision once per pair
-                        collisionKey = tuple(sorted([userId, otherId]))
-                        if collisionKey not in processedHeadOns:
-                            self.handleWallHit(userId)
-                            self.handleWallHit(otherId)
-                            processedHeadOns.add(collisionKey)
+                        # Both get a hit and stay in place (don't update position)
+                        self.handleWallHit(userId)
+                        self.handleWallHit(otherId)
                         collision = True
                         break
                 # Hit another player from side/back (moving into their current position)
