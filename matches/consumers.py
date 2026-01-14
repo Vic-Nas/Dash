@@ -208,25 +208,25 @@ class GameEngine:
                 # Don't update position
                 continue
             
-            # Check player-to-player collist(self.players.items()):
+            # Check player-to-player collisions
+            collision = False
+            for otherId, otherPlayer in list(self.players.items()):
                 if otherId == userId or not otherPlayer['alive']:
                     continue
                 if otherId not in newPositions:
                     continue
                 otherNewX, otherNewY = newPositions[otherId]
                 # Head-on collision (both moving to same spot)
-                otherNewX, otherNewY = newPositions[otherId]
-                    # Head-on collision (both moving to same spot)
-                    if newX == otherNewX and newY == otherNewY:
-                        # Only process once per collision pair (not twice)
-                        collisionKey = tuple(sorted([userId, otherId]))
-                        if collisionKey not in processedHeadOns:
-                            # Both get a hit and stay in place (don't update position)
-                            self.handleWallHit(userId)
-                            self.handleWallHit(otherId)
-                            processedHeadOns.add(collisionKey)
-                        collision = True
-                        break
+                if newX == otherNewX and newY == otherNewY:
+                    # Only process once per collision pair (not twice)
+                    collisionKey = tuple(sorted([userId, otherId]))
+                    if collisionKey not in processedHeadOns:
+                        # Both get a hit and stay in place (don't update position)
+                        self.handleWallHit(userId)
+                        self.handleWallHit(otherId)
+                        processedHeadOns.add(collisionKey)
+                    collision = True
+                    break
                 # Hit another player from side/back (moving into their current position)
                 if newX == otherPlayer['x'] and newY == otherPlayer['y']:
                     self.handlePlayerCollision(attackerId=userId, victimId=otherId)
