@@ -60,20 +60,36 @@ class GameEngine:
             self.players[userId]['direction'] = direction
     
     def updateCountdownWalls(self):
-        """Decrement countdown walls and convert to actual walls when ready"""
         toRemove = []
         for wall in self.countdownWalls:
             wall['secondsLeft'] -= 1
             if wall['secondsLeft'] <= 0:
-                # Convert countdown wall to actual wall
-                self.walls.append({
-                    'x': wall['x'],
-                    'y': wall['y']
-                })
+                self.walls.append({'x': wall['x'], 'y': wall['y']})
+                
+                # All alive players gain +1 point
+                for player in self.players.values():
+                    if player['alive']:
+                        player['score'] += 1
+                
                 toRemove.append(wall)
         
         for wall in toRemove:
             self.countdownWalls.remove(wall)
+    
+    def spawnWall(self):
+        attempts = 0
+        while attempts < 100:
+            x = random.randint(0, self.gridSize - 1)
+            y = random.randint(0, self.gridSize - 1)
+            
+            occupied = any(w['x'] == x and w['y'] == y for w in self.walls)
+            occupied = occupied or any(w['x'] == x and w['y'] == y for w in self.countdownWalls)
+            occupied = occupied or any(p['x'] == x and p['y'] == y and p['alive'] for p in self.players.values())
+            if not occupied:
+                self.countdownWalls.append({'x': x, 'y': y, 'secondsLeft': 3})
+                break
+            
+            attempts += 1
     
     def tick(self):
         self.tickNumber += 1
@@ -142,11 +158,6 @@ class GameEngine:
         
         # Record frame for replay
         self.recordFrame()
-        
-        # Award points to all alive players
-        for player in self.players.values():
-            if player['alive']:
-                player['score'] += 1
     
     def recordFrame(self):
         """Record current game state for replay"""
@@ -173,18 +184,21 @@ class GameEngine:
         """Handle player hitting a wall or boundary"""
         if userId in self.players:
             self.players[userId]['hits'] += 1
+            
+            # Eliminate after 50 hits
             if self.players[userId]['hits'] >= 50:
                 self.players[userId]['alive'] = False
     
     def handlePlayerCollision(self, attackerId, victimId):
-        """Handle player-to-player collision"""
-        if victimId in self.players:
-            self.players[victimId]['hits'] += 1
-            if self.players[victimId]['hits'] >= 50:
-                self.players[victimId]['alive'] = False
-                # Attacker gains victim's points
-                if attackerId in self.players:
-                    self.players[attackerId]['score'] += self.players[victimId]['score']
+        """Attacker eliminates victim and gains their score"""
+        attacker = self.players[attackerId]
+        victim = self.players[victimId]
+        
+        victim['alive'] = False
+        
+        # Gain victim's positive score (not their hits)
+        pointsGained = max(0, victim['score'])
+        attacker['score'] += pointsGained
     
     def getState(self):
         return {
