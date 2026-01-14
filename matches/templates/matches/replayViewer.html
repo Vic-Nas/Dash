@@ -373,7 +373,13 @@
         var osc = audioContext.createOscillator();
         var gain = audioContext.createGain();
         osc.connect(gain);
+        
+        // Route to both speaker and recording
         gain.connect(audioContext.destination);
+        if (audioDestination) {
+          gain.connect(audioDestination);
+        }
+        
         osc.frequency.value = frequency;
         osc.type = type || 'sine';
         gain.gain.setValueAtTime(0.1, audioContext.currentTime);
@@ -735,6 +741,8 @@
     var mediaRecorder = null;
     var recordedChunks = [];
     var isRecording = false;
+    var audioContext = null;
+    var audioDestination = null;
     
     function startRecording() {
       if (isRecording) {
@@ -746,9 +754,32 @@
       }
       
       const canvas = document.getElementById('replayCanvas');
-      const stream = canvas.captureStream(30);
+      const videoStream = canvas.captureStream(60);  // 60fps for better quality
       
-      const options = { mimeType: 'video/webm;codecs=vp8,opus', videoBitsPerSecond: 2500000 };
+      // Create audio destination for capturing Web Audio API
+      if (!audioContext) {
+        try {
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          audioDestination = audioContext.createMediaStreamDestination();
+          // Reroute audio output to destination
+          const gainNode = audioContext.createGain();
+          gainNode.connect(audioDestination);
+          gainNode.connect(audioContext.destination);
+        } catch (e) {
+          console.log('Could not setup audio recording');
+        }
+      }
+      
+      // Combine video and audio streams
+      const audioTracks = audioDestination ? audioDestination.stream.getAudioTracks() : [];
+      const videoTracks = videoStream.getVideoTracks();
+      const combinedStream = new MediaStream([...videoTracks, ...audioTracks]);
+      
+      const options = { 
+        mimeType: 'video/webm;codecs=vp8,opus',
+        videoBitsPerSecond: 5000000,  // Increased bitrate
+        audioBitsPerSecond: 256000
+      };
       if (!MediaRecorder.isTypeSupported(options.mimeType)) {
         options.mimeType = 'video/webm';
       }
@@ -758,7 +789,7 @@
       
       recordedChunks = [];
       try {
-        mediaRecorder = new MediaRecorder(stream, options);
+        mediaRecorder = new MediaRecorder(combinedStream, options);
       } catch (e) {
         alert('Recording not supported on this browser');
         return;
