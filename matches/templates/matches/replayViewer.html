@@ -374,6 +374,12 @@
         var gain = audioContext.createGain();
         osc.connect(gain);
         gain.connect(audioContext.destination);
+        
+        // Also route to recording if recording
+        if (recordingAudioDestination) {
+          gain.connect(recordingAudioDestination);
+        }
+        
         osc.frequency.value = frequency;
         osc.type = type || 'sine';
         gain.gain.setValueAtTime(0.1, audioContext.currentTime);
@@ -735,8 +741,10 @@
     var mediaRecorder = null;
     var recordedChunks = [];
     var isRecording = false;
+    var recordingAudioContext = null;
+    var recordingAudioDestination = null;
     
-    async function startRecording() {
+    function startRecording() {
       if (isRecording) {
         // Stop recording
         if (mediaRecorder && mediaRecorder.state === 'recording') {
@@ -745,72 +753,77 @@
         return;
       }
       
+      // Create separate audio context for recording (independent of speaker output)
       try {
-        // Use getDisplayMedia for better quality with audio
-        const displayStream = await navigator.mediaDevices.getDisplayMedia({
-          video: {
-            cursor: 'always',
-            displaySurface: 'monitor'
-          },
-          audio: true
-        });
-        
-        const options = { 
-          mimeType: 'video/webm;codecs=vp8,opus',
-          videoBitsPerSecond: 15000000,  // 15Mbps for high quality
-          audioBitsPerSecond: 320000     // 320Kbps stereo audio
-        };
-        
-        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-          options.mimeType = 'video/webm';
+        recordingAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+        recordingAudioDestination = recordingAudioContext.createMediaStreamDestination();
+      } catch (e) {
+        alert('Audio recording not supported');
+        return;
+      }
+      
+      const canvas = document.getElementById('replayCanvas');
+      const videoStream = canvas.captureStream(60);
+      const audioStream = recordingAudioDestination.stream;
+      
+      // Combine video and audio
+      const combinedStream = new MediaStream([
+        ...videoStream.getVideoTracks(),
+        ...audioStream.getAudioTracks()
+      ]);
+      
+      const options = { 
+        mimeType: 'video/webm;codecs=vp8,opus',
+        videoBitsPerSecond: 50000000,
+        audioBitsPerSecond: 320000
+      };
+      
+      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options.mimeType = 'video/webm';
+      }
+      
+      recordedChunks = [];
+      try {
+        mediaRecorder = new MediaRecorder(combinedStream, options);
+      } catch (e) {
+        alert('Recording not supported on this browser');
+        return;
+      }
+      
+      mediaRecorder.ondataavailable = function(event) {
+        if (event.data.size > 0) {
+          recordedChunks.push(event.data);
         }
-        
+      };
+      
+      mediaRecorder.onstop = function() {
+        if (recordedChunks.length === 0) {
+          alert('No frames recorded');
+          return;
+        }
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'replay.webm';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        isRecording = false;
+        document.getElementById('recordBtn').textContent = '🔴 Record';
         recordedChunks = [];
-        mediaRecorder = new MediaRecorder(displayStream, options);
-        
-        mediaRecorder.ondataavailable = function(event) {
-          if (event.data.size > 0) {
-            recordedChunks.push(event.data);
-          }
-        };
-        
-        mediaRecorder.onstop = function() {
-          if (recordedChunks.length === 0) {
-            alert('No frames recorded');
-            return;
-          }
-          const blob = new Blob(recordedChunks, { type: 'video/webm' });
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = 'replay.webm';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          URL.revokeObjectURL(url);
-          isRecording = false;
-          document.getElementById('recordBtn').textContent = '🔴 Record';
-          recordedChunks = [];
-          
-          // Stop all tracks
-          displayStream.getTracks().forEach(track => track.stop());
-        };
-        
-        mediaRecorder.start();
-        isRecording = true;
-        document.getElementById('recordBtn').textContent = '⏹️ Stop Recording';
-        
-        // Auto-stop when user stops sharing
-        displayStream.addEventListener('inactive', function() {
-          if (isRecording && mediaRecorder) {
-            mediaRecorder.stop();
-          }
-        });
-        
-      } catch (error) {
-        if (error.name !== 'NotAllowedError') {
-          alert('Screen recording failed: ' + error.message);
-        }
+        recordingAudioContext.close();
+      };
+      
+      mediaRecorder.start();
+      isRecording = true;
+      document.getElementById('recordBtn').textContent = '⏹️ Stop Recording';
+    }
+    
+    function routeAudioToRecording(oscillator, gain) {
+      if (recordingAudioDestination) {
+        gain.connect(recordingAudioDestination);
       }
     }
     
