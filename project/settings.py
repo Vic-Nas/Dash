@@ -43,7 +43,7 @@ DEBUG = _env_bool('DJANGO_DEBUG', True)
 # Hosts and trusted origins
 domain = os.environ.get('RAILWAY_PUBLIC_DOMAIN', '').strip()
 
-ALLOWED_HOSTS = [domain] if domain else []
+ALLOWED_HOSTS = [domain, '127.0.0.1']
 
 CSRF_TRUSTED_ORIGINS = []
 if domain:
