@@ -323,7 +323,7 @@ def joinMatch(request):
                 # Add bot if matchType has bots enabled
                 if matchType.hasBot:
                     createBotParticipant(match, matchType)
-                    match.currentPlayers = F('currentPlayers') + 1
+                    match.currentPlayers += 1
                     match.save(update_fields=['currentPlayers'])
             
             if MatchParticipation.objects.filter(match=match, player=request.user).exists():
@@ -347,10 +347,9 @@ def joinMatch(request):
             profile.refresh_from_db()
             balanceAfter = profile.coins
             
-            match.totalPot = F('totalPot') + matchType.entryFee
-            match.currentPlayers = F('currentPlayers') + 1
+            match.totalPot += matchType.entryFee
+            match.currentPlayers += 1
             match.save(update_fields=['totalPot', 'currentPlayers'])
-            match.refresh_from_db()
             
             participation = MatchParticipation.objects.create(
                 match=match,
