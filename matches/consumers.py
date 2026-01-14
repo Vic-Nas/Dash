@@ -159,109 +159,182 @@ class GameEngine:
             attempts += 1
     
     def tick(self):
-        self.tickNumber += 1
-        
-        # Update bot AI
-        for userId, player in self.players.items():
-            if player['alive'] and player.get('isBot', False):
-                self.updateBotAI(userId, player)
-        
-        # Calculate new positions for all players
-        newPositions = {}
-        
-        for userId, player in self.players.items():
-            if not player['alive']:
-                continue
+        try:
+            self.tickNumber += 1
             
-            newX, newY = player['x'], player['y']
+            # STEP 1: Update bot AI
+            try:
+                for userId in list(self.players.keys()):  # Use list() to avoid dict mutation issues
+                    if userId not in self.players:
+                        continue
+                    player = self.players[userId]
+                    if player['alive'] and player.get('isBot', False):
+                        self.updateBotAI(userId, player)
+            except Exception as e:
+                print(f"[Match {self.matchId}] Error updating bot AI: {e}")
             
-            if player['direction'] == 'UP':
-                newY -= 1
-            elif player['direction'] == 'DOWN':
-                newY += 1
-            elif player['direction'] == 'LEFT':
-                newX -= 1
-            elif player['direction'] == 'RIGHT':
-                newX += 1
+            # STEP 2: Calculate new positions for all players
+            newPositions = {}
+            try:
+                for userId in list(self.players.keys()):
+                    if userId not in self.players:
+                        continue
+                    player = self.players[userId]
+                    if not player['alive']:
+                        continue
+                    
+                    x, y = player['x'], player['y']
+                    direction = player.get('direction', 'UP')
+                    
+                    if direction == 'UP':
+                        y -= 1
+                    elif direction == 'DOWN':
+                        y += 1
+                    elif direction == 'LEFT':
+                        x -= 1
+                    elif direction == 'RIGHT':
+                        x += 1
+                    
+                    newPositions[userId] = (x, y)
+            except Exception as e:
+                print(f"[Match {self.matchId}] Error calculating positions: {e}")
+                return
             
-            newPositions[userId] = (newX, newY)
+            # STEP 3: Process collisions and position updates
+            processedHeadOns = set()
+            try:
+                for userId in list(newPositions.keys()):
+                    if userId not in self.players or userId not in newPositions:
+                        continue
+                    
+                    player = self.players[userId]
+                    newX, newY = newPositions[userId]
+                    
+                    # Check boundaries
+                    if newX < 0 or newX >= self.gridSize or newY < 0 or newY >= self.gridSize:
+                        self.handleWallHit(userId)
+                        continue
+                    
+                    # Check wall collision
+                    wallHit = False
+                    for wall in self.walls:
+                        if wall['x'] == newX and wall['y'] == newY:
+                            wallHit = True
+                            break
+                    
+                    if wallHit:
+                        self.handleWallHit(userId)
+                        continue
+                    
+                    # Check player collisions
+                    collision = False
+                    
+                    # Check head-on collisions (both moving to same spot)
+                    for otherId in list(self.players.keys()):
+                        if otherId not in self.players or otherId == userId:
+                            continue
+                        if not self.players[otherId]['alive']:
+                            continue
+                        if otherId not in newPositions:
+                            continue
+                        
+                        otherX, otherY = newPositions[otherId]
+                        if newX == otherX and newY == otherY:
+                            collisionKey = tuple(sorted([userId, otherId]))
+                            if collisionKey not in processedHeadOns:
+                                self.handleWallHit(userId)
+                                self.handleWallHit(otherId)
+                                processedHeadOns.add(collisionKey)
+                            collision = True
+                            break
+                    
+                    if collision:
+                        continue
+                    
+                    # Check side/back collisions (moving into current position)
+                    for otherId in list(self.players.keys()):
+                        if otherId not in self.players or otherId == userId:
+                            continue
+                        if not self.players[otherId]['alive']:
+                            continue
+                        
+                        otherPlayer = self.players[otherId]
+                        if newX == otherPlayer['x'] and newY == otherPlayer['y']:
+                            self.handlePlayerCollision(attackerId=userId, victimId=otherId)
+                            collision = True
+                            break
+                    
+                    if collision:
+                        continue
+                    
+                    # No collision - update position
+                    if userId in self.players:
+                        self.players[userId]['x'] = newX
+                        self.players[userId]['y'] = newY
+            
+            except Exception as e:
+                print(f"[Match {self.matchId}] Error processing collisions: {e}")
+                import traceback
+                traceback.print_exc()
+                return
+            
+            # STEP 4: Record frame
+            try:
+                self.recordFrame()
+            except Exception as e:
+                print(f"[Match {self.matchId}] Error recording frame: {e}")
         
-        # Track which head-on collisions have been processed to avoid double-processing
-        processedHeadOns = set()
-        
-        # Process each player's move
-        for userId, (newX, newY) in newPositions.items():
-            player = self.players[userId]
-            
-            # CRITICAL FIX: Check boundaries FIRST before any other collision
-            # Grid boundaries are 0 to gridSize-1 (inclusive)
-            if newX < 0 or newX >= self.gridSize or newY < 0 or newY >= self.gridSize:
-                self.handleWallHit(userId)
-                # Don't update position - player stays where they are
-                continue
-            
-            # Check wall collision
-            if any(w['x'] == newX and w['y'] == newY for w in self.walls):
-                self.handleWallHit(userId)
-                # Don't update position
-                continue
-            
-            # Check player-to-player collisions
-            collision = False
-            for otherId, otherPlayer in self.players.items():
-                if otherId == userId or not otherPlayer['alive']:
-                    continue
-                
-                # HEAD-ON: Both players moving to same location
-                if otherId in newPositions:
-                    otherNewX, otherNewY = newPositions[otherId]
-                    if newX == otherNewX and newY == otherNewY:
-                        # Only process once per collision pair (not twice)
-                        collisionKey = tuple(sorted([userId, otherId]))
-                        if collisionKey not in processedHeadOns:
-                            # Both get a hit and stay in place (don't update position)
-                            self.handleWallHit(userId)
-                            self.handleWallHit(otherId)
-                            processedHeadOns.add(collisionKey)
-                        collision = True
-                        break
-                
-                # SIDE/BACK: Moving into opponent's current position
-                # Only check this if it's NOT a head-on (i.e., we haven't broken already)
-                elif newX == otherPlayer['x'] and newY == otherPlayer['y']:
-                    self.handlePlayerCollision(attackerId=userId, victimId=otherId)
-                    collision = True
-                    break
-            if collision:
-                # Don't update position
-                continue
-            # ONLY update position if no collision occurred
-            player['x'] = newX
-            player['y'] = newY
-        
-        # Record frame for replay
-        self.recordFrame()
+        except Exception as e:
+            print(f"[Match {self.matchId}] Critical error in tick: {e}")
+            import traceback
+            traceback.print_exc()
     
     def recordFrame(self):
         """Record current game state for replay"""
-        frame = {
-            'gridSize': self.gridSize,
-            'players': {},
-            'walls': [{'x': w['x'], 'y': w['y']} for w in self.walls],
-            'countdownWalls': [{'x': w['x'], 'y': w['y'], 'secondsLeft': w['secondsLeft']} for w in self.countdownWalls],
-        }
-        for userId, player in self.players.items():
-            frame['players'][str(userId)] = {
-                'x': player['x'],
-                'y': player['y'],
-                'direction': player['direction'],
-                'alive': player['alive'],
-                'score': player['score'],
-                'hits': player['hits'],
-                'username': player['username'],
-                'playerColor': player['playerColor']
+        try:
+            frame = {
+                'gridSize': self.gridSize,
+                'players': {},
+                'walls': [],
+                'countdownWalls': [],
             }
-        self.replayFrames.append(frame)
+            
+            # Safely copy walls
+            try:
+                for w in self.walls:
+                    frame['walls'].append({'x': w['x'], 'y': w['y']})
+            except Exception as e:
+                print(f"[Match {self.matchId}] Error recording walls: {e}")
+            
+            # Safely copy countdown walls
+            try:
+                for w in self.countdownWalls:
+                    frame['countdownWalls'].append({'x': w['x'], 'y': w['y'], 'secondsLeft': w['secondsLeft']})
+            except Exception as e:
+                print(f"[Match {self.matchId}] Error recording countdown walls: {e}")
+            
+            # Safely copy player data
+            for userId in list(self.players.keys()):
+                try:
+                    if userId not in self.players:
+                        continue
+                    player = self.players[userId]
+                    frame['players'][str(userId)] = {
+                        'x': player.get('x', 0),
+                        'y': player.get('y', 0),
+                        'direction': player.get('direction', 'UP'),
+                        'alive': player.get('alive', False),
+                        'score': player.get('score', 0),
+                        'hits': player.get('hits', 0),
+                        'username': player.get('username', 'Unknown'),
+                        'playerColor': player.get('playerColor', '#ffffff')
+                    }
+                except Exception as e:
+                    print(f"[Match {self.matchId}] Error recording player {userId}: {e}")
+            
+            self.replayFrames.append(frame)
+        except Exception as e:
+            print(f"[Match {self.matchId}] Critical error in recordFrame: {e}")
     
     def handleWallHit(self, userId):
         """Handle player hitting a wall or boundary"""
