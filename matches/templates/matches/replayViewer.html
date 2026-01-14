@@ -557,8 +557,19 @@
           playMoveSound();
         }
         
-        // Check for wall hit (wallsHit increased)
-        if (frame.wallsHit > prevFrame.wallsHit) {
+        // Check for player death - player is no longer alive
+        if (prevFrame.player && prevFrame.player.alive && frame.player && !frame.player.alive) {
+          playWallHitSound();
+          if (deathFrame === null) {
+            deathFrame = frameIndex;
+            deathLocation = { x: frame.player.x, y: frame.player.y };
+            explosionFrames = 0;
+            console.log('Death detected at frame', deathFrame, 'location:', deathLocation);
+          }
+        }
+        
+        // Check for wall hit in solo mode (wallsHit increased)
+        if (frame.wallsHit !== undefined && prevFrame.wallsHit !== undefined && frame.wallsHit > prevFrame.wallsHit) {
           playWallHitSound();
           if (deathFrame === null && prevFrame.player) {
             deathFrame = frameIndex;
@@ -726,18 +737,32 @@
     var isRecording = false;
     
     function startRecording() {
-      if (isRecording) return;
+      if (isRecording) {
+        // Stop recording
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+          mediaRecorder.stop();
+        }
+        return;
+      }
       
       const canvas = document.getElementById('replayCanvas');
       const stream = canvas.captureStream(30);
       
-      const options = { mimeType: 'video/webm;codecs=vp9', videoBitsPerSecond: 2500000 };
+      const options = { mimeType: 'video/webm;codecs=vp8,opus', videoBitsPerSecond: 2500000 };
       if (!MediaRecorder.isTypeSupported(options.mimeType)) {
         options.mimeType = 'video/webm';
       }
+      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options.mimeType = '';
+      }
       
       recordedChunks = [];
-      mediaRecorder = new MediaRecorder(stream, options);
+      try {
+        mediaRecorder = new MediaRecorder(stream, options);
+      } catch (e) {
+        alert('Recording not supported on this browser');
+        return;
+      }
       
       mediaRecorder.ondataavailable = function(event) {
         if (event.data.size > 0) {
@@ -746,37 +771,27 @@
       };
       
       mediaRecorder.onstop = function() {
+        if (recordedChunks.length === 0) {
+          alert('No frames recorded');
+          return;
+        }
         const blob = new Blob(recordedChunks, { type: 'video/webm' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
         link.download = 'replay.webm';
+        document.body.appendChild(link);
         link.click();
+        document.body.removeChild(link);
         URL.revokeObjectURL(url);
         isRecording = false;
         document.getElementById('recordBtn').textContent = '🔴 Record';
+        recordedChunks = [];
       };
       
       mediaRecorder.start();
       isRecording = true;
       document.getElementById('recordBtn').textContent = '⏹️ Stop Recording';
-      
-      // Auto-stop after replay ends
-      const totalFrames = replayData.frames.length;
-      const frameDuration = replayData.frames[0]?.frameDuration || 150;
-      const totalDuration = (totalFrames * frameDuration) / (1000 * playbackSpeed);
-      setTimeout(() => {
-        if (isRecording && mediaRecorder) {
-          mediaRecorder.stop();
-        }
-      }, totalDuration);
-    }
-    
-    function downloadRecording() {
-      if (isRecording) {
-        mediaRecorder.stop();
-      }
-    }
     
     // Show record button if user has access
     window.addEventListener('load', function() {
