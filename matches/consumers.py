@@ -440,33 +440,42 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
     channel_layer = get_channel_layer()
     
     try:
-        print(f"[Match {matchId}] Starting countdown")
+        print(f"[Match {matchId}] Starting 10-second countdown")
         
-        # Broadcast countdown
+        # Broadcast countdown - 10 seconds down to 1
         for i in range(10, 0, -1):
-            print(f"[Match {matchId}] Countdown: {i}")
-            await channel_layer.group_send(
-                roomGroupName,
-                {
-                    'type': 'gameState',
-                    'state': {
-                        'type': 'countdown',
-                        'seconds': i
+            try:
+                await channel_layer.group_send(
+                    roomGroupName,
+                    {
+                        'type': 'gameState',
+                        'state': {
+                            'type': 'countdown',
+                            'seconds': i
+                        }
                     }
-                }
-            )
+                )
+            except Exception as e:
+                print(f"[Match {matchId}] Failed to broadcast countdown {i}: {e}")
+            
             await asyncio.sleep(1)
         
+        print(f"[Match {matchId}] Countdown complete (10s elapsed), starting match engine")
+        
         # Update match status to IN_PROGRESS
-        print(f"[Match {matchId}] Countdown complete, starting match")
         from django.contrib.auth import get_user_model
         
         @database_sync_to_async
         def setMatchInProgress():
-            match = Match.objects.get(id=matchId)
-            match.status = 'IN_PROGRESS'
-            match.startedAt = timezone.now()
-            match.save()
+            try:
+                match = Match.objects.get(id=matchId)
+                match.status = 'IN_PROGRESS'
+                match.startedAt = timezone.now()
+                match.save()
+                print(f"[Match {matchId}] Match status updated to IN_PROGRESS")
+            except Exception as e:
+                print(f"[Match {matchId}] Failed to update match status: {e}")
+                raise
         
         @database_sync_to_async
         def handleGameOver(state):
@@ -577,10 +586,12 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                 profile.save(update_fields=['totalMatches'])
         
         await setMatchInProgress()
-        print(f"[Match {matchId}] Match status updated, starting engine")
+        print(f"[Match {matchId}] Match status updated to IN_PROGRESS, starting engine in background")
         
-        await engine.start(roomGroupName, handleGameOver)
-        print(f"[Match {matchId}] Engine started successfully")
+        # Start engine as background task - don't await it directly
+        # This allows the countdown function to complete while the game runs
+        asyncio.create_task(engine.start(roomGroupName, handleGameOver))
+        print(f"[Match {matchId}] Engine started as background task")
         
     except Exception as e:
         print(f"[Match {matchId}] ERROR in countdown: {e}")
