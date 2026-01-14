@@ -909,3 +909,192 @@ def replayViewer(request, replayType, replayId):
         'isOwner': isOwner,
     }
     return render(request, 'matches/replayViewer.html', context)
+
+
+# ============================================
+# PRIVATE LOBBY VIEWS
+# ============================================
+
+@login_required
+def privateLobbies(request):
+    """Browse user's private lobbies and create/join interface"""
+    from .models import PrivateLobby, PrivateLobbyMember
+    from datetime import timedelta
+    
+    # Get user's created lobbies
+    createdLobbies = PrivateLobby.objects.filter(creator=request.user).select_related('matchType', 'match').order_by('-createdAt')
+    
+    # Get lobbies user has joined
+    joinedLobbies = PrivateLobbyMember.objects.filter(user=request.user).select_related('lobby', 'lobby__creator', 'lobby__matchType').order_by('-joinedAt')
+    
+    # Get available match types
+    matchTypes = MatchType.objects.filter(isActive=True).order_by('displayOrder')
+    
+    # Get creation cost
+    creationCost = SystemSettings.getInt('privateLobbyCreationCost', 50)
+    
+    # Check expiry on lobbies (cleanup old ones)
+    now = timezone.now()
+    PrivateLobby.objects.filter(expiresAt__lt=now, status='WAITING').update(status='EXPIRED')
+    
+    context = {
+        'createdLobbies': createdLobbies,
+        'joinedLobbies': joinedLobbies,
+        'matchTypes': matchTypes,
+        'profile': request.user.profile,
+        'creationCost': creationCost,
+    }
+    return render(request, 'matches/privateLobbies.html', context)
+
+
+@login_required
+@require_POST
+def createPrivateLobby(request):
+    """Create a new private lobby"""
+    from .models import PrivateLobby
+    from datetime import timedelta
+    
+    try:
+        data = json.loads(request.body)
+        matchTypeId = data.get('matchTypeId')
+        
+        matchType = get_object_or_404(MatchType, id=matchTypeId, isActive=True)
+        creationCost = Decimal(str(SystemSettings.getInt('privateLobbyCreationCost', 50)))
+        
+        profile = request.user.profile
+        
+        # Check if user has enough coins
+        if profile.coins < creationCost:
+            return JsonResponse({
+                'success': False,
+                'error': f'Insufficient coins. Need {creationCost}, have {profile.coins}'
+            }, status=400)
+        
+        with transaction.atomic():
+            profile = type(profile).objects.select_for_update().get(pk=profile.pk)
+            
+            balanceBefore = profile.coins
+            profile.coins = F('coins') - creationCost
+            profile.save(update_fields=['coins'])
+            profile.refresh_from_db()
+            balanceAfter = profile.coins
+            
+            # Create private lobby (code is auto-generated in model save)
+            lobby = PrivateLobby.objects.create(
+                creator=request.user,
+                matchType=matchType,
+                status='WAITING',
+                expiresAt=timezone.now() + timedelta(hours=1)  # Expire after 1 hour
+            )
+            
+            # Add creator as first member
+            from .models import PrivateLobbyMember
+            PrivateLobbyMember.objects.create(lobby=lobby, user=request.user)
+            
+            # Record transaction
+            Transaction.objects.create(
+                user=request.user,
+                amount=-creationCost,
+                transactionType='MATCH_ENTRY',
+                description=f'Created private lobby: {matchType.name}',
+                balanceBefore=balanceBefore,
+                balanceAfter=balanceAfter
+            )
+        
+        return JsonResponse({
+            'success': True,
+            'lobbyCode': lobby.code,
+            'lobbyId': lobby.id,
+            'newBalance': float(balanceAfter),
+            'message': f'Private lobby created! Share code: {lobby.code}'
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        import traceback
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=500)
+
+
+@login_required
+@require_POST
+def joinPrivateLobby(request):
+    """Join an existing private lobby with a code"""
+    from .models import PrivateLobby, PrivateLobbyMember
+    
+    try:
+        data = json.loads(request.body)
+        code = data.get('code', '').upper().strip()
+        
+        if not code or len(code) != 6:
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid code format. Code must be 6 characters.'
+            }, status=400)
+        
+        lobby = get_object_or_404(PrivateLobby, code=code)
+        
+        # Check if lobby is still active
+        if lobby.status != 'WAITING':
+            return JsonResponse({
+                'success': False,
+                'error': f'Lobby is no longer available (status: {lobby.status})'
+            }, status=400)
+        
+        # Check if lobby has expired
+        if lobby.expiresAt < timezone.now():
+            lobby.status = 'EXPIRED'
+            lobby.save(update_fields=['status'])
+            return JsonResponse({
+                'success': False,
+                'error': 'Lobby has expired'
+            }, status=400)
+        
+        # Check if already member
+        from .models import PrivateLobbyMember
+        if PrivateLobbyMember.objects.filter(lobby=lobby, user=request.user).exists():
+            return JsonResponse({
+                'success': True,
+                'message': 'Already in this lobby',
+                'lobbyCode': lobby.code,
+                'lobbyId': lobby.id
+            })
+        
+        # Check member limit
+        memberCount = PrivateLobbyMember.objects.filter(lobby=lobby).count()
+        if memberCount >= lobby.matchType.maxPlayers:
+            return JsonResponse({
+                'success': False,
+                'error': 'Lobby is full'
+            }, status=400)
+        
+        with transaction.atomic():
+            # Add user to lobby
+            PrivateLobbyMember.objects.create(lobby=lobby, user=request.user)
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Joined lobby {code}!',
+            'lobbyCode': lobby.code,
+            'lobbyId': lobby.id,
+            'memberCount': memberCount + 1
+        })
+        
+    except PrivateLobby.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Lobby code not found'
+        }, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        import traceback
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=500)

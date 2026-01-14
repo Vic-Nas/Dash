@@ -21,4 +21,9 @@ urlpatterns = [
     path('replays/', views.browseReplays, name='browseReplays'),
     path('replays/watch/', views.watchReplay, name='watchReplay'),
     path('replays/view/<str:replayType>/<int:replayId>/', views.replayViewer, name='replayViewer'),
+    
+    # Private lobbies
+    path('private/', views.privateLobbies, name='privateLobbies'),
+    path('private/create/', views.createPrivateLobby, name='createPrivateLobby'),
+    path('private/join/', views.joinPrivateLobby, name='joinPrivateLobby'),
 ]

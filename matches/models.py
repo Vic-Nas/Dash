@@ -127,5 +127,43 @@ class ProgressiveRun(models.Model):
     startedAt = models.DateTimeField(auto_now_add=True)
     endedAt = models.DateTimeField(null=True, blank=True)
 
+
+class PrivateLobby(models.Model):
+    """Private match lobbies created by players with shareable codes"""
+    creator = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='createdPrivateLobbies')
+    code = models.CharField(max_length=6, unique=True, editable=False)
+    matchType = models.ForeignKey('matches.MatchType', on_delete=models.PROTECT, related_name='privateLobbies')
+    status = models.CharField(max_length=16, choices=[('WAITING','WAITING'),('IN_PROGRESS','IN_PROGRESS'),('COMPLETED','COMPLETED'),('EXPIRED','EXPIRED')])
+    match = models.OneToOneField('matches.Match', on_delete=models.SET_NULL, null=True, blank=True, related_name='privateLobby')
+    createdAt = models.DateTimeField(auto_now_add=True)
+    expiresAt = models.DateTimeField()
+    
+    class Meta:
+        ordering = ['-createdAt']
+    
+    def save(self, *args, **kwargs):
+        if not self.code:
+            import secrets
+            import string
+            # Generate a simple 6-character alphanumeric code
+            characters = string.ascii_uppercase + string.digits
+            self.code = ''.join(secrets.choice(characters) for _ in range(6))
+        super().save(*args, **kwargs)
+    
+    def __str__(self):
+        return f"PrivateLobby({self.code})"
+
+
+class PrivateLobbyMember(models.Model):
+    """Members of a private lobby"""
+    lobby = models.ForeignKey('matches.PrivateLobby', on_delete=models.CASCADE, related_name='members')
+    user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='privateLobbyMemberships')
+    joinedAt = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ('lobby', 'user')
+    
+    def __str__(self):
+        return f"{self.lobby.code} - {self.user.username}"
     def __str__(self):
         return f"ProgressiveRun({self.player_id}, Level {self.level})"
