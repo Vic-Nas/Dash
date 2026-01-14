@@ -58,6 +58,11 @@ class GameEngine:
             'botNextDirectionChangeAt': random.randint(5, 10),  # Bot changes direction every 5-10 ticks
         }
     
+    def removePlayer(self, userId):
+        """Remove a player from the game"""
+        if userId in self.players:
+            del self.players[userId]
+    
     def updateBotAI(self, userId, player):
         """Update bot player AI for autonomous movement"""
         player['botDirectionChangeCounter'] += 1

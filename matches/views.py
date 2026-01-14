@@ -358,6 +358,21 @@ def joinMatch(request):
                 entryFeePaid=matchType.entryFee
             )
             
+            # Remove bot if 2+ real players have joined
+            realPlayerCount = MatchParticipation.objects.filter(match=match, isBot=False).count()
+            if realPlayerCount >= 2:
+                bot = MatchParticipation.objects.filter(match=match, isBot=True).first()
+                if bot:
+                    # Remove bot from the GameEngine if it's loaded
+                    from matches.consumers import ACTIVE_GAMES
+                    if match.id in ACTIVE_GAMES:
+                        engine = ACTIVE_GAMES[match.id]
+                        engine.removePlayer(f"bot_{bot.id}")
+                    
+                    bot.delete()
+                    match.currentPlayers = F('currentPlayers') - 1
+                    match.save(update_fields=['currentPlayers'])
+                    match.refresh_from_db()
             Transaction.objects.create(
                 user=request.user,
                 amount=-matchType.entryFee,
