@@ -65,12 +65,18 @@ class GameEngine:
     
     def updateBotAI(self, userId, player):
         """Update bot player AI for autonomous movement"""
+        from shop.models import SystemSettings
+        
         player['botDirectionChangeCounter'] += 1
         
         # Time to change direction
         if player['botDirectionChangeCounter'] >= player['botNextDirectionChangeAt']:
             player['botDirectionChangeCounter'] = 0
             player['botNextDirectionChangeAt'] = random.randint(5, 10)
+            
+            # Get wall avoidance setting (0-100, where 100 = always avoid walls)
+            wallAvoidanceAccuracy = SystemSettings.getInt('botWallAvoidance', 80)
+            wallAvoidanceAccuracy = max(0, min(100, wallAvoidanceAccuracy))  # Clamp to 0-100
             
             # Check ahead for walls/boundaries and prefer to avoid them
             x, y = player['x'], player['y']
@@ -103,13 +109,14 @@ class GameEngine:
                 
                 safeDirections.append(direction)
             
-            # Pick a safe direction, or random if none are safe (rare edge case)
-            if safeDirections:
+            # Use wall avoidance setting: higher accuracy = more likely to pick safe direction
+            if safeDirections and random.randint(0, 100) < wallAvoidanceAccuracy:
                 player['direction'] = random.choice(safeDirections)
             else:
+                # Otherwise pick any random direction (could hit wall)
                 player['direction'] = random.choice(directions)
         
-        # Occasionally make a "mistake" (10% chance to ignore AI and just go random)
+        # Occasionally make a "mistake" (5% chance to ignore AI and just go random)
         if random.random() < 0.05:
             player['direction'] = random.choice(['UP', 'DOWN', 'LEFT', 'RIGHT'])
     
