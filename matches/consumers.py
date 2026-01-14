@@ -204,9 +204,10 @@ class GameEngine:
             for otherId, otherPlayer in self.players.items():
                 if otherId == userId or not otherPlayer['alive']:
                     continue
+                
+                # HEAD-ON: Both players moving to same location
                 if otherId in newPositions:
                     otherNewX, otherNewY = newPositions[otherId]
-                    # Head-on collision (both moving to same spot)
                     if newX == otherNewX and newY == otherNewY:
                         # Only process once per collision pair (not twice)
                         collisionKey = tuple(sorted([userId, otherId]))
@@ -217,8 +218,10 @@ class GameEngine:
                             processedHeadOns.add(collisionKey)
                         collision = True
                         break
-                # Hit another player from side/back (moving into their current position)
-                if newX == otherPlayer['x'] and newY == otherPlayer['y']:
+                
+                # SIDE/BACK: Moving into opponent's current position
+                # Only check this if it's NOT a head-on (i.e., we haven't broken already)
+                elif newX == otherPlayer['x'] and newY == otherPlayer['y']:
                     self.handlePlayerCollision(attackerId=userId, victimId=otherId)
                     collision = True
                     break
@@ -302,9 +305,16 @@ class GameEngine:
         channel_layer = get_channel_layer()
         
         async def gameLoop():
+            last_log_tick = 0
             while self.running:
                 try:
                     self.tick()
+                    
+                    # Log every 100 ticks to detect hangs
+                    if self.tickNumber % 100 == 0 and self.tickNumber != last_log_tick:
+                        last_log_tick = self.tickNumber
+                        print(f"[Match {self.matchId}] Tick {self.tickNumber}, Players: {sum(1 for p in self.players.values() if p['alive'])} alive")
+                    
                     state = self.getState()
                     
                     # Broadcast state
