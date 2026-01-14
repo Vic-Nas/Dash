@@ -250,6 +250,8 @@
         </button>
       {% endif %}
       <button class="control-btn" onclick="restartReplay()">🔄 Restart</button>
+      <button class="control-btn" id="recordBtn" style="display:none;" onclick="startRecording()">🔴 Record</button>
+      <button class="control-btn" id="downloadBtn" style="display:none;" onclick="downloadRecording()" title="Download as WebM video">⬇️ Download</button>
       <div class="timeline">
         <input 
           type="range" 
@@ -717,6 +719,71 @@
       
       ctx.restore();
     }
+    
+    // Recording variables
+    var mediaRecorder = null;
+    var recordedChunks = [];
+    var isRecording = false;
+    
+    function startRecording() {
+      if (isRecording) return;
+      
+      const canvas = document.getElementById('replayCanvas');
+      const stream = canvas.captureStream(30);
+      
+      const options = { mimeType: 'video/webm;codecs=vp9', videoBitsPerSecond: 2500000 };
+      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options.mimeType = 'video/webm';
+      }
+      
+      recordedChunks = [];
+      mediaRecorder = new MediaRecorder(stream, options);
+      
+      mediaRecorder.ondataavailable = function(event) {
+        if (event.data.size > 0) {
+          recordedChunks.push(event.data);
+        }
+      };
+      
+      mediaRecorder.onstop = function() {
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'replay.webm';
+        link.click();
+        URL.revokeObjectURL(url);
+        isRecording = false;
+        document.getElementById('recordBtn').textContent = '🔴 Record';
+      };
+      
+      mediaRecorder.start();
+      isRecording = true;
+      document.getElementById('recordBtn').textContent = '⏹️ Stop Recording';
+      
+      // Auto-stop after replay ends
+      const totalFrames = replayData.frames.length;
+      const frameDuration = replayData.frames[0]?.frameDuration || 150;
+      const totalDuration = (totalFrames * frameDuration) / (1000 * currentSpeed);
+      setTimeout(() => {
+        if (isRecording && mediaRecorder) {
+          mediaRecorder.stop();
+        }
+      }, totalDuration);
+    }
+    
+    function downloadRecording() {
+      if (isRecording) {
+        mediaRecorder.stop();
+      }
+    }
+    
+    // Show record button if user has access
+    window.addEventListener('load', function() {
+      if (hasAccess) {
+        document.getElementById('recordBtn').style.display = 'inline-block';
+      }
+    });
     
     window.addEventListener('resize', function() {
       adjustCanvasSize();
