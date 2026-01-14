@@ -596,7 +596,6 @@
 
         ctx.restore();
 
-        // Username above player
         var textSize = Math.max(10, CELL_SIZE * 0.4);
         ctx.fillStyle = '#fff';
         ctx.font = textSize + 'px system-ui';
@@ -608,14 +607,12 @@
           py - CELL_SIZE / 2 - textSize - 4
         );
 
-        // Score below player (larger and more prominent)
-        var scoreSize = Math.max(14, CELL_SIZE * 0.6);
-        ctx.fillStyle = player.score >= 10 ? '#fbbf24' : '#10b981';
-        ctx.font = 'bold ' + scoreSize + 'px system-ui';
+        ctx.fillStyle = player.score >= 0 ? '#10b981' : '#ef4444';
+        ctx.font = 'bold ' + textSize + 'px system-ui';
         ctx.fillText(
-          '💰 ' + player.score,
+          player.score,
           px,
-          py + CELL_SIZE / 2 + scoreSize + 2
+          py - CELL_SIZE / 2 - 2
         );
       }
 
