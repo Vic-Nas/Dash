@@ -370,9 +370,8 @@ def joinMatch(request):
                         engine.removePlayer(f"bot_{bot.id}")
                     
                     bot.delete()
-                    match.currentPlayers = F('currentPlayers') - 1
+                    match.currentPlayers = match.currentPlayers - 1 if match.currentPlayers else 0
                     match.save(update_fields=['currentPlayers'])
-                    match.refresh_from_db()
             Transaction.objects.create(
                 user=request.user,
                 amount=-matchType.entryFee,

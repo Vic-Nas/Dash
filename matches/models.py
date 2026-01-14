@@ -70,7 +70,9 @@ class MatchParticipation(models.Model):
     isPublic = models.BooleanField(default=True)
 
     class Meta:
-        unique_together = ('match', 'player')
+        constraints = [
+            models.UniqueConstraint(fields=['match', 'player'], condition=models.Q(player__isnull=False), name='unique_real_player_per_match'),
+        ]
 
     def __str__(self):
         player_id = f"Bot_{self.username}" if self.isBot else self.player_id
