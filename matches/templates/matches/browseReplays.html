@@ -209,10 +209,14 @@
     
     <div class="header">
       <div class="filters">
-        <a href="?mode=all" class="filter-btn {% if mode == 'all' %}active{% endif %}">All</a>
-        <a href="?mode=solo" class="filter-btn {% if mode == 'solo' %}active{% endif %}">Solo</a>
-        <a href="?mode=progressive" class="filter-btn {% if mode == 'progressive' %}active{% endif %}">Progressive</a>
-        <a href="?mode=multiplayer" class="filter-btn {% if mode == 'multiplayer' %}active{% endif %}">Multiplayer</a>
+        <a href="?mode=all&losses=all" class="filter-btn {% if mode == 'all' %}active{% endif %}">All</a>
+        <a href="?mode=solo&losses={{ losses }}" class="filter-btn {% if mode == 'solo' %}active{% endif %}">Solo</a>
+        <a href="?mode=progressive&losses={{ losses }}" class="filter-btn {% if mode == 'progressive' %}active{% endif %}">Progressive</a>
+        <a href="?mode=multiplayer&losses={{ losses }}" class="filter-btn {% if mode == 'multiplayer' %}active{% endif %}">Multiplayer</a>
+        <span style="border-left:1px solid #3940a3;height:24px;margin:0 4px;"></span>
+        <a href="?mode={{ mode }}&losses=all" class="filter-btn {% if losses == 'all' %}active{% endif %}">All Results</a>
+        <a href="?mode={{ mode }}&losses=wins" class="filter-btn {% if losses == 'wins' %}active{% endif %}">✅ Wins</a>
+        <a href="?mode={{ mode }}&losses=losses" class="filter-btn {% if losses == 'losses' %}active{% endif %}">💀 Losses</a>
       </div>
       <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
         <div class="balance-display">

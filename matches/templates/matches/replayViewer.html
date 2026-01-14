@@ -764,7 +764,7 @@
       // Auto-stop after replay ends
       const totalFrames = replayData.frames.length;
       const frameDuration = replayData.frames[0]?.frameDuration || 150;
-      const totalDuration = (totalFrames * frameDuration) / (1000 * currentSpeed);
+      const totalDuration = (totalFrames * frameDuration) / (1000 * playbackSpeed);
       setTimeout(() => {
         if (isRecording && mediaRecorder) {
           mediaRecorder.stop();

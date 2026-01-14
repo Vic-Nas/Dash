@@ -597,6 +597,7 @@ def checkActivity(request):
 def browseReplays(request):
     """Browse public replays with filtering and pagination"""
     mode = request.GET.get('mode', 'all')
+    showLosses = request.GET.get('losses', 'all')  # 'all', 'wins', 'losses'
     page = request.GET.get('page', 1)
     
     replays = []
@@ -622,11 +623,20 @@ def browseReplays(request):
                 'time': run.survivalTime,
             })
 
-    # Progressive replays (all runs)
+    # Progressive replays (all runs, unless filtered)
     if mode in ['all', 'progressive']:
+        filters = {
+            'player_id': user_id,
+            'replayData__isnull': False
+        }
+        
+        if showLosses == 'wins':
+            filters['won'] = True
+        elif showLosses == 'losses':
+            filters['won'] = False
+        
         progressive_runs = ProgressiveRun.objects.filter(
-            player_id=user_id,
-            replayData__isnull=False
+            **filters
         ).select_related('player').order_by('-level', '-endedAt')[:50]
         for run in progressive_runs:
             replays.append({
@@ -671,6 +681,7 @@ def browseReplays(request):
     context = {
         'replays': page_obj,
         'mode': mode,
+        'losses': showLosses,
         'profile': request.user.profile,
         'own_replay_cost': SystemSettings.getInt('replayViewCostOwn', 0),
         'other_replay_cost': SystemSettings.getInt('replayViewCostOther', 50),
