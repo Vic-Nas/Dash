@@ -610,7 +610,9 @@ def checkAutoStart(request):
         
         match = get_object_or_404(Match, id=matchId, status='WAITING')
         
-        if match.currentPlayers >= match.playersRequired:
+        # Only auto-start if we have enough real players (bots don't count for auto-start)
+        realPlayerCount = MatchParticipation.objects.filter(match=match, isBot=False).count()
+        if realPlayerCount >= match.playersRequired:
             match.status = 'STARTING'
             match.save(update_fields=['status'])
             return JsonResponse({'success': True, 'started': True})
