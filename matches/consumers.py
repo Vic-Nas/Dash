@@ -212,6 +212,7 @@ class GameEngine:
     
     def checkGameOver(self):
         alive = [uid for uid, p in self.players.items() if p['alive']]
+        # Game ends when 1 or fewer players remain
         if len(alive) <= 1:
             return alive[0] if alive else None
         return None
@@ -237,6 +238,12 @@ class GameEngine:
                 winnerId = self.checkGameOver()
                 if winnerId is not None:
                     await self.endGame(winnerId, roomGroupName, handleGameOverCallback)
+                    break
+                
+                # Also check if game is over due to tie (everyone dead)
+                aliveCount = sum(1 for p in self.players.values() if p['alive'])
+                if aliveCount == 0:
+                    await self.endGame(None, roomGroupName, handleGameOverCallback)
                     break
                 
                 await asyncio.sleep(self.tickRate)
