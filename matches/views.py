@@ -155,8 +155,6 @@ def saveProgressiveRun(request):
         finalGridState = data.get('finalGridState')
         replayData = data.get('replayData')
         
-        print(f"DEBUG: Saving progressive run - level={level}, won={won}, botsEliminated={botsEliminated}")
-        
         costPerAttempt = Decimal(str(SystemSettings.getInt('progressiveCostPerAttempt', 10)))
         
         with transaction.atomic():
@@ -624,12 +622,11 @@ def browseReplays(request):
                 'time': run.survivalTime,
             })
 
-    # Progressive replays (only victories)
+    # Progressive replays (all runs)
     if mode in ['all', 'progressive']:
         progressive_runs = ProgressiveRun.objects.filter(
             player_id=user_id,
-            replayData__isnull=False,
-            won=True
+            replayData__isnull=False
         ).select_related('player').order_by('-level', '-endedAt')[:50]
         for run in progressive_runs:
             replays.append({
