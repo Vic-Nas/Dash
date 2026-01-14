@@ -769,34 +769,6 @@
         showGameOverDialog();
       }
     }
-        var playerCount = Object.keys(gameState.players).length;
-        var splitAmount = Math.floor(potAmount / playerCount);
-
-        winnerInfoDiv.innerHTML =
-          '<strong style="color:#f59e0b;">Everyone died!</strong><br>' +
-          '<div style="margin-top:12px;font-size:20px;">💰 +' +
-          splitAmount +
-          ' coins each</div>' +
-          '<div style="font-size:13px;color:#9ca3af;margin-top:4px;">Pot split ' +
-          playerCount +
-          ' ways</div>';
-      } else if (data.winnerUsername) {
-        document.getElementById('winnerText').textContent = '🏆 Winner!';
-
-        var potAmount = {{ match.totalPot|floatformat:0 }};
-
-        winnerInfoDiv.innerHTML =
-          '<strong style="color:#10b981;font-size:20px;">' +
-          data.winnerUsername +
-          '</strong><br>' +
-          '<div style="margin-top:16px;font-size:32px;font-weight:700;color:#fbbf24;">💰 +' +
-          potAmount +
-          ' coins</div>' +
-          '<div style="font-size:14px;color:#9ca3af;margin-top:8px;">Winner takes all!</div>';
-      } else {
-        document.getElementById('winnerText').textContent = 'Game Over';
-        winnerInfoDiv.innerHTML = 'Match ended.';
-      }
 
       document.getElementById('gameOver').style.display = 'block';
     }
