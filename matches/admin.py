@@ -3,9 +3,15 @@ from .models import MatchType, Match, MatchParticipation, GameState, SoloRun, Pr
 
 @admin.register(MatchType)
 class MatchTypeAdmin(admin.ModelAdmin):
-    list_display = ("name", "entryFee", "gridSize", "speed", "playersRequired", "isActive")
-    list_filter = ("isActive", "speed")
+    list_display = ("name", "entryFee", "gridSize", "speed", "playersRequired", "hasBot", "isActive")
+    list_filter = ("isActive", "speed", "hasBot")
     search_fields = ("name",)
+    fieldsets = (
+        ("Basic Info", {'fields': ('name', 'description', 'isActive', 'displayOrder')}),
+        ("Game Settings", {'fields': ('gridSize', 'speed', 'wallSpawnInterval')}),
+        ("Player Settings", {'fields': ('playersRequired', 'maxPlayers', 'entryFee')}),
+        ("Bot Settings", {'fields': ('hasBot',)}),
+    )
 
 @admin.register(Match)
 class MatchAdmin(admin.ModelAdmin):
@@ -14,8 +20,16 @@ class MatchAdmin(admin.ModelAdmin):
 
 @admin.register(MatchParticipation)
 class MatchParticipationAdmin(admin.ModelAdmin):
-    list_display = ("match", "player", "entryFeePaid", "placement")
-    list_filter = ("placement",)
+    list_display = ("match", "get_player", "get_username", "entryFeePaid", "placement", "isBot")
+    list_filter = ("placement", "isBot")
+    
+    def get_player(self, obj):
+        return obj.player.username if obj.player else "—"
+    get_player.short_description = "Player"
+    
+    def get_username(self, obj):
+        return obj.username if obj.isBot else (obj.player.username if obj.player else "—")
+    get_username.short_description = "Username"
 
 @admin.register(GameState)
 class GameStateAdmin(admin.ModelAdmin):

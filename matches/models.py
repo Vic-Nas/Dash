@@ -24,6 +24,7 @@ class MatchType(models.Model):
     wallSpawnInterval = models.IntegerField(default=5)
     isActive = models.BooleanField(default=True)
     displayOrder = models.IntegerField(default=0)
+    hasBot = models.BooleanField(default=True, help_text="Automatically add 1 bot to the lobby")
     createdAt = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -54,23 +55,28 @@ class Match(models.Model):
 
 class MatchParticipation(models.Model):
     match = models.ForeignKey('matches.Match', on_delete=models.CASCADE, related_name='participants')
-    player = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='matchParticipations')
+    player = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='matchParticipations', null=True, blank=True)
+    username = models.CharField(max_length=100, null=True, blank=True, help_text="Username for bot players")
     entryFeePaid = models.DecimalField(max_digits=12, decimal_places=2)
     placement = models.IntegerField(null=True, blank=True)
     wallsHit = models.IntegerField(default=0)
     botsEliminated = models.IntegerField(default=0)
     survivalTime = models.IntegerField(null=True, blank=True)
     coinReward = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    isBot = models.BooleanField(default=False, help_text="Is this a bot player")
     joinedAt = models.DateTimeField(auto_now_add=True)
     eliminatedAt = models.DateTimeField(null=True, blank=True)
     replayData = models.JSONField(null=True, blank=True)
     isPublic = models.BooleanField(default=True)
 
     class Meta:
-        unique_together = ('match', 'player')
+        constraints = [
+            models.UniqueConstraint(fields=['match', 'player'], condition=models.Q(player__isnull=False), name='unique_real_player_per_match'),
+        ]
 
     def __str__(self):
-        return f"MatchParticipation({self.match_id}, {self.player_id})"
+        player_id = f"Bot_{self.username}" if self.isBot else self.player_id
+        return f"MatchParticipation({self.match_id}, {player_id})"
 
 
 class GameState(models.Model):

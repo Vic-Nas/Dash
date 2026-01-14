@@ -10,6 +10,27 @@ from decimal import Decimal
 from .models import MatchType, Match, MatchParticipation, SoloRun, ProgressiveRun
 from shop.models import Transaction, SystemSettings
 import json
+import random
+
+
+# Bot names for realistic appearance
+BOT_NAMES = [
+    'Alex_92', 'Shadow', 'NoobMaster', 'ProGamer_88', 'Viper', 'Phoenix',
+    'Storm', 'Blaze', 'Echo', 'Nexus', 'Titan', 'Specter', 'Razor',
+    'Cyber_', 'Void', 'Nova', 'Apex', 'Hunter'
+]
+
+
+def createBotParticipant(match, matchType):
+    """Create a bot participant for the match"""
+    botName = random.choice(BOT_NAMES)
+    MatchParticipation.objects.create(
+        match=match,
+        player=None,
+        username=botName,
+        entryFeePaid=matchType.entryFee,
+        isBot=True
+    )
 
 
 def enforceReplayLimit():
@@ -243,6 +264,23 @@ def matchmaking(request):
             matchType=mt,
             status='WAITING'
         ).first()
+        
+        # If no waiting match and this match type has bots, create one with a bot
+        if not waitingMatch and mt.hasBot:
+            waitingMatch = Match.objects.create(
+                matchType=mt,
+                status='WAITING',
+                gridSize=mt.gridSize,
+                speed=mt.speed,
+                playersRequired=mt.playersRequired,
+                currentPlayers=1,
+                totalPot=Decimal('0')
+            )
+            # Add bot to the new match
+            createBotParticipant(waitingMatch, mt)
+            waitingMatch.currentPlayers = 1
+            waitingMatch.save(update_fields=['currentPlayers'])
+        
         mt.waitingCount = waitingMatch.currentPlayers if waitingMatch else 0
         mt.hasWaitingPlayers = mt.waitingCount > 0
     
@@ -286,6 +324,7 @@ def joinMatch(request):
                 status='WAITING'
             ).first()
             
+            isNewMatch = False
             if not match:
                 match = Match.objects.create(
                     matchType=matchType,
@@ -296,6 +335,13 @@ def joinMatch(request):
                     currentPlayers=0,
                     totalPot=Decimal('0')
                 )
+                isNewMatch = True
+                
+                # Add bot if matchType has bots enabled
+                if matchType.hasBot:
+                    createBotParticipant(match, matchType)
+                    match.currentPlayers += 1
+                    match.save(update_fields=['currentPlayers'])
             
             if MatchParticipation.objects.filter(match=match, player=request.user).exists():
                 return JsonResponse({
@@ -318,10 +364,9 @@ def joinMatch(request):
             profile.refresh_from_db()
             balanceAfter = profile.coins
             
-            match.totalPot = F('totalPot') + matchType.entryFee
-            match.currentPlayers = F('currentPlayers') + 1
+            match.totalPot += matchType.entryFee
+            match.currentPlayers += 1
             match.save(update_fields=['totalPot', 'currentPlayers'])
-            match.refresh_from_db()
             
             participation = MatchParticipation.objects.create(
                 match=match,
@@ -329,6 +374,20 @@ def joinMatch(request):
                 entryFeePaid=matchType.entryFee
             )
             
+            # Remove bot if 2+ real players have joined
+            realPlayerCount = MatchParticipation.objects.filter(match=match, isBot=False).count()
+            if realPlayerCount >= 2:
+                bot = MatchParticipation.objects.filter(match=match, isBot=True).first()
+                if bot:
+                    # Remove bot from the GameEngine if it's loaded
+                    from matches.consumers import ACTIVE_GAMES
+                    if match.id in ACTIVE_GAMES:
+                        engine = ACTIVE_GAMES[match.id]
+                        engine.removePlayer(f"bot_{bot.id}")
+                    
+                    bot.delete()
+                    match.currentPlayers = match.currentPlayers - 1 if match.currentPlayers else 0
+                    match.save(update_fields=['currentPlayers'])
             Transaction.objects.create(
                 user=request.user,
                 amount=-matchType.entryFee,
@@ -568,7 +627,9 @@ def checkAutoStart(request):
         
         match = get_object_or_404(Match, id=matchId, status='WAITING')
         
-        if match.currentPlayers >= match.playersRequired:
+        # Only auto-start if we have enough real players (bots don't count for auto-start)
+        realPlayerCount = MatchParticipation.objects.filter(match=match, isBot=False).count()
+        if realPlayerCount >= match.playersRequired:
             match.status = 'STARTING'
             match.save(update_fields=['status'])
             return JsonResponse({'success': True, 'started': True})
@@ -651,12 +712,11 @@ def browseReplays(request):
                 'won': run.won,
             })
 
-    # Multiplayer replays (winners only)
+    # Multiplayer replays (all participants with replay data)
     if mode in ['all', 'multiplayer']:
         match_participations = MatchParticipation.objects.filter(
             player_id=user_id,
-            replayData__isnull=False,
-            placement=1
+            replayData__isnull=False
         ).select_related('player', 'match', 'match__matchType').order_by('-match__completedAt')[:50]
         for participation in match_participations:
             replays.append({
@@ -664,11 +724,12 @@ def browseReplays(request):
                 'id': participation.id,
                 'player': participation.player.username,
                 'player_id': participation.player.id,
-                'score': int(participation.coinReward),
-                'score_label': f'{int(participation.coinReward)} coins won',
+                'score': int(participation.coinReward) if participation.coinReward else 0,
+                'score_label': f'{int(participation.coinReward) if participation.coinReward else 0} coins won',
                 'date': participation.match.completedAt,
                 'time': participation.survivalTime or 0,
                 'match_type': participation.match.matchType.name,
+                'placement': participation.placement,
             })
     
     # Sort by date (most recent first)
