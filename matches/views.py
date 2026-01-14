@@ -46,17 +46,18 @@ def enforceReplayLimit():
         # Delete oldest solo replays first
         replayToDelete = totalReplays - maxReplays
         
-        oldestSolo = SoloRun.objects.filter(replayData__isnull=False).order_by('endedAt')[:replayToDelete]
-        deleteCount = oldestSolo.count()
+        # Get IDs of oldest solo replays without using limit
+        oldestSoloIds = list(SoloRun.objects.filter(replayData__isnull=False).order_by('endedAt').values_list('id', flat=True)[:replayToDelete])
+        deleteCount = len(oldestSoloIds)
         
         if deleteCount > 0:
-            oldestSolo.delete()
+            SoloRun.objects.filter(id__in=oldestSoloIds).delete()
             replayToDelete -= deleteCount
         
         # If we still need to delete more, delete from progressive
         if replayToDelete > 0:
-            oldestProgressive = ProgressiveRun.objects.filter(replayData__isnull=False).order_by('endedAt')[:replayToDelete]
-            oldestProgressive.delete()
+            oldestProgressiveIds = list(ProgressiveRun.objects.filter(replayData__isnull=False).order_by('endedAt').values_list('id', flat=True)[:replayToDelete])
+            ProgressiveRun.objects.filter(id__in=oldestProgressiveIds).delete()
 
 
 @login_required
