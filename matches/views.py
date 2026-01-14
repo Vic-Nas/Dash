@@ -638,6 +638,7 @@ def browseReplays(request):
                 'score_label': f'Level {run.level}',
                 'date': run.endedAt,
                 'time': run.survivalTime,
+                'won': run.won,
             })
 
     # Multiplayer replays (winners only)

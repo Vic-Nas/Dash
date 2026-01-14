@@ -382,11 +382,15 @@
     }
     
     function playMoveSound() {
-      playSound(600, 0.05, 'sine');
+      playSound(400, 0.05, 'square');
     }
     
     function playWallHitSound() {
-      playSound(200, 0.15, 'square');
+      playSound(150, 0.15, 'sawtooth');
+    }
+    
+    function playScoreSound() {
+      playSound(800, 0.2, 'sine');
     }
     
     function playWallPlacedSound() {

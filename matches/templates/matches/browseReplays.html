@@ -225,14 +225,14 @@
     {% if replays %}
     <div class="replays-grid">
       {% for replay in replays %}
-      <div class="replay-card" onclick="viewReplay('{{ replay.type }}', {{ replay.id }})">
+      <div class="replay-card" onclick="viewReplay('{{ replay.type }}', {{ replay.id }})" {% if replay.type == 'progressive' and not replay.won %}style="border-color:#ef4444;background:#1a1d35;"{% endif %}>
         <div class="replay-header">
-          <span class="replay-type">{{ replay.type|title }}</span>
+          <span class="replay-type">{{ replay.type|title }}{% if replay.type == 'progressive' and not replay.won %} - DEFEAT{% endif %}</span>
           <span style="font-size:12px;color:#6b7280;">{{ replay.date|date:"M d, Y" }}</span>
         </div>
         
         <div class="replay-player">{{ replay.player }}</div>
-        <div class="replay-score">{{ replay.score_label }}</div>
+        <div class="replay-score" {% if replay.type == 'progressive' and not replay.won %}style="color:#ef4444;"{% endif %}>{{ replay.score_label }}</div>
         
         <div class="replay-meta">
           <span>⏱️ {{ replay.time }}s</span>
