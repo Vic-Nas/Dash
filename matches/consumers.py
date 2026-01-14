@@ -59,6 +59,22 @@ class GameEngine:
         if userId in self.players and self.players[userId]['alive']:
             self.players[userId]['direction'] = direction
     
+    def updateCountdownWalls(self):
+        """Decrement countdown walls and convert to actual walls when ready"""
+        toRemove = []
+        for wall in self.countdownWalls:
+            wall['secondsLeft'] -= 1
+            if wall['secondsLeft'] <= 0:
+                # Convert countdown wall to actual wall
+                self.walls.append({
+                    'x': wall['x'],
+                    'y': wall['y']
+                })
+                toRemove.append(wall)
+        
+        for wall in toRemove:
+            self.countdownWalls.remove(wall)
+    
     def tick(self):
         self.tickNumber += 1
         
@@ -104,93 +120,71 @@ class GameEngine:
             for otherId, otherPlayer in self.players.items():
                 if otherId == userId or not otherPlayer['alive']:
                     continue
-                
-                def tick(self):
-                    self.tickNumber += 1
-                    # ...existing code...
-                    # Calculate new positions for all players
-                    newPositions = {}
-                    for userId, player in self.players.items():
-                        if not player['alive']:
-                            continue
-                        newX, newY = player['x'], player['y']
-                        if player['direction'] == 'UP':
-                            newY -= 1
-                        elif player['direction'] == 'DOWN':
-                            newY += 1
-                        elif player['direction'] == 'LEFT':
-                            newX -= 1
-                        elif player['direction'] == 'RIGHT':
-                            newX += 1
-                        newPositions[userId] = (newX, newY)
-                    # Process each player's move
-                    for userId, (newX, newY) in newPositions.items():
-                        player = self.players[userId]
-                        # CRITICAL FIX: Check boundaries FIRST before any other collision
-                        # Grid boundaries are 0 to gridSize-1 (inclusive)
-                        if newX < 0 or newX >= self.gridSize or newY < 0 or newY >= self.gridSize:
-                            self.handleWallHit(userId)
-                            # Don't update position - player stays where they are
-                            continue
-                        # Check wall collision
-                        if any(w['x'] == newX and w['y'] == newY for w in self.walls):
-                            self.handleWallHit(userId)
-                            continue
-                        # Check player-to-player collisions
-                        collision = False
-                        for otherId, otherPlayer in self.players.items():
-                            if otherId == userId or not otherPlayer['alive']:
-                                continue
-                            if otherId in newPositions:
-                                otherNewX, otherNewY = newPositions[otherId]
-                                # Head-on collision (both moving to same spot)
-                                if newX == otherNewX and newY == otherNewY:
-                                    self.handleWallHit(userId)
-                                    self.handleWallHit(otherId)
-                                    collision = True
-                                    break
-                            # Hit another player from side/back (moving into their current position)
-                            if newX == otherPlayer['x'] and newY == otherPlayer['y']:
-                                self.handlePlayerCollision(attackerId=userId, victimId=otherId)
-                                collision = True
-                                break
-                        if collision:
-                            # Don't update position
-                            continue
-                        # ONLY update position if no collision occurred
-                        player['x'] = newX
-                        player['y'] = newY
-                    # Record frame for replay
-                    self.recordFrame()
-
-                def recordFrame(self):
-                    """Record current game state for replay"""
-                    frame = {
-                        'gridSize': self.gridSize,
-                        'players': {},
-                        'walls': [{'x': w['x'], 'y': w['y']} for w in self.walls],
-                        'countdownWalls': [{'x': w['x'], 'y': w['y'], 'secondsLeft': w['secondsLeft']} for w in self.countdownWalls],
-                    }
-                    for userId, player in self.players.items():
-                        frame['players'][str(userId)] = {
-                            'x': player['x'],
-                            'y': player['y'],
-                            'direction': player['direction'],
-                            'alive': player['alive'],
-                            'score': player['score'],
-                            'hits': player['hits'],
-                            'username': player['username'],
-                            'playerColor': player['playerColor']
-                        }
-                    self.replayFrames.append(frame)
-                for player in self.players.values():
-                    if player['alive']:
-                        player['score'] += 1
-                
-                toRemove.append(wall)
+                if otherId in newPositions:
+                    otherNewX, otherNewY = newPositions[otherId]
+                    # Head-on collision (both moving to same spot)
+                    if newX == otherNewX and newY == otherNewY:
+                        self.handleWallHit(userId)
+                        self.handleWallHit(otherId)
+                        collision = True
+                        break
+                # Hit another player from side/back (moving into their current position)
+                if newX == otherPlayer['x'] and newY == otherPlayer['y']:
+                    self.handlePlayerCollision(attackerId=userId, victimId=otherId)
+                    collision = True
+                    break
+            if collision:
+                # Don't update position
+                continue
+            # ONLY update position if no collision occurred
+            player['x'] = newX
+            player['y'] = newY
         
-        for wall in toRemove:
-            self.countdownWalls.remove(wall)
+        # Record frame for replay
+        self.recordFrame()
+        
+        # Award points to all alive players
+        for player in self.players.values():
+            if player['alive']:
+                player['score'] += 1
+    
+    def recordFrame(self):
+        """Record current game state for replay"""
+        frame = {
+            'gridSize': self.gridSize,
+            'players': {},
+            'walls': [{'x': w['x'], 'y': w['y']} for w in self.walls],
+            'countdownWalls': [{'x': w['x'], 'y': w['y'], 'secondsLeft': w['secondsLeft']} for w in self.countdownWalls],
+        }
+        for userId, player in self.players.items():
+            frame['players'][str(userId)] = {
+                'x': player['x'],
+                'y': player['y'],
+                'direction': player['direction'],
+                'alive': player['alive'],
+                'score': player['score'],
+                'hits': player['hits'],
+                'username': player['username'],
+                'playerColor': player['playerColor']
+            }
+        self.replayFrames.append(frame)
+    
+    def handleWallHit(self, userId):
+        """Handle player hitting a wall or boundary"""
+        if userId in self.players:
+            self.players[userId]['hits'] += 1
+            if self.players[userId]['hits'] >= 50:
+                self.players[userId]['alive'] = False
+    
+    def handlePlayerCollision(self, attackerId, victimId):
+        """Handle player-to-player collision"""
+        if victimId in self.players:
+            self.players[victimId]['hits'] += 1
+            if self.players[victimId]['hits'] >= 50:
+                self.players[victimId]['alive'] = False
+                # Attacker gains victim's points
+                if attackerId in self.players:
+                    self.players[attackerId]['score'] += self.players[victimId]['score']
     
     def getState(self):
         return {
