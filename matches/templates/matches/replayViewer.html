@@ -650,15 +650,17 @@
       
       if (frame.bots) {
         frame.bots.forEach(function(bot, i) {
-          // Draw killer bot red glow
-          if (frame.killerBotIndex === i && deathFrame !== null && frameIndex >= deathFrame && frameIndex < deathFrame + 10) {
-            var bx = bot.x * cellSize + cellSize / 2;
-            var by = bot.y * cellSize + cellSize / 2;
-            var explosionFrame = frameIndex - deathFrame;
-            ctx.fillStyle = 'rgba(239, 68, 68, ' + (0.5 - (explosionFrame / 20)) + ')';
-            ctx.beginPath();
-            ctx.arc(bx, by, cellSize * 1.2, 0, Math.PI * 2);
-            ctx.fill();
+          // Draw killer bot red glow during death animation
+          if (deathFrame !== null && frameIndex >= deathFrame && frameIndex < deathFrame + 10) {
+            if (frame.killerBotIndex === i) {
+              var bx = bot.x * cellSize + cellSize / 2;
+              var by = bot.y * cellSize + cellSize / 2;
+              var explosionFrame = frameIndex - deathFrame;
+              ctx.fillStyle = 'rgba(239, 68, 68, ' + (0.5 - (explosionFrame / 20)) + ')';
+              ctx.beginPath();
+              ctx.arc(bx, by, cellSize * 1.2, 0, Math.PI * 2);
+              ctx.fill();
+            }
           }
           
           if (bot.alive) {
