@@ -9,11 +9,13 @@ urlpatterns = [
     path('save-solo-run/', views.saveSoloRun, name='saveSoloRun'),
     path('save-progressive-run/', views.saveProgressiveRun, name='saveProgressiveRun'),
     path('matchmaking/', views.matchmaking, name='matchmaking'),
+    path('multiplayer/', views.matchmaking, name='multiplayer'),
     path('lobby/<int:matchId>/', views.lobby, name='lobby'),
-    path('api/join-match/', views.joinMatch, name='joinMatch'),
-    path('api/leave-lobby/', views.leaveLobby, name='leaveLobby'),
-    path('api/force-start/', views.forceStart, name='forceStart'),
-    path('api/check-activity/', views.checkActivity, name='checkActivity'),
+    path('join-match/', views.joinMatch, name='joinMatch'),
+    path('leave-lobby/', views.leaveLobby, name='leaveLobby'),
+    path('force-start/', views.forceStart, name='forceStart'),
+    path('check-auto-start/', views.checkAutoStart, name='checkAutoStart'),
+    path('check-activity/', views.checkActivity, name='checkActivity'),
     
     # Replay browser
     path('replays/', views.browseReplays, name='browseReplays'),
