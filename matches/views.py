@@ -264,6 +264,23 @@ def matchmaking(request):
             matchType=mt,
             status='WAITING'
         ).first()
+        
+        # If no waiting match and this match type has bots, create one with a bot
+        if not waitingMatch and mt.hasBot:
+            waitingMatch = Match.objects.create(
+                matchType=mt,
+                status='WAITING',
+                gridSize=mt.gridSize,
+                speed=mt.speed,
+                playersRequired=mt.playersRequired,
+                currentPlayers=1,
+                totalPot=Decimal('0')
+            )
+            # Add bot to the new match
+            createBotParticipant(waitingMatch, mt)
+            waitingMatch.currentPlayers = 1
+            waitingMatch.save(update_fields=['currentPlayers'])
+        
         mt.waitingCount = waitingMatch.currentPlayers if waitingMatch else 0
         mt.hasWaitingPlayers = mt.waitingCount > 0
     
