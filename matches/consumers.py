@@ -154,17 +154,10 @@ class GameEngine:
     def tick(self):
         self.tickNumber += 1
         
-        # Update bot AI (create list to avoid dict size changes during iteration)
-        playerIds = list(self.players.keys())
-        for userId in playerIds:
-            if userId not in self.players:
-                continue
-            player = self.players[userId]
+        # Update bot AI
+        for userId, player in self.players.items():
             if player['alive'] and player.get('isBot', False):
-                try:
-                    self.updateBotAI(userId, player)
-                except Exception as e:
-                    print(f"[GameEngine {self.matchId}] Error updating bot AI for {userId}: {e}")
+                self.updateBotAI(userId, player)
         
         # Calculate new positions for all players
         newPositions = {}
@@ -191,8 +184,6 @@ class GameEngine:
         
         # Process each player's move
         for userId, (newX, newY) in newPositions.items():
-            if userId not in self.players:
-                continue
             player = self.players[userId]
             
             # CRITICAL FIX: Check boundaries FIRST before any other collision
@@ -208,14 +199,13 @@ class GameEngine:
                 # Don't update position
                 continue
             
-            # Check player-to-player collist(self.players.items()):
+            # Check player-to-player collisions
+            collision = False
+            for otherId, otherPlayer in self.players.items():
                 if otherId == userId or not otherPlayer['alive']:
                     continue
-                if otherId not in newPositions:
-                    continue
-                otherNewX, otherNewY = newPositions[otherId]
-                # Head-on collision (both moving to same spot)
-                otherNewX, otherNewY = newPositions[otherId]
+                if otherId in newPositions:
+                    otherNewX, otherNewY = newPositions[otherId]
                     # Head-on collision (both moving to same spot)
                     if newX == otherNewX and newY == otherNewY:
                         # Only process once per collision pair (not twice)
@@ -310,96 +300,67 @@ class GameEngine:
     async def start(self, roomGroupName, handleGameOverCallback):
         self.running = True
         channel_layer = get_channel_layer()
-        try:
-                    self.tick()
-                except Exception as e:
-                    print(f"[GameEngine {self.matchId}] Error in tick: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    await asyncio.sleep(self.tickRate)
-                    continue
+        
+        async def gameLoop():
+            while self.running:
+                self.tick()
+                state = self.getState()
                 
-                try:
-                    state = self.getState()
-                    await channel_layer.group_send(
-                        roomGroupName,
-                        {
-                            'type': 'gameState',
-                            'state': state
-                        }
-                    )
-                except Exception as e:
-                    print(f"[GameEngine {self.matchId}] Error broadcasting state: {e}")
+                # Broadcast state
+                await channel_layer.group_send(
+                    roomGroupName,
+                    {
+                        'type': 'gameState',
+                        'state': state
+                    }
+                )
                 
-                try:
-                    winnerId = self.checkGameOver()
-                    if winnerId is not None:
-                        await self.endGame(winnerId, roomGroupName, handleGameOverCallback)
-                        break
-                    
-                    aliveCount = sum(1 for p in self.players.values() if p['alive'])
-                    if aliveCount == 0:
-                        await self.endGame(None, roomGroupName, handleGameOverCallback)
-                        break
-                except Exception as e:
-                    print(f"[GameEngine {self.matchId}] Error checking game over: {e}")t = sum(1 for p in self.players.values() if p['alive'])
+                winnerId = self.checkGameOver()
+                if winnerId is not None:
+                    await self.endGame(winnerId, roomGroupName, handleGameOverCallback)
+                    break
+                
+                # Also check if game is over due to tie (everyone dead)
+                aliveCount = sum(1 for p in self.players.values() if p['alive'])
                 if aliveCount == 0:
                     await self.endGame(None, roomGroupName, handleGameOverCallback)
                     break
                 
                 await asyncio.sleep(self.tickRate)
-        try:
-                    await asyncio.sleep(1)
-                    self.updateCountdownWalls()
-                except Exception as e:
-                    print(f"[GameEngine {self.matchId}] Error in countdown loop: {e}"
+        
+        async def countdownLoop():
             while self.running:
                 await asyncio.sleep(1)
                 self.updateCountdownWalls()
         
-        try:
-            alivePlayers = [uid for uid, p in self.players.items() if p['alive']]
-            isTie = len(alivePlayers) == 0
-            gameOverState = {
-                'type': 'gameOver',
-                'winnerId': winnerId if not isTie else None,
-                'winnerUsername': self.players.get(winnerId, {}).get('username') if winnerId and not isTie else None,
-                'isTie': isTie,
-                'alivePlayers': alivePlayers,
-                'finalScores': {str(uid): p['score'] for uid, p in self.players.items()},
-                'finalHits': {str(uid): p['hits'] for uid, p in self.players.items()}
-            }
-            # Build replay data
-            replayData = {
-                'frames': self.replayFrames if self.replayFrames else [],
-                'frameDuration': int(self.tickRate * 1000) if self.tickRate else 150,
-                'mode': 'multiplayer'
-            }
-            gameOverState['replayData'] = replayData
+        async def spawnLoop():
+            # FIX: Only spawn walls if wallSpawnInterval > 0
+            if self.wallSpawnInterval <= 0:
+                return
             
-            # Handle rewards with error protection
-            try:
-                await handleGameOverCallback(gameOverState)
-            except Exception as e:
-                print(f"[GameEngine {self.matchId}] Error in game over callback: {e}")
-                import traceback
-                traceback.print_exc()
-            
-            # Broadcast game over
-            try:
-                await channel_layer.group_send(
-                    roomGroupName,
-                    {
-                        'type': 'gameState',
-                        'state': gameOverState
-                    }
-                )
-            except Exception as e:
-                print(f"[GameEngine {self.matchId}] Error broadcasting game over: {e}")
-        except Exception as e:
-            print(f"[GameEngine {self.matchId}] Error in endGame: {e}")
-            import traceback
-            traceback.print_exc(# Build replay data
+            while self.running:
+                await asyncio.sleep(self.wallSpawnInterval)
+                self.spawnWall()
+        
+        self.task = asyncio.create_task(gameLoop())
+        self.wallSpawnTask = asyncio.create_task(spawnLoop())
+        asyncio.create_task(countdownLoop())
+    
+    async def endGame(self, winnerId, roomGroupName, handleGameOverCallback):
+        self.running = False
+        channel_layer = get_channel_layer()
+        alivePlayers = [uid for uid, p in self.players.items() if p['alive']]
+        isTie = len(alivePlayers) == 0
+        gameOverState = {
+            'type': 'gameOver',
+            'winnerId': winnerId if not isTie else None,
+            'winnerUsername': self.players[winnerId]['username'] if winnerId and not isTie else None,
+            'isTie': isTie,
+            'alivePlayers': alivePlayers,
+            'finalScores': {str(uid): p['score'] for uid, p in self.players.items()},
+            'finalHits': {str(uid): p['hits'] for uid, p in self.players.items()}
+        }
+        # Build replay data
         replayData = {
             'frames': self.replayFrames,
             'frameDuration': int(self.tickRate * 1000),  # Convert to ms
@@ -636,23 +597,15 @@ class GameConsumer(AsyncWebsocketConsumer):
         
         engine = ACTIVE_GAMES[self.matchId]
         
-        try:
-            data = json.loads(text_data)
-            action = data.get('action')
-            
-            if action == 'changeDirection':
-                direction = data.get('direction')
-                if direction in ['UP', 'DOWN', 'LEFT', 'RIGHT']:
-                    engine = ACTIVE_GAMES.get(self.matchId)
-                    if engine:
-                        try:
-                            engine.updateDirection(self.user.id, direction)
-                        except Exception as e:
-                            print(f"[GameConsumer {self.matchId}] Error updating direction: {e}")
-        except json.JSONDecodeError:
-            print(f"[GameConsumer {self.matchId}] Invalid JSON received")
-        except Exception as e:
-            print(f"[GameConsumer {self.matchId}] Error in receive: {e}"
+        engine.addPlayer(
+            self.user.id,
+            self.user.username,
+            playerColor
+        )
+        
+        await self.send(text_data=json.dumps({
+            'type': 'playerColor',
+            'playerColor': playerColor
         }))
         
         match = await self.getMatch()
