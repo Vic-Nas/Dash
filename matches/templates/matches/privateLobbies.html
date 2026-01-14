@@ -57,7 +57,17 @@
     <h1>Private Match Lobbies</h1>
     <p>Create private lobbies with friends using shareable codes. Cost: {{ creationCost }} coins</p>
 
-    <!-- Create Lobby Section -->
+    <!-- Join Lobby Section (FIRST) -->
+    <div class="section">
+      <h2>Join Existing Lobby</h2>
+      <p>Enter a lobby code to join a friend's private lobby:</p>
+      <div class="input-group">
+        <input type="text" id="joinCode" placeholder="Enter 6-character code (e.g., ABC123)" maxlength="6" style="text-transform:uppercase;">
+        <button class="btn primary" onclick="joinLobby()">Join Lobby</button>
+      </div>
+    </div>
+
+    <!-- Create Lobby Section (SECOND) -->
     <div class="section">
       <h2>Create New Lobby</h2>
       <p>Select a match type and create a private lobby with a shareable code:</p>
@@ -85,16 +95,6 @@
       {% else %}
       <div class="alert alert-info">No match types available.</div>
       {% endif %}
-    </div>
-
-    <!-- Join Lobby Section -->
-    <div class="section">
-      <h2>Join Existing Lobby</h2>
-      <p>Enter a lobby code to join a friend's private lobby:</p>
-      <div class="input-group">
-        <input type="text" id="joinCode" placeholder="Enter 6-character code (e.g., ABC123)" maxlength="6" style="text-transform:uppercase;">
-        <button class="btn primary" onclick="joinLobby()">Join Lobby</button>
-      </div>
     </div>
 
     <!-- Created Lobbies -->
@@ -189,6 +189,22 @@
   </div>
 
   <script>
+    // Get CSRF token from cookie
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+
     function showAlert(title, message, isSuccess = false) {
       document.getElementById('alertTitle').textContent = title;
       document.getElementById('alertMessage').textContent = message;
@@ -206,7 +222,10 @@
 
       fetch('/matches/private/create/', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCookie('csrftoken')
+        },
         body: JSON.stringify({matchTypeId: matchTypeId})
       })
       .then(r => r.json())
@@ -236,7 +255,10 @@
 
       fetch('/matches/private/join/', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCookie('csrftoken')
+        },
         body: JSON.stringify({code: code})
       })
       .then(r => r.json())
