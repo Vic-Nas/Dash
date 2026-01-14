@@ -10,6 +10,27 @@ from decimal import Decimal
 from .models import MatchType, Match, MatchParticipation, SoloRun, ProgressiveRun
 from shop.models import Transaction, SystemSettings
 import json
+import random
+
+
+# Bot names for realistic appearance
+BOT_NAMES = [
+    'Alex_92', 'Shadow', 'NoobMaster', 'ProGamer_88', 'Viper', 'Phoenix',
+    'Storm', 'Blaze', 'Echo', 'Nexus', 'Titan', 'Specter', 'Razor',
+    'Cyber_', 'Void', 'Nova', 'Apex', 'Hunter'
+]
+
+
+def createBotParticipant(match, matchType):
+    """Create a bot participant for the match"""
+    botName = random.choice(BOT_NAMES)
+    MatchParticipation.objects.create(
+        match=match,
+        player=None,
+        username=botName,
+        entryFeePaid=matchType.entryFee,
+        isBot=True
+    )
 
 
 def enforceReplayLimit():
@@ -286,6 +307,7 @@ def joinMatch(request):
                 status='WAITING'
             ).first()
             
+            isNewMatch = False
             if not match:
                 match = Match.objects.create(
                     matchType=matchType,
@@ -296,6 +318,13 @@ def joinMatch(request):
                     currentPlayers=0,
                     totalPot=Decimal('0')
                 )
+                isNewMatch = True
+                
+                # Add bot if matchType has bots enabled
+                if matchType.hasBot:
+                    createBotParticipant(match, matchType)
+                    match.currentPlayers = F('currentPlayers') + 1
+                    match.save(update_fields=['currentPlayers'])
             
             if MatchParticipation.objects.filter(match=match, player=request.user).exists():
                 return JsonResponse({
