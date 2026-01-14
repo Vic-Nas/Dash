@@ -155,6 +155,8 @@ def saveProgressiveRun(request):
         finalGridState = data.get('finalGridState')
         replayData = data.get('replayData')
         
+        print(f"DEBUG: Saving progressive run - level={level}, won={won}, botsEliminated={botsEliminated}")
+        
         costPerAttempt = Decimal(str(SystemSettings.getInt('progressiveCostPerAttempt', 10)))
         
         with transaction.atomic():
@@ -227,7 +229,7 @@ def saveProgressiveRun(request):
             'botsEliminated': botsEliminated,
             'coinsEarned': float(coinsEarned),
             'newBalance': float(balanceAfter),
-            'newHighestLevel': level > (profile.progressiveHighestLevel - level if won else profile.progressiveHighestLevel)
+            'newHighestLevel': level > profile.progressiveHighestLevel
         })
         
     except Exception as e:
