@@ -472,10 +472,12 @@
             if (deathFrame === null) {
               document.getElementById('replayStatus').style.display = 'block';
             } else {
-              // Wait for explosion to finish (10 frames)
+              // Wait for explosion to finish (10 frames × frameDuration)
+              const frameDuration = replayData.frameDuration || 150;
+              const explosionDuration = 10 * frameDuration + 500;  // 10 frames + buffer
               setTimeout(function() {
                 document.getElementById('replayStatus').style.display = 'block';
-              }, 200);
+              }, explosionDuration);
             }
             return;
           }
