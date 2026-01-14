@@ -303,35 +303,43 @@ class GameEngine:
         
         async def gameLoop():
             while self.running:
-                self.tick()
-                state = self.getState()
-                
-                # Broadcast state
-                await channel_layer.group_send(
-                    roomGroupName,
-                    {
-                        'type': 'gameState',
-                        'state': state
-                    }
-                )
-                
-                winnerId = self.checkGameOver()
-                if winnerId is not None:
-                    await self.endGame(winnerId, roomGroupName, handleGameOverCallback)
+                try:
+                    self.tick()
+                    state = self.getState()
+                    
+                    # Broadcast state
+                    await channel_layer.group_send(
+                        roomGroupName,
+                        {
+                            'type': 'gameState',
+                            'state': state
+                        }
+                    )
+                    
+                    winnerId = self.checkGameOver()
+                    if winnerId is not None:
+                        await self.endGame(winnerId, roomGroupName, handleGameOverCallback)
+                        break
+                    
+                    # Also check if game is over due to tie (everyone dead)
+                    aliveCount = sum(1 for p in self.players.values() if p['alive'])
+                    if aliveCount == 0:
+                        await self.endGame(None, roomGroupName, handleGameOverCallback)
+                        break
+                    
+                    await asyncio.sleep(self.tickRate)
+                except Exception as e:
+                    print(f"[GameEngine {self.matchId}] Error in gameLoop: {e}")
+                    self.running = False
                     break
-                
-                # Also check if game is over due to tie (everyone dead)
-                aliveCount = sum(1 for p in self.players.values() if p['alive'])
-                if aliveCount == 0:
-                    await self.endGame(None, roomGroupName, handleGameOverCallback)
-                    break
-                
-                await asyncio.sleep(self.tickRate)
         
         async def countdownLoop():
             while self.running:
-                await asyncio.sleep(1)
-                self.updateCountdownWalls()
+                try:
+                    await asyncio.sleep(1)
+                    self.updateCountdownWalls()
+                except Exception as e:
+                    print(f"[GameEngine {self.matchId}] Error in countdownLoop: {e}")
         
         async def spawnLoop():
             # FIX: Only spawn walls if wallSpawnInterval > 0
@@ -339,8 +347,11 @@ class GameEngine:
                 return
             
             while self.running:
-                await asyncio.sleep(self.wallSpawnInterval)
-                self.spawnWall()
+                try:
+                    await asyncio.sleep(self.wallSpawnInterval)
+                    self.spawnWall()
+                except Exception as e:
+                    print(f"[GameEngine {self.matchId}] Error in spawnLoop: {e}")
         
         self.task = asyncio.create_task(gameLoop())
         self.wallSpawnTask = asyncio.create_task(spawnLoop())
@@ -349,35 +360,38 @@ class GameEngine:
     async def endGame(self, winnerId, roomGroupName, handleGameOverCallback):
         self.running = False
         channel_layer = get_channel_layer()
-        alivePlayers = [uid for uid, p in self.players.items() if p['alive']]
-        isTie = len(alivePlayers) == 0
-        gameOverState = {
-            'type': 'gameOver',
-            'winnerId': winnerId if not isTie else None,
-            'winnerUsername': self.players[winnerId]['username'] if winnerId and not isTie else None,
-            'isTie': isTie,
-            'alivePlayers': alivePlayers,
-            'finalScores': {str(uid): p['score'] for uid, p in self.players.items()},
-            'finalHits': {str(uid): p['hits'] for uid, p in self.players.items()}
-        }
-        # Build replay data
-        replayData = {
-            'frames': self.replayFrames,
-            'frameDuration': int(self.tickRate * 1000),  # Convert to ms
-            'mode': 'multiplayer'
-        }
-        # Pass replay data to callback
-        gameOverState['replayData'] = replayData
-        # Handle rewards
-        await handleGameOverCallback(gameOverState)
-        # Broadcast game over
-        await channel_layer.group_send(
-            roomGroupName,
-            {
-                'type': 'gameState',
-                'state': gameOverState
+        try:
+            alivePlayers = [uid for uid, p in self.players.items() if p['alive']]
+            isTie = len(alivePlayers) == 0
+            gameOverState = {
+                'type': 'gameOver',
+                'winnerId': winnerId if not isTie else None,
+                'winnerUsername': self.players[winnerId]['username'] if winnerId and not isTie else None,
+                'isTie': isTie,
+                'alivePlayers': alivePlayers,
+                'finalScores': {str(uid): p['score'] for uid, p in self.players.items()},
+                'finalHits': {str(uid): p['hits'] for uid, p in self.players.items()}
             }
-        )
+            # Build replay data
+            replayData = {
+                'frames': self.replayFrames,
+                'frameDuration': int(self.tickRate * 1000),  # Convert to ms
+                'mode': 'multiplayer'
+            }
+            # Pass replay data to callback
+            gameOverState['replayData'] = replayData
+            # Handle rewards
+            await handleGameOverCallback(gameOverState)
+            # Broadcast game over
+            await channel_layer.group_send(
+                roomGroupName,
+                {
+                    'type': 'gameState',
+                    'state': gameOverState
+                }
+            )
+        except Exception as e:
+            print(f"[GameEngine {self.matchId}] Error in endGame: {e}")
     
     def stop(self):
         self.running = False
