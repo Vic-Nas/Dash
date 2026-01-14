@@ -332,13 +332,16 @@ class GameEngine:
                     state = self.getState()
                     
                     # Broadcast state
-                    await channel_layer.group_send(
-                        roomGroupName,
-                        {
-                            'type': 'gameState',
-                            'state': state
-                        }
-                    )
+                    try:
+                        await channel_layer.group_send(
+                            roomGroupName,
+                            {
+                                'type': 'gameState',
+                                'state': state
+                            }
+                        )
+                    except Exception as e:
+                        print(f"[Match {self.matchId}] Failed to broadcast state: {e}")
                     
                     winnerId = self.checkGameOver()
                     if winnerId is not None:
