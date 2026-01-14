@@ -357,16 +357,18 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
             
             isTie = state.get('isTie', False)
             winnerId = state.get('winnerId')
+            replayData = state.get('replayData')
             
             if isTie:
-                splitPot(match)
+                splitPot(match, replayData)
             elif winnerId:
-                awardPot(match, winnerId)
+                awardPot(match, winnerId, replayData)
             
             completeMatch(match, winnerId)
         
-        def splitPot(match):
+        def splitPot(match, replayData=None):
             from django.db import transaction as dbTransaction
+            import json
             
             with dbTransaction.atomic():
                 match = Match.objects.select_for_update().get(id=match.id)
@@ -388,7 +390,9 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                     
                     participation.coinReward = share
                     participation.placement = 1
-                    participation.save(update_fields=['coinReward', 'placement'])
+                    if replayData:
+                        participation.replayData = json.dumps(replayData) if not isinstance(replayData, str) else replayData
+                    participation.save(update_fields=['coinReward', 'placement', 'replayData'])
                     
                     Transaction.objects.create(
                         user=participation.player,
@@ -400,9 +404,10 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                         balanceAfter=profile.coins
                     )
         
-        def awardPot(match, winnerId):
+        def awardPot(match, winnerId, replayData=None):
             from django.db import transaction as dbTransaction
             from django.contrib.auth import get_user_model
+            import json
             
             User = get_user_model()
             
@@ -422,21 +427,9 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                 participation = MatchParticipation.objects.get(match=match, player=winner)
                 participation.coinReward = match.totalPot
                 participation.placement = 1
-                # Save replayData if present in state
-                from django.contrib.postgres.fields import JSONField
-                import json
-                if hasattr(match, 'replayData') or 'replayData' in locals():
-                    # Try to get replayData from state if available
-                    try:
-                        import inspect
-                        frame = inspect.currentframe()
-                        while frame:
-                            if 'state' in frame.f_locals and 'replayData' in frame.f_locals['state']:
-                                participation.replayData = frame.f_locals['state']['replayData']
-                                break
-                            frame = frame.f_back
-                    except Exception:
-                        pass
+                # Save replay data
+                if replayData:
+                    participation.replayData = json.dumps(replayData) if not isinstance(replayData, str) else replayData
                 participation.save(update_fields=['coinReward', 'placement', 'replayData'])
                 
                 Transaction.objects.create(

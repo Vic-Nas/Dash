@@ -651,12 +651,11 @@ def browseReplays(request):
                 'won': run.won,
             })
 
-    # Multiplayer replays (winners only)
+    # Multiplayer replays (all participants with replay data)
     if mode in ['all', 'multiplayer']:
         match_participations = MatchParticipation.objects.filter(
             player_id=user_id,
-            replayData__isnull=False,
-            placement=1
+            replayData__isnull=False
         ).select_related('player', 'match', 'match__matchType').order_by('-match__completedAt')[:50]
         for participation in match_participations:
             replays.append({
@@ -664,11 +663,12 @@ def browseReplays(request):
                 'id': participation.id,
                 'player': participation.player.username,
                 'player_id': participation.player.id,
-                'score': int(participation.coinReward),
-                'score_label': f'{int(participation.coinReward)} coins won',
+                'score': int(participation.coinReward) if participation.coinReward else 0,
+                'score_label': f'{int(participation.coinReward) if participation.coinReward else 0} coins won',
                 'date': participation.match.completedAt,
                 'time': participation.survivalTime or 0,
                 'match_type': participation.match.matchType.name,
+                'placement': participation.placement,
             })
     
     # Sort by date (most recent first)
