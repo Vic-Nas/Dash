@@ -258,17 +258,31 @@ class GameEngine:
     
     def handleWallHit(self, userId):
         """Handle player hitting a wall or boundary"""
-        if userId in self.players:
-            self.players[userId]['hits'] += 1
-            
-            # Eliminate after 50 hits
-            if self.players[userId]['hits'] >= 50:
-                self.players[userId]['alive'] = False
+        if userId not in self.players:
+            return
+        
+        player = self.players[userId]
+        if not player['alive']:
+            # Already dead, don't process again
+            return
+        
+        player['hits'] += 1
+        
+        # Eliminate after 50 hits
+        if player['hits'] >= 50:
+            player['alive'] = False
     
     def handlePlayerCollision(self, attackerId, victimId):
         """Attacker eliminates victim and gains their score"""
+        if attackerId not in self.players or victimId not in self.players:
+            return
+        
         attacker = self.players[attackerId]
         victim = self.players[victimId]
+        
+        # Don't process if victim already dead
+        if not victim['alive']:
+            return
         
         # Gain victim's positive score (not their hits)
         pointsGained = max(0, victim['score'])
