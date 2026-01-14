@@ -197,11 +197,13 @@ class GameEngine:
         attacker = self.players[attackerId]
         victim = self.players[victimId]
         
-        victim['alive'] = False
-        
         # Gain victim's positive score (not their hits)
         pointsGained = max(0, victim['score'])
         attacker['score'] += pointsGained
+        
+        # Victim loses all their score on elimination
+        victim['score'] = 0
+        victim['alive'] = False
     
     def getState(self):
         return {
@@ -215,9 +217,14 @@ class GameEngine:
     
     def checkGameOver(self):
         alive = [uid for uid, p in self.players.items() if p['alive']]
-        # Game ends when 1 or fewer players remain
+        # Game only ends when:
+        # 1) 1 player remains alive AND there were at least 2 players to begin with, OR
+        # 2) 0 players remain (tie)
         if len(alive) <= 1:
-            return alive[0] if alive else None
+            # Only end if we had multiple players in the match
+            totalPlayers = len(self.players)
+            if totalPlayers >= 2:
+                return alive[0] if alive else None
         return None
     
     async def start(self, roomGroupName, handleGameOverCallback):
