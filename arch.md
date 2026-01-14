@@ -57,7 +57,16 @@ Django 5.0 + Channels (WebSocket) + PostgreSQL + Redis + Stripe + Cloudinary
 - MatchType: Pre-configured templates (entry fee, grid size, speed, wallSpawnInterval)
 - Match: Instance with status (WAITING → STARTING → IN_PROGRESS → COMPLETED)
 - MatchParticipation: Player stats per match
-- SoloRun: Solo attempt records
+- SoloRun: Solo attempt records (wallsSurvived, wallsHit, replayData)
+- ProgressiveRun: Progressive mode records (level, botsEliminated, won, replayData)
+
+**Replay System:**
+- Canvas playback with synchronized sound effects
+- Frame recording: 150ms per frame, includes player/bot positions, directions, alive status, killerBotIndex
+- Death animation: 10-frame explosion at death location, killer bot highlighted with red glow
+- Replay limits: Admin-configurable max stored replays (default 50), oldest auto-deleted
+- Filtering: Progressive replays filterable by wins/losses, solo/multiplayer show wins only
+- Sound fidelity: Web Audio API beeps (move: 400Hz square, hit: 150Hz sawtooth, score: 800Hz sine)
 
 **WebSocket (consumers.py):**
 - `GameEngine` class: Server-side game loop
@@ -66,6 +75,7 @@ Django 5.0 + Channels (WebSocket) + PostgreSQL + Redis + Stripe + Cloudinary
   - Collision detection: New position vs current positions
   - Score tracking: Separate `score` (points) and `hits` (elimination counter)
   - Wall spawning: Based on `wallSpawnInterval` (0 = no walls)
+  - Death tracking: Records killerBotIndex when player collision detected
   
 **Lobby System:**
 - Auto-start: 30s countdown when min players reached
@@ -77,7 +87,11 @@ Django 5.0 + Channels (WebSocket) + PostgreSQL + Redis + Stripe + Cloudinary
 - `joinMatch`: Atomic transaction (deduct fee, add to pot, create participation)
 - `forceStart`: Calculate missing slots × entry fee, validate min players
 - `leaveLobby`: Refund only if status = WAITING, delete empty matches
-- `saveSoloRun`: Calculate net coins, update high score, create transaction records
+- `saveSoloRun`: Calculate net coins, update high score, create transaction records, enforce replay limit
+- `saveProgressiveRun`: Deduct entry cost, grant victory rewards (if won), save replay, enforce replay limit
+- `browseReplays`: Filter by mode (solo/progressive/multiplayer) and result type (all/wins/losses)
+- `watchReplay`: Deduct coins for replay viewing (own = free, others = cost), validate access
+- `replayViewer`: Canvas playback with frame-by-frame rendering, death animation, killer bot highlight
 
 **Key Choices:**
 - WebSocket for real-time (not polling)
@@ -86,14 +100,18 @@ Django 5.0 + Channels (WebSocket) + PostgreSQL + Redis + Stripe + Cloudinary
 - One GameEngine instance per match (stored in ACTIVE_GAMES dict)
 - Countdown function standalone (doesn't depend on consumer instance)
 - Auto-start checks if still WAITING before triggering
+- Replays stored as JSON (frameDuration, frames array with all game state)
+- Death animation synced to defeat moment, visible for 1500ms before popup
 
-**Client (game.html / gameMultiplayer.html):**
+**Client (game.html / gameMultiplayer.html / gameProgressive.html):**
 - Canvas rendering with grid + players + walls
 - Client-side prediction disabled (wait for server state)
 - Keyboard input sent via WebSocket
 - Mobile controls: Touch buttons for arrow keys
 - Sound effects: Web Audio API (move, hit, score, victory, loss, kill)
 - Bot rendering: Arrow-shaped canvas images, rotated by direction
+- Death animation: 10-frame explosion, killer bot red glow (150Hz beep on hit)
+- Replay recording: Automatic frame capture during gameplay, stored in replayRecorder object
 
 ---
 
@@ -134,20 +152,31 @@ Django 5.0 + Channels (WebSocket) + PostgreSQL + Redis + Stripe + Cloudinary
 ## Key Flows
 
 ### Solo
-1. Click start → client-side game loop begins
+1. Click start → client-side game loop begins, frame recording starts
 2. Walls spawn every 3s (client-side timer)
-3. Movement/collision detection (client-side)
-4. Game ends → POST to `/matches/save-solo-run/`
-5. Server validates, updates coins atomically, returns new balance
+3. Movement/collision detection (client-side), death animation renders for 1.5s
+4. Game ends → POST to `/matches/save-solo-run/` with replay JSON
+5. Server validates, updates coins atomically, saves replay, enforces replay limit, returns new balance
+6. User can browse/watch replays with synchronized sounds and game state
 
 ### Multiplayer
 1. Join → deduct fee, add to WAITING match
 2. Min players → 30s countdown (localStorage persists across refreshes)
 3. Time's up OR force-start → status = STARTING
 4. 10s countdown broadcast via WebSocket
-5. Status = IN_PROGRESS → GameEngine.start()
+5. Status = IN_PROGRESS → GameEngine.start(), frame recording starts
 6. Game loop: tick → validate → broadcast state
-7. Last alive → end game, award pot, update stats
+7. Player eliminated → death animation plays, killer bot highlighted red
+8. Last alive → end game, award pot, update stats, save replay
+9. User can watch winning replay with death animations for defeats
+
+### Progressive
+1. Click level → deduct entry cost, initialize game, start frame recording
+2. Survive and eliminate all bots for current level → advance or end game
+3. Death or level completion → death animation plays (if defeated), POST to `/matches/save-progressive-run/`
+4. Server saves as win or loss, grants rewards if won, enforces replay limit
+5. Browse replays filtered by wins/losses, watch with killer bot highlight and death animation
+6. Track personal best (highest level reached)
 
 ---
 
