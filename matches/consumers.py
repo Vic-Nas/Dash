@@ -197,11 +197,13 @@ class GameEngine:
         attacker = self.players[attackerId]
         victim = self.players[victimId]
         
-        victim['alive'] = False
-        
         # Gain victim's positive score (not their hits)
         pointsGained = max(0, victim['score'])
         attacker['score'] += pointsGained
+        
+        # Victim loses all their score on elimination
+        victim['score'] = 0
+        victim['alive'] = False
     
     def getState(self):
         return {
