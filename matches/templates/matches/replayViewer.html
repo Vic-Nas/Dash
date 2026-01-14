@@ -642,7 +642,10 @@
       }
       
       if (frame.player) {
-        drawPlayer(frame.player, cellSize, '#5b7bff');
+        // Only draw if alive (explosion will be drawn after instead)
+        if (frame.player.alive) {
+          drawPlayer(frame.player, cellSize, '#5b7bff');
+        }
       }
       
       if (frame.bots) {
@@ -661,7 +664,7 @@
         });
       }
       
-      // Draw explosion animation at death location
+      // Draw explosion animation at death location BEFORE end of render
       if (deathFrame !== null && deathLocation && frameIndex >= deathFrame && frameIndex < deathFrame + 10) {
         explosionFrames = frameIndex - deathFrame;
         drawExplosion(deathLocation, cellSize, explosionFrames);
