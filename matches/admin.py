@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import MatchType, Match, MatchParticipation, GameState, SoloRun, ProgressiveRun
+from .models import MatchType, Match, MatchParticipation, GameState, SoloRun, ProgressiveRun, PrivateLobby, PrivateLobbyMember
 
 @admin.register(MatchType)
 class MatchTypeAdmin(admin.ModelAdmin):
@@ -43,3 +43,16 @@ class SoloRunAdmin(admin.ModelAdmin):
 class ProgressiveRunAdmin(admin.ModelAdmin):
     list_display = ("player", "level", "won", "botsEliminated", "coinsEarned", "startedAt")
     list_filter = ("won", "level")
+
+@admin.register(PrivateLobby)
+class PrivateLobbyAdmin(admin.ModelAdmin):
+    list_display = ("code", "creator", "matchType", "status", "createdAt")
+    list_filter = ("status", "matchType")
+    search_fields = ("code", "creator__username")
+    readonly_fields = ("code", "createdAt")
+
+@admin.register(PrivateLobbyMember)
+class PrivateLobbyMemberAdmin(admin.ModelAdmin):
+    list_display = ("user", "lobby", "joinedAt")
+    list_filter = ("joinedAt",)
+    search_fields = ("user__username", "lobby__code")

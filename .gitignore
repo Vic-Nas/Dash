@@ -208,6 +208,8 @@ __marimo__/
 
 # Temporary files and directories
 staticfiles/
+tmp/
+tmp.*
 temp/
 temp.*
 .history

@@ -64,19 +64,44 @@ class GameEngine:
             del self.players[userId]
     
     def updateBotAI(self, userId, player):
-        """Update bot player AI for autonomous movement"""
-        player['botDirectionChangeCounter'] += 1
+        """Update bot player AI - REACTIVE wall avoidance every tick, not just periodic"""
+        from shop.models import SystemSettings
         
-        # Time to change direction
-        if player['botDirectionChangeCounter'] >= player['botNextDirectionChangeAt']:
+        x, y = player['x'], player['y']
+        currentDir = player.get('direction', 'UP')
+        
+        # FIRST: Check if current direction is unsafe - if so, IMMEDIATELY change
+        nextX, nextY = x, y
+        if currentDir == 'UP':
+            nextY -= 1
+        elif currentDir == 'DOWN':
+            nextY += 1
+        elif currentDir == 'LEFT':
+            nextX -= 1
+        elif currentDir == 'RIGHT':
+            nextX += 1
+        
+        # Check if next move would be bad (boundary or wall)
+        isCurrentDirUnsafe = (
+            nextX < 0 or nextX >= self.gridSize or 
+            nextY < 0 or nextY >= self.gridSize or
+            any(w['x'] == nextX and w['y'] == nextY for w in self.walls) or
+            any(w['x'] == nextX and w['y'] == nextY for w in self.countdownWalls)
+        )
+        
+        # Periodically pick a new direction (keep it shorter - 4-8 ticks)
+        player['botDirectionChangeCounter'] = player.get('botDirectionChangeCounter', 0) + 1
+        
+        if player['botDirectionChangeCounter'] >= player.get('botNextDirectionChangeAt', 5):
             player['botDirectionChangeCounter'] = 0
-            player['botNextDirectionChangeAt'] = random.randint(5, 10)
-            
-            # Check ahead for walls/boundaries and prefer to avoid them
-            x, y = player['x'], player['y']
+            player['botNextDirectionChangeAt'] = random.randint(4, 8)
+            isCurrentDirUnsafe = True  # Force direction change
+        
+        # If current direction is unsafe OR timer expired, pick a new safe direction
+        if isCurrentDirUnsafe:
             directions = ['UP', 'DOWN', 'LEFT', 'RIGHT']
             
-            # Check which directions would hit walls/boundaries
+            # Find all safe directions
             safeDirections = []
             for direction in directions:
                 testX, testY = x, y
@@ -89,8 +114,8 @@ class GameEngine:
                 elif direction == 'RIGHT':
                     testX += 1
                 
-                # Check boundaries
-                if testX < 0 or testX >= self.gridSize or testY < 0 or testY >= self.gridSize:
+                # Check boundaries (strict - avoid edges)
+                if testX < 1 or testX >= self.gridSize - 1 or testY < 1 or testY >= self.gridSize - 1:
                     continue
                 
                 # Check wall collision
@@ -103,14 +128,15 @@ class GameEngine:
                 
                 safeDirections.append(direction)
             
-            # Pick a safe direction, or random if none are safe (rare edge case)
+            # Pick a safe direction
             if safeDirections:
                 player['direction'] = random.choice(safeDirections)
             else:
+                # If trapped, pick any direction
                 player['direction'] = random.choice(directions)
         
-        # Occasionally make a "mistake" (10% chance to ignore AI and just go random)
-        if random.random() < 0.05:
+        # Very rarely move random (1% chance)
+        if random.random() < 0.01:
             player['direction'] = random.choice(['UP', 'DOWN', 'LEFT', 'RIGHT'])
     
     def updateDirection(self, userId, direction):
@@ -152,120 +178,210 @@ class GameEngine:
             attempts += 1
     
     def tick(self):
-        self.tickNumber += 1
-        
-        # Update bot AI
-        for userId, player in self.players.items():
-            if player['alive'] and player.get('isBot', False):
-                self.updateBotAI(userId, player)
-        
-        # Calculate new positions for all players
-        newPositions = {}
-        
-        for userId, player in self.players.items():
-            if not player['alive']:
-                continue
+        try:
+            self.tickNumber += 1
             
-            newX, newY = player['x'], player['y']
+            # STEP 1: Update bot AI
+            try:
+                for userId in list(self.players.keys()):  # Use list() to avoid dict mutation issues
+                    if userId not in self.players:
+                        continue
+                    player = self.players[userId]
+                    if player['alive'] and player.get('isBot', False):
+                        self.updateBotAI(userId, player)
+            except Exception as e:
+                print(f"[Match {self.matchId}] Error updating bot AI: {e}")
             
-            if player['direction'] == 'UP':
-                newY -= 1
-            elif player['direction'] == 'DOWN':
-                newY += 1
-            elif player['direction'] == 'LEFT':
-                newX -= 1
-            elif player['direction'] == 'RIGHT':
-                newX += 1
+            # STEP 2: Calculate new positions for all players
+            newPositions = {}
+            try:
+                for userId in list(self.players.keys()):
+                    if userId not in self.players:
+                        continue
+                    player = self.players[userId]
+                    if not player['alive']:
+                        continue
+                    
+                    x, y = player['x'], player['y']
+                    direction = player.get('direction', 'UP')
+                    
+                    if direction == 'UP':
+                        y -= 1
+                    elif direction == 'DOWN':
+                        y += 1
+                    elif direction == 'LEFT':
+                        x -= 1
+                    elif direction == 'RIGHT':
+                        x += 1
+                    
+                    newPositions[userId] = (x, y)
+            except Exception as e:
+                print(f"[Match {self.matchId}] Error calculating positions: {e}")
+                return
             
-            newPositions[userId] = (newX, newY)
+            # STEP 3: Process collisions and position updates
+            processedHeadOns = set()
+            try:
+                for userId in list(newPositions.keys()):
+                    if userId not in self.players or userId not in newPositions:
+                        continue
+                    
+                    player = self.players[userId]
+                    newX, newY = newPositions[userId]
+                    
+                    # Check boundaries
+                    if newX < 0 or newX >= self.gridSize or newY < 0 or newY >= self.gridSize:
+                        self.handleWallHit(userId)
+                        continue
+                    
+                    # Check wall collision
+                    wallHit = False
+                    for wall in self.walls:
+                        if wall['x'] == newX and wall['y'] == newY:
+                            wallHit = True
+                            break
+                    
+                    if wallHit:
+                        self.handleWallHit(userId)
+                        continue
+                    
+                    # Check player collisions
+                    collision = False
+                    
+                    # Check head-on collisions (both moving to same spot)
+                    for otherId in list(self.players.keys()):
+                        if otherId not in self.players or otherId == userId:
+                            continue
+                        if not self.players[otherId]['alive']:
+                            continue
+                        if otherId not in newPositions:
+                            continue
+                        
+                        otherX, otherY = newPositions[otherId]
+                        if newX == otherX and newY == otherY:
+                            collisionKey = tuple(sorted([userId, otherId]))
+                            if collisionKey not in processedHeadOns:
+                                # Head-on collision: treat like wall hit (both take damage)
+                                self.handleWallHit(userId)
+                                self.handleWallHit(otherId)
+                                processedHeadOns.add(collisionKey)
+                            collision = True
+                            break
+                    if collision:
+                        continue
+                    
+                    # Check side/back collisions (moving into current position)
+                    for otherId in list(self.players.keys()):
+                        if otherId not in self.players or otherId == userId:
+                            continue
+                        if not self.players[otherId]['alive']:
+                            continue
+                        
+                        otherPlayer = self.players[otherId]
+                        if newX == otherPlayer['x'] and newY == otherPlayer['y']:
+                            self.handlePlayerCollision(attackerId=userId, victimId=otherId)
+                            collision = True
+                            break
+                    
+                    if collision:
+                        continue
+                    
+                    # No collision - update position
+                    if userId in self.players:
+                        self.players[userId]['x'] = newX
+                        self.players[userId]['y'] = newY
+            
+            except Exception as e:
+                print(f"[Match {self.matchId}] Error processing collisions: {e}")
+                import traceback
+                traceback.print_exc()
+                return
+            
+            # STEP 4: Record frame
+            try:
+                self.recordFrame()
+            except Exception as e:
+                print(f"[Match {self.matchId}] Error recording frame: {e}")
         
-        # Track which head-on collisions have been processed to avoid double-processing
-        processedHeadOns = set()
-        
-        # Process each player's move
-        for userId, (newX, newY) in newPositions.items():
-            player = self.players[userId]
-            
-            # CRITICAL FIX: Check boundaries FIRST before any other collision
-            # Grid boundaries are 0 to gridSize-1 (inclusive)
-            if newX < 0 or newX >= self.gridSize or newY < 0 or newY >= self.gridSize:
-                self.handleWallHit(userId)
-                # Don't update position - player stays where they are
-                continue
-            
-            # Check wall collision
-            if any(w['x'] == newX and w['y'] == newY for w in self.walls):
-                self.handleWallHit(userId)
-                # Don't update position
-                continue
-            
-            # Check player-to-player collisions
-            collision = False
-            for otherId, otherPlayer in self.players.items():
-                if otherId == userId or not otherPlayer['alive']:
-                    continue
-                if otherId in newPositions:
-                    otherNewX, otherNewY = newPositions[otherId]
-                    # Head-on collision (both moving to same spot)
-                    if newX == otherNewX and newY == otherNewY:
-                        # Only process once per collision pair (not twice)
-                        collisionKey = tuple(sorted([userId, otherId]))
-                        if collisionKey not in processedHeadOns:
-                            # Both get a hit and stay in place (don't update position)
-                            self.handleWallHit(userId)
-                            self.handleWallHit(otherId)
-                            processedHeadOns.add(collisionKey)
-                        collision = True
-                        break
-                # Hit another player from side/back (moving into their current position)
-                if newX == otherPlayer['x'] and newY == otherPlayer['y']:
-                    self.handlePlayerCollision(attackerId=userId, victimId=otherId)
-                    collision = True
-                    break
-            if collision:
-                # Don't update position
-                continue
-            # ONLY update position if no collision occurred
-            player['x'] = newX
-            player['y'] = newY
-        
-        # Record frame for replay
-        self.recordFrame()
+        except Exception as e:
+            print(f"[Match {self.matchId}] Critical error in tick: {e}")
+            import traceback
+            traceback.print_exc()
     
     def recordFrame(self):
         """Record current game state for replay"""
-        frame = {
-            'gridSize': self.gridSize,
-            'players': {},
-            'walls': [{'x': w['x'], 'y': w['y']} for w in self.walls],
-            'countdownWalls': [{'x': w['x'], 'y': w['y'], 'secondsLeft': w['secondsLeft']} for w in self.countdownWalls],
-        }
-        for userId, player in self.players.items():
-            frame['players'][str(userId)] = {
-                'x': player['x'],
-                'y': player['y'],
-                'direction': player['direction'],
-                'alive': player['alive'],
-                'score': player['score'],
-                'hits': player['hits'],
-                'username': player['username'],
-                'playerColor': player['playerColor']
+        try:
+            frame = {
+                'gridSize': self.gridSize,
+                'players': {},
+                'walls': [],
+                'countdownWalls': [],
             }
-        self.replayFrames.append(frame)
+            
+            # Safely copy walls
+            try:
+                for w in self.walls:
+                    frame['walls'].append({'x': w['x'], 'y': w['y']})
+            except Exception as e:
+                print(f"[Match {self.matchId}] Error recording walls: {e}")
+            
+            # Safely copy countdown walls
+            try:
+                for w in self.countdownWalls:
+                    frame['countdownWalls'].append({'x': w['x'], 'y': w['y'], 'secondsLeft': w['secondsLeft']})
+            except Exception as e:
+                print(f"[Match {self.matchId}] Error recording countdown walls: {e}")
+            
+            # Safely copy player data
+            for userId in list(self.players.keys()):
+                try:
+                    if userId not in self.players:
+                        continue
+                    player = self.players[userId]
+                    frame['players'][str(userId)] = {
+                        'x': player.get('x', 0),
+                        'y': player.get('y', 0),
+                        'direction': player.get('direction', 'UP'),
+                        'alive': player.get('alive', False),
+                        'score': player.get('score', 0),
+                        'hits': player.get('hits', 0),
+                        'username': player.get('username', 'Unknown'),
+                        'playerColor': player.get('playerColor', '#ffffff')
+                    }
+                except Exception as e:
+                    print(f"[Match {self.matchId}] Error recording player {userId}: {e}")
+            
+            self.replayFrames.append(frame)
+        except Exception as e:
+            print(f"[Match {self.matchId}] Critical error in recordFrame: {e}")
     
     def handleWallHit(self, userId):
         """Handle player hitting a wall or boundary"""
-        if userId in self.players:
-            self.players[userId]['hits'] += 1
-            
-            # Eliminate after 50 hits
-            if self.players[userId]['hits'] >= 50:
-                self.players[userId]['alive'] = False
+        if userId not in self.players:
+            return
+        
+        player = self.players[userId]
+        if not player['alive']:
+            # Already dead, don't process again
+            return
+        
+        player['hits'] += 1
+        
+        # Eliminate after 50 hits
+        if player['hits'] >= 50:
+            player['alive'] = False
     
     def handlePlayerCollision(self, attackerId, victimId):
         """Attacker eliminates victim and gains their score"""
+        if attackerId not in self.players or victimId not in self.players:
+            return
+        
         attacker = self.players[attackerId]
         victim = self.players[victimId]
+        
+        # Don't process if victim already dead
+        if not victim['alive']:
+            return
         
         # Gain victim's positive score (not their hits)
         pointsGained = max(0, victim['score'])
@@ -302,36 +418,54 @@ class GameEngine:
         channel_layer = get_channel_layer()
         
         async def gameLoop():
+            last_log_tick = 0
             while self.running:
-                self.tick()
-                state = self.getState()
-                
-                # Broadcast state
-                await channel_layer.group_send(
-                    roomGroupName,
-                    {
-                        'type': 'gameState',
-                        'state': state
-                    }
-                )
-                
-                winnerId = self.checkGameOver()
-                if winnerId is not None:
-                    await self.endGame(winnerId, roomGroupName, handleGameOverCallback)
+                try:
+                    self.tick()
+                    
+                    # Log every 100 ticks to detect hangs
+                    if self.tickNumber % 100 == 0 and self.tickNumber != last_log_tick:
+                        last_log_tick = self.tickNumber
+                        print(f"[Match {self.matchId}] Tick {self.tickNumber}, Players: {sum(1 for p in self.players.values() if p['alive'])} alive")
+                    
+                    state = self.getState()
+                    
+                    # Broadcast state
+                    try:
+                        await channel_layer.group_send(
+                            roomGroupName,
+                            {
+                                'type': 'gameState',
+                                'state': state
+                            }
+                        )
+                    except Exception as e:
+                        print(f"[Match {self.matchId}] Failed to broadcast state: {e}")
+                    
+                    winnerId = self.checkGameOver()
+                    if winnerId is not None:
+                        await self.endGame(winnerId, roomGroupName, handleGameOverCallback)
+                        break
+                    
+                    # Also check if game is over due to tie (everyone dead)
+                    aliveCount = sum(1 for p in self.players.values() if p['alive'])
+                    if aliveCount == 0:
+                        await self.endGame(None, roomGroupName, handleGameOverCallback)
+                        break
+                    
+                    await asyncio.sleep(self.tickRate)
+                except Exception as e:
+                    print(f"[GameEngine {self.matchId}] Error in gameLoop: {e}")
+                    self.running = False
                     break
-                
-                # Also check if game is over due to tie (everyone dead)
-                aliveCount = sum(1 for p in self.players.values() if p['alive'])
-                if aliveCount == 0:
-                    await self.endGame(None, roomGroupName, handleGameOverCallback)
-                    break
-                
-                await asyncio.sleep(self.tickRate)
         
         async def countdownLoop():
             while self.running:
-                await asyncio.sleep(1)
-                self.updateCountdownWalls()
+                try:
+                    await asyncio.sleep(1)
+                    self.updateCountdownWalls()
+                except Exception as e:
+                    print(f"[GameEngine {self.matchId}] Error in countdownLoop: {e}")
         
         async def spawnLoop():
             # FIX: Only spawn walls if wallSpawnInterval > 0
@@ -339,8 +473,11 @@ class GameEngine:
                 return
             
             while self.running:
-                await asyncio.sleep(self.wallSpawnInterval)
-                self.spawnWall()
+                try:
+                    await asyncio.sleep(self.wallSpawnInterval)
+                    self.spawnWall()
+                except Exception as e:
+                    print(f"[GameEngine {self.matchId}] Error in spawnLoop: {e}")
         
         self.task = asyncio.create_task(gameLoop())
         self.wallSpawnTask = asyncio.create_task(spawnLoop())
@@ -349,35 +486,40 @@ class GameEngine:
     async def endGame(self, winnerId, roomGroupName, handleGameOverCallback):
         self.running = False
         channel_layer = get_channel_layer()
-        alivePlayers = [uid for uid, p in self.players.items() if p['alive']]
-        isTie = len(alivePlayers) == 0
-        gameOverState = {
-            'type': 'gameOver',
-            'winnerId': winnerId if not isTie else None,
-            'winnerUsername': self.players[winnerId]['username'] if winnerId and not isTie else None,
-            'isTie': isTie,
-            'alivePlayers': alivePlayers,
-            'finalScores': {str(uid): p['score'] for uid, p in self.players.items()},
-            'finalHits': {str(uid): p['hits'] for uid, p in self.players.items()}
-        }
-        # Build replay data
-        replayData = {
-            'frames': self.replayFrames,
-            'frameDuration': int(self.tickRate * 1000),  # Convert to ms
-            'mode': 'multiplayer'
-        }
-        # Pass replay data to callback
-        gameOverState['replayData'] = replayData
-        # Handle rewards
-        await handleGameOverCallback(gameOverState)
-        # Broadcast game over
-        await channel_layer.group_send(
-            roomGroupName,
-            {
-                'type': 'gameState',
-                'state': gameOverState
+        try:
+            alivePlayers = [uid for uid, p in self.players.items() if p['alive']]
+            isTie = len(alivePlayers) == 0
+            gameOverState = {
+                'type': 'gameOver',
+                'winnerId': winnerId if not isTie else None,
+                'winnerUsername': self.players[winnerId]['username'] if winnerId and not isTie else None,
+                'isTie': isTie,
+                'alivePlayers': alivePlayers,
+                'finalScores': {str(uid): p['score'] for uid, p in self.players.items()},
+                'finalHits': {str(uid): p['hits'] for uid, p in self.players.items()}
             }
-        )
+            # Build replay data
+            replayData = {
+                'frames': self.replayFrames,
+                'frameDuration': int(self.tickRate * 1000),  # Convert to ms
+                'mode': 'multiplayer'
+            }
+            # Pass replay data to callback
+            gameOverState['replayData'] = replayData
+            # Handle rewards
+            await handleGameOverCallback(gameOverState)
+            # Broadcast game over
+            await channel_layer.group_send(
+                roomGroupName,
+                {
+                    'type': 'gameState',
+                    'state': gameOverState
+                }
+            )
+        except Exception as e:
+            import traceback
+            print(f"[GameEngine {self.matchId}] Error in endGame: {e}")
+            print(traceback.format_exc())
     
     def stop(self):
         self.running = False
@@ -392,51 +534,86 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
     channel_layer = get_channel_layer()
     
     try:
-        print(f"[Match {matchId}] Starting countdown")
+        print(f"[Match {matchId}] Starting 10-second countdown")
         
-        # Broadcast countdown
+        # Broadcast countdown - 10 seconds down to 1
         for i in range(10, 0, -1):
-            print(f"[Match {matchId}] Countdown: {i}")
-            await channel_layer.group_send(
-                roomGroupName,
-                {
-                    'type': 'gameState',
-                    'state': {
-                        'type': 'countdown',
-                        'seconds': i
+            try:
+                await channel_layer.group_send(
+                    roomGroupName,
+                    {
+                        'type': 'gameState',
+                        'state': {
+                            'type': 'countdown',
+                            'seconds': i
+                        }
                     }
-                }
-            )
+                )
+            except Exception as e:
+                print(f"[Match {matchId}] Failed to broadcast countdown {i}: {e}")
+            
             await asyncio.sleep(1)
         
+        print(f"[Match {matchId}] Countdown complete (10s elapsed), starting match engine")
+        
         # Update match status to IN_PROGRESS
-        print(f"[Match {matchId}] Countdown complete, starting match")
         from django.contrib.auth import get_user_model
         
         @database_sync_to_async
         def setMatchInProgress():
-            match = Match.objects.get(id=matchId)
-            match.status = 'IN_PROGRESS'
-            match.startedAt = timezone.now()
-            match.save()
+            try:
+                match = Match.objects.get(id=matchId)
+                match.status = 'IN_PROGRESS'
+                match.startedAt = timezone.now()
+                match.save()
+                print(f"[Match {matchId}] Match status updated to IN_PROGRESS")
+            except Exception as e:
+                print(f"[Match {matchId}] Failed to update match status: {e}")
+                raise
         
-        @database_sync_to_async
-        def handleGameOver(state):
-            # This will be called when game ends
-            match = Match.objects.select_related('matchType').get(id=matchId)
-            
-            isTie = state.get('isTie', False)
-            winnerId = state.get('winnerId')
-            replayData = state.get('replayData')
-            
-            if isTie:
-                splitPot(match, replayData)
-            elif winnerId:
-                awardPot(match, winnerId, replayData)
-            
-            completeMatch(match, winnerId)
+        async def handleGameOver(state):
+            """Handle game over - process rewards and complete match"""
+            try:
+                print(f"[Match {matchId}] handleGameOver called with state: isTie={state.get('isTie')}, winnerId={state.get('winnerId')}")
+                
+                # Process in sync context
+                await database_sync_to_async(lambda: handle_game_over_sync(state))()
+                
+                print(f"[Match {matchId}] handleGameOver completed successfully")
+            except Exception as e:
+                print(f"[Match {matchId}] ERROR in handleGameOver: {e}")
+                import traceback
+                traceback.print_exc()
         
-        def splitPot(match, replayData=None):
+        def handle_game_over_sync(state):
+            """Synchronous game over handler - runs in thread pool"""
+            from django.db import transaction as dbTransaction
+            
+            try:
+                match = Match.objects.select_related('matchType').get(id=matchId)
+                
+                isTie = state.get('isTie', False)
+                winnerId = state.get('winnerId')
+                replayData = state.get('replayData')
+                
+                print(f"[Match {matchId}] Processing game over: isTie={isTie}, winnerId={winnerId}")
+                
+                with dbTransaction.atomic():
+                    if isTie:
+                        splitPot_sync(match, replayData)
+                    elif winnerId:
+                        awardPot_sync(match, winnerId, replayData)
+                    
+                    completeMatch_sync(match, winnerId)
+                    
+                print(f"[Match {matchId}] Game over processing completed")
+            except Exception as e:
+                print(f"[Match {matchId}] ERROR in handle_game_over_sync: {e}")
+                import traceback
+                traceback.print_exc()
+                raise
+        
+        def splitPot_sync(match, replayData=None):
             from django.db import transaction as dbTransaction
             import json
             
@@ -474,7 +651,7 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                         balanceAfter=profile.coins
                     )
         
-        def awardPot(match, winnerId, replayData=None):
+        def awardPot_sync(match, winnerId, replayData=None):
             from django.db import transaction as dbTransaction
             from django.contrib.auth import get_user_model
             import json
@@ -512,7 +689,7 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                     balanceAfter=profile.coins
                 )
         
-        def completeMatch(match, winnerId):
+        def completeMatch_sync(match, winnerId):
             from django.contrib.auth import get_user_model
             
             User = get_user_model()
@@ -529,10 +706,12 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                 profile.save(update_fields=['totalMatches'])
         
         await setMatchInProgress()
-        print(f"[Match {matchId}] Match status updated, starting engine")
+        print(f"[Match {matchId}] Match status updated to IN_PROGRESS, starting engine in background")
         
-        await engine.start(roomGroupName, handleGameOver)
-        print(f"[Match {matchId}] Engine started successfully")
+        # Start engine as background task - don't await it directly
+        # This allows the countdown function to complete while the game runs
+        asyncio.create_task(engine.start(roomGroupName, handleGameOver))
+        print(f"[Match {matchId}] Engine started as background task")
         
     except Exception as e:
         print(f"[Match {matchId}] ERROR in countdown: {e}")
@@ -640,7 +819,16 @@ class GameConsumer(AsyncWebsocketConsumer):
                     engine.updateDirection(self.user.id, direction)
     
     async def gameState(self, event):
-        await self.send(text_data=json.dumps(event['state']))
+        try:
+            state = event['state']
+            print(f"[GameConsumer {self.matchId}] Sending gameState to client: {state.get('type')}")
+            if state.get('type') == 'gameOver':
+                print(f"[GameConsumer {self.matchId}] 🏁 Sending GAME OVER to client: winnerId={state.get('winnerId')}, isTie={state.get('isTie')}")
+            await self.send(text_data=json.dumps(state))
+        except Exception as e:
+            import traceback
+            print(f"[GameConsumer {self.matchId}] Error in gameState: {e}")
+            print(traceback.format_exc())
     
     @database_sync_to_async
     def getPlayerColor(self):

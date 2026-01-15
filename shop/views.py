@@ -10,16 +10,25 @@ from decimal import Decimal
 from .models import CoinPackage, CoinPurchase, Transaction
 import json
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @login_required
 def shop(request):
     packages = CoinPackage.objects.filter(isActive=True)
     
+    # Check if test mode is enabled
+    testMode = os.environ.get('STRIPE_TEST_MODE', 'false').lower() == 'true'
+    
+    # Use test or live public key based on test mode
+    publicKey = os.environ.get('STRIPE_TEST_PUBLIC_KEY', '') if testMode else os.environ.get('STRIPE_PUBLIC_KEY', '')
+    
     context = {
         'packages': packages,
         'profile': request.user.profile,
-        'stripePublicKey': os.environ.get('STRIPE_PUBLIC_KEY', ''),
+        'stripePublicKey': publicKey,
     }
     return render(request, 'shop/shop.html', context)
 
@@ -33,26 +42,40 @@ def createPaymentIntent(request):
         
         package = get_object_or_404(CoinPackage, id=packageId, isActive=True)
         
-        # Check if Stripe is configured
-        stripeSecretKey = os.environ.get('STRIPE_SECRET_KEY')
+        # Check if test mode is enabled
+        testMode = os.environ.get('STRIPE_TEST_MODE', 'false').lower() == 'true'
+        
+        # Get appropriate API key based on test mode
+        if testMode:
+            stripeSecretKey = os.environ.get('STRIPE_TEST_SECRET_KEY')
+        else:
+            stripeSecretKey = os.environ.get('STRIPE_SECRET_KEY')
+        
         if not stripeSecretKey:
             return JsonResponse({
                 'success': False,
-                'error': 'Payment system not configured. STRIPE_SECRET_KEY is missing.'
+                'error': f'Payment system not configured. {"STRIPE_TEST_SECRET_KEY" if testMode else "STRIPE_SECRET_KEY"} is missing.'
             }, status=500)
         
         # Create Stripe payment intent
         import stripe
         stripe.api_key = stripeSecretKey
         
-        intent = stripe.PaymentIntent.create(
-            amount=int(package.price * 100),  # Convert to cents
-            currency='usd',
-            metadata={
+        # In test mode, allow test card numbers
+        createParams = {
+            'amount': int(package.price * 100),  # Convert to cents
+            'currency': 'usd',
+            'metadata': {
                 'packageId': package.id,
                 'userId': request.user.id
             }
-        )
+        }
+        
+        # Enable test mode if configured
+        if testMode:
+            createParams['payment_method_types'] = ['card']
+        
+        intent = stripe.PaymentIntent.create(**createParams)
         
         # Create purchase record
         CoinPurchase.objects.create(
@@ -66,7 +89,8 @@ def createPaymentIntent(request):
         
         return JsonResponse({
             'success': True,
-            'clientSecret': intent.client_secret
+            'clientSecret': intent.client_secret,
+            'testMode': testMode
         })
         
     except Exception as e:
@@ -85,38 +109,57 @@ def stripeWebhook(request):
     try:
         import stripe
         
+        # Check if test mode is enabled
+        testMode = os.environ.get('STRIPE_TEST_MODE', 'false').lower() == 'true'
+        logger.info(f"[WEBHOOK] Received webhook request. Test Mode: {testMode}")
+        
+        # Get appropriate webhook secret based on test mode
+        if testMode:
+            stripeWebhookSecret = os.environ.get('STRIPE_TEST_WEBHOOK_SECRET')
+            logger.info(f"[WEBHOOK] Using test webhook secret: {stripeWebhookSecret[:20]}..." if stripeWebhookSecret else "[WEBHOOK] Test webhook secret is missing!")
+        else:
+            stripeWebhookSecret = os.environ.get('STRIPE_WEBHOOK_SECRET')
+            logger.info(f"[WEBHOOK] Using live webhook secret: {stripeWebhookSecret[:20]}..." if stripeWebhookSecret else "[WEBHOOK] Live webhook secret is missing!")
+        
         payload = request.body
         sigHeader = request.META.get('HTTP_STRIPE_SIGNATURE')
+        logger.info(f"[WEBHOOK] Signature header present: {bool(sigHeader)}")
         
-        stripeWebhookSecret = os.environ.get('STRIPE_WEBHOOK_SECRET')
         if not stripeWebhookSecret:
+            logger.error("[WEBHOOK] Webhook secret not configured!")
             return JsonResponse({'error': 'Webhook secret not configured'}, status=500)
         
         try:
             event = stripe.Webhook.construct_event(
                 payload, sigHeader, stripeWebhookSecret
             )
-        except ValueError:
+            logger.info(f"[WEBHOOK] Event type: {event['type']}")
+        except ValueError as e:
+            logger.error(f"[WEBHOOK] Invalid payload: {str(e)}")
             return JsonResponse({'error': 'Invalid payload'}, status=400)
-        except stripe.error.SignatureVerificationError:
+        except stripe.error.SignatureVerificationError as e:
+            logger.error(f"[WEBHOOK] Signature verification failed: {str(e)}")
             return JsonResponse({'error': 'Invalid signature'}, status=400)
         
         # Handle payment_intent.succeeded event
         if event['type'] == 'payment_intent.succeeded':
             paymentIntent = event['data']['object']
             paymentIntentId = paymentIntent['id']
+            logger.info(f"[WEBHOOK] Processing payment_intent.succeeded: {paymentIntentId}")
             
             with transaction.atomic():
                 try:
                     purchase = CoinPurchase.objects.select_for_update().get(
                         stripePaymentIntentId=paymentIntentId
                     )
+                    logger.info(f"[WEBHOOK] Found purchase for user {purchase.user.id}")
                     
                     # Only process if not already completed
                     if purchase.status != 'COMPLETED':
                         purchase.status = 'COMPLETED'
                         purchase.completedAt = timezone.now()
                         purchase.save()
+                        logger.info(f"[WEBHOOK] Updated purchase status to COMPLETED")
                         
                         # Add coins to user's balance
                         profile = purchase.user.profile
@@ -127,6 +170,7 @@ def stripeWebhook(request):
                         profile.save(update_fields=['coins'])
                         profile.refresh_from_db()
                         balanceAfter = profile.coins
+                        logger.info(f"[WEBHOOK] Added {purchase.coinAmount} coins to user {purchase.user.id}. Balance: {balanceBefore} -> {balanceAfter}")
                         
                         # Create transaction record
                         Transaction.objects.create(
@@ -139,12 +183,16 @@ def stripeWebhook(request):
                         )
                         
                 except CoinPurchase.DoesNotExist:
+                    logger.error(f"[WEBHOOK] Purchase not found for payment intent: {paymentIntentId}")
                     return JsonResponse({'error': 'Purchase not found'}, status=404)
+        else:
+            logger.info(f"[WEBHOOK] Ignoring event type: {event['type']}")
         
         return JsonResponse({'success': True})
         
     except Exception as e:
         import traceback
+        logger.error(f"[WEBHOOK] Error processing webhook: {str(e)}\n{traceback.format_exc()}")
         return JsonResponse({
             'error': str(e),
             'traceback': traceback.format_exc()

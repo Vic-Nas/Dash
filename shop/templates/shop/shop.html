@@ -102,6 +102,9 @@
 <div id="paymentModal">
   <div class="modal-content">
     <h3 style="color:#5b7bff;">Complete Payment</h3>
+    <div id="testModeNotice" style="background:#065f46;border:1px solid #10b981;color:#86efac;padding:12px;border-radius:6px;margin-bottom:12px;display:none;">
+      <strong>🧪 Test Mode:</strong> Use test card 4242 4242 4242 4242 (any future date, any CVC)
+    </div>
 
     <p>Package: <strong id="packageName"></strong></p>
     <p>Amount: <strong id="packagePrice"></strong></p>
@@ -118,7 +121,7 @@
 
 <script>
   const stripePublicKey = '{{ stripePublicKey }}';
-  let stripe, cardElement, clientSecret;
+  let stripe, cardElement, clientSecret, isTestMode = false;
 
   if (stripePublicKey && typeof Stripe !== 'undefined') {
     stripe = Stripe(stripePublicKey);
@@ -169,9 +172,18 @@
       if (!data.success) throw new Error(data.error);
 
       clientSecret = data.clientSecret;
+      isTestMode = data.testMode;
 
       document.getElementById('packageName').textContent = name;
       document.getElementById('packagePrice').textContent = '$' + price.toFixed(2);
+      
+      // Show test mode notice if enabled
+      const testNotice = document.getElementById('testModeNotice');
+      if (isTestMode) {
+        testNotice.style.display = 'block';
+      } else {
+        testNotice.style.display = 'none';
+      }
 
       document.getElementById('paymentModal').classList.add('active');
       cardElement.mount('#card-element');

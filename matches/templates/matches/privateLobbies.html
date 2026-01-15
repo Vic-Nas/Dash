@@ -1,0 +1,298 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <title>Private Lobbies - Dash Arena</title>
+  <style>
+    *{box-sizing:border-box;}
+    body{font-family:system-ui,sans-serif;margin:0;background:#0d0f1a;color:#e6e6e6;}
+    header{background:#121428;border-bottom:1px solid #23264a;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;}
+    .brand{font-weight:700;font-size:20px;}
+    .user{display:flex;align-items:center;gap:16px;}
+    .coins{background:#2a2f6b;padding:8px 16px;border-radius:20px;font-weight:600;}
+    .btn{background:#2a2f6b;color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:14px;text-decoration:none;display:inline-block;}
+    .btn:hover{background:#3940a3;}
+    .container{max-width:1200px;margin:24px auto;padding:0 20px;}
+    h1{margin:0 0 24px;font-size:28px;}
+    
+    .code-section{
+      background:#1a1d35;
+      border:2px solid #10b981;
+      border-radius:12px;
+      padding:24px;
+      margin-bottom:24px;
+    }
+    .code-title{
+      font-size:18px;
+      font-weight:600;
+      color:#10b981;
+      margin-bottom:16px;
+    }
+    .code-input-group{
+      display:flex;
+      gap:12px;
+      margin-bottom:12px;
+    }
+    .code-input{
+      flex:1;
+      background:#121428;
+      border:1px solid #2a2f6b;
+      color:#fff;
+      padding:12px 16px;
+      border-radius:8px;
+      font-size:16px;
+      text-transform:uppercase;
+      letter-spacing:2px;
+      font-weight:600;
+    }
+    .code-input:focus{
+      outline:none;
+      border-color:#10b981;
+      box-shadow:0 0 10px rgba(16,185,129,0.3);
+    }
+    .code-btn{
+      background:#10b981;
+      color:#0d0f1a;
+      padding:12px 24px;
+      border-radius:8px;
+      border:none;
+      cursor:pointer;
+      font-weight:600;
+      font-size:15px;
+    }
+    .code-btn:hover{
+      background:#059669;
+    }
+    .code-msg{
+      padding:12px;
+      border-radius:8px;
+      margin-top:12px;
+      display:none;
+    }
+    .code-msg.success{
+      background:#065f46;
+      border:1px solid #10b981;
+      color:#86efac;
+      display:block;
+    }
+    .code-msg.error{
+      background:#991b1b;
+      border:1px solid #ef4444;
+      color:#fca5a5;
+      display:block;
+    }
+    
+    .divider{
+      text-align:center;
+      margin:24px 0;
+      color:#9ca3af;
+      position:relative;
+    }
+    .divider:before{
+      content:'';
+      position:absolute;
+      left:0;
+      right:0;
+      top:50%;
+      border-top:1px solid #23264a;
+    }
+    .divider-text{
+      background:#0d0f1a;
+      padding:0 12px;
+      position:relative;
+    }
+    
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:20px;}
+    .match-card{background:#121428;border:1px solid #23264a;border-radius:12px;padding:24px;transition:all .2s;position:relative;}
+    .match-card:hover{border-color:#3940a3;transform:translateY(-2px);}
+    
+    .match-header{display:flex;justify-content:space-between;align-items:start;margin-bottom:16px;}
+    .match-title{font-size:20px;font-weight:600;}
+    .entry-fee{background:#2a2f6b;padding:6px 12px;border-radius:6px;font-size:14px;font-weight:600;}
+    .match-desc{color:#9ca3af;font-size:14px;margin-bottom:16px;line-height:1.5;}
+    .match-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;}
+    .stat{background:#1a1d35;padding:10px;border-radius:6px;text-align:center;}
+    .stat-label{font-size:12px;color:#9ca3af;display:block;margin-bottom:4px;}
+    .stat-value{font-size:16px;font-weight:600;}
+    .create-btn{width:100%;background:#667eea;color:#fff;border:none;padding:12px;border-radius:8px;cursor:pointer;font-size:15px;font-weight:600;}
+    .create-btn:hover{background:#5568d3;}
+    .create-btn:disabled{background:#1a1d35;cursor:not-allowed;opacity:0.5;}
+    
+    @media (max-width: 768px) {
+      header {
+        flex-direction: column;
+        gap: 12px;
+        align-items: flex-start;
+      }
+      .container {
+        padding: 0 12px;
+      }
+      h1 {
+        font-size: 20px;
+      }
+      .code-input-group {
+        flex-direction: column;
+      }
+      .grid {
+        grid-template-columns: 1fr;
+      }
+      .match-stats {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">Dash Arena</div>
+    <div class="user">
+      <span class="coins">💰 {{ profile.coins|floatformat:0 }}</span>
+      <span>{{ user.username }}</span>
+      <a href="/matches/multiplayer/" class="btn">← Back to Multiplayer</a>
+    </div>
+  </header>
+
+  <div class="container">
+    <h1>🔒 Private Lobbies</h1>
+
+    <!-- CODE JOIN SECTION -->
+    <div class="code-section">
+      <div class="code-title">📥 Join with Code</div>
+      <div class="code-input-group">
+        <input 
+          type="text" 
+          id="joinCode"
+          class="code-input" 
+          placeholder="Enter 6-character code"
+          maxlength="6"
+          autocomplete="off"
+        >
+        <button class="code-btn" onclick="joinWithCode()">Join</button>
+      </div>
+      <div class="code-msg" id="codeMsg"></div>
+    </div>
+
+    <div class="divider">
+      <span class="divider-text">OR</span>
+    </div>
+
+    <!-- CREATE SECTION -->
+    <h2 style="margin-top:24px;">➕ Create New Lobby</h2>
+    <div class="grid">
+      {% for mt in matchTypes %}
+      <div class="match-card">
+        <div class="match-header">
+          <div class="match-title">{{ mt.name }}</div>
+          <div class="entry-fee">{{ mt.entryFee|floatformat:0 }} coins</div>
+        </div>
+        <div class="match-desc">{{ mt.description }}</div>
+        <div class="match-stats">
+          <div class="stat">
+            <span class="stat-label">Players</span>
+            <span class="stat-value">{{ mt.playersRequired }}-{{ mt.maxPlayers }}</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Grid</span>
+            <span class="stat-value">{{ mt.gridSize }}×{{ mt.gridSize }}</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Speed</span>
+            <span class="stat-value">{{ mt.speed }}</span>
+          </div>
+        </div>
+        <button class="create-btn" onclick="createLobby({{ mt.id }}, {{ mt.entryFee }}, '{{ mt.name }}')" {% if profile.coins < mt.entryFee %}disabled{% endif %}>
+          {% if profile.coins < mt.entryFee %}
+            Insufficient Coins
+          {% else %}
+            Create Lobby
+          {% endif %}
+        </button>
+      </div>
+      {% empty %}
+      <p style="color:#9ca3af;">No match types available.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <script>
+    function getCookie(name) {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop().split(';').shift();
+    }
+
+    function showCodeMsg(msg, isSuccess) {
+      const msgEl = document.getElementById('codeMsg');
+      msgEl.textContent = msg;
+      msgEl.className = 'code-msg ' + (isSuccess ? 'success' : 'error');
+    }
+
+    function joinWithCode() {
+      const code = document.getElementById('joinCode').value.toUpperCase().trim();
+      if (!code || code.length !== 6) {
+        showCodeMsg('❌ Code must be 6 characters', false);
+        return;
+      }
+
+      fetch('/matches/private/join/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({ code: code })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          showCodeMsg('✅ ' + data.message, true);
+          setTimeout(() => {
+            if (data.redirectUrl) {
+              window.location.href = data.redirectUrl;
+            }
+          }, 1000);
+        } else {
+          showCodeMsg('❌ ' + data.error, false);
+        }
+      })
+      .catch(e => showCodeMsg('❌ ' + e.message, false));
+    }
+
+    function createLobby(matchTypeId, entryFee, name) {
+      if ({{ profile.coins|floatformat:0 }} < entryFee) {
+        showCodeMsg('❌ Insufficient coins', false);
+        return;
+      }
+
+      fetch('/matches/private/create/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({ matchTypeId: matchTypeId })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          showCodeMsg('✅ Lobby created! Code: ' + data.lobbyCode, true);
+          document.getElementById('joinCode').value = data.lobbyCode;
+          setTimeout(() => {
+            if (data.redirectUrl) {
+              window.location.href = data.redirectUrl;
+            }
+          }, 1500);
+        } else {
+          showCodeMsg('❌ ' + data.error, false);
+        }
+      })
+      .catch(e => showCodeMsg('❌ ' + e.message, false));
+    }
+
+    // Focus on code input
+    document.getElementById('joinCode').focus();
+  </script>
+</body>
+</html>

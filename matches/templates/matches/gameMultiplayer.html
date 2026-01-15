@@ -23,22 +23,26 @@
       justify-content: center;
       height: 100vh;
       padding: 20px;
+      position: relative;
     }
     #gameCanvas {
       border: 2px solid #2a2f6b;
       box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      flex-shrink: 0;
     }
     #hud {
       position: absolute;
       top: 20px;
       left: 20px;
-      background: rgba(18,20,40,0.9);
+      background: rgba(18,20,40,0.95);
       padding: 16px;
       border-radius: 8px;
       border: 1px solid #2a2f6b;
       min-width: 200px;
-      max-height: 80vh;
+      max-height: 70vh;
       overflow-y: auto;
+      z-index: 10;
+      pointer-events: auto;
     }
     .stat {
       margin-bottom: 8px;
@@ -320,6 +324,7 @@
           countdownEl.textContent = data.seconds;
           document.getElementById('waitingMsg').querySelector('p').textContent = 'Game starting in...';
         } else if (data.type === 'gameOver') {
+          console.log('🏁 Game over message received, calling handleGameOver');
           handleGameOver(data);
         } else {
           // Regular game state
@@ -684,6 +689,7 @@
     }
 
     function handleGameOver(data) {
+      console.log('🏁 GAME OVER EVENT RECEIVED:', data);
       // Wait for explosion animation to finish before showing game over (10 frames * 150ms = 1500ms)
       var showGameOverDialog = function() {
         /* ===============================
