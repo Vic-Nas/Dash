@@ -251,7 +251,7 @@ class GameEngine:
                         self.handleWallHit(userId)
                         continue
                     
-                    # Check head-on collisions (both moving to same spot)
+                    # Check head-on collisions (both moving to same spot OR swapping positions)
                     headOnCollision = False
                     for otherId in list(self.players.keys()):
                         if otherId not in self.players or otherId == userId:
@@ -262,11 +262,21 @@ class GameEngine:
                             continue
                         
                         otherX, otherY = newPositions[otherId]
-                        if newX == otherX and newY == otherY:
+                        otherOriginalX, otherOriginalY = self.players[otherId]['x'], self.players[otherId]['y']
+                        
+                        # Check if both moving to same spot
+                        sameSpot = (newX == otherX and newY == otherY)
+                        
+                        # Check if swapping positions (moving into each other's original positions)
+                        swapping = (newX == otherOriginalX and newY == otherOriginalY and 
+                                   otherX == player['x'] and otherY == player['y'])
+                        
+                        if sameSpot or swapping:
                             collisionKey = tuple(sorted([userId, otherId]))
                             if collisionKey not in processedHeadOns:
                                 # Head-on collision: BOTH get +1 hit (like hitting a wall)
-                                print(f"[Match {self.matchId}] HEAD-ON: {userId} and {otherId} both moving to ({newX},{newY})")
+                                collisionType = "SWAP" if swapping else "SAME_SPOT"
+                                print(f"[Match {self.matchId}] HEAD-ON ({collisionType}): {userId} and {otherId}")
                                 self.handleWallHit(userId)
                                 self.handleWallHit(otherId)
                                 processedHeadOns.add(collisionKey)
@@ -646,6 +656,10 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
             from django.db import transaction as dbTransaction
             import json
             
+            print(f"[Match {match.id}] splitPotSync: has replayData={replayData is not None}")
+            if replayData:
+                print(f"[Match {match.id}] replayData frames count: {len(replayData.get('frames', []))}")
+            
             with dbTransaction.atomic():
                 match = Match.objects.select_for_update().get(id=match.id)
                 participants = list(match.participants.select_related('player__profile').all())
@@ -688,6 +702,10 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
             import json
             
             User = get_user_model()
+            
+            print(f"[Match {match.id}] awardPotSync: winnerId={winnerId}, has replayData={replayData is not None}")
+            if replayData:
+                print(f"[Match {match.id}] replayData frames count: {len(replayData.get('frames', []))}")
             
             with dbTransaction.atomic():
                 match = Match.objects.select_for_update().get(id=match.id)
