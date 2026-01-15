@@ -221,6 +221,7 @@ class GameEngine:
             
             # STEP 3: Process collisions and position updates
             processedHeadOns = set()
+            processedPlayers = set()
             try:
                 for userId in list(newPositions.keys()):
                     if userId not in self.players or userId not in newPositions:
@@ -253,16 +254,19 @@ class GameEngine:
                         if not self.players[otherId]['alive']:
                             continue
                         
-                        # Check if other player is moving to same spot
+                        collisionKey = tuple(sorted([userId, otherId]))
+                        if collisionKey in processedHeadOns:
+                            continue  # Already processed this pair
+                        
+                        # Check if BOTH players are moving to the same spot (true head-on)
                         if otherId in newPositions:
                             otherX, otherY = newPositions[otherId]
                             if newX == otherX and newY == otherY:
-                                collisionKey = tuple(sorted([userId, otherId]))
-                                if collisionKey not in processedHeadOns:
-                                    # Head-on collision: BOTH get +1 hit (like hitting a wall)
-                                    self.handleWallHit(userId)
-                                    self.handleWallHit(otherId)
-                                    processedHeadOns.add(collisionKey)
+                                # Head-on collision: BOTH get +1 hit (like hitting a wall)
+                                print(f"[Match {self.matchId}] HEAD-ON: {userId} and {otherId} both moving to ({newX},{newY})")
+                                self.handleWallHit(userId)
+                                self.handleWallHit(otherId)
+                                processedHeadOns.add(collisionKey)
                                 headOnCollision = True
                                 break
                     
@@ -277,8 +281,14 @@ class GameEngine:
                         if not self.players[otherId]['alive']:
                             continue
                         
-                        otherPlayer = self.players[otherId]
-                        if newX == otherPlayer['x'] and newY == otherPlayer['y']:
+                        # Use the OTHER player's NEW position if already processed, otherwise current position
+                        if otherId in processedPlayers:
+                            otherX, otherY = self.players[otherId]['x'], self.players[otherId]['y']
+                        else:
+                            otherX, otherY = self.players[otherId]['x'], self.players[otherId]['y']  # Current position
+                        
+                        if newX == otherX and newY == otherY:
+                            print(f"[Match {self.matchId}] SIDE KILL: {userId} moving to ({newX},{newY}) kills {otherId} at ({otherX},{otherY})")
                             self.handlePlayerCollision(attackerId=userId, victimId=otherId)
                             sideCollision = True
                             break
@@ -295,6 +305,8 @@ class GameEngine:
                         if userId in self.players:
                             self.players[userId]['x'] = newX
                             self.players[userId]['y'] = newY
+                    
+                    processedPlayers.add(userId)
             
             except Exception as e:
                 print(f"[Match {self.matchId}] Error processing collisions: {e}")
