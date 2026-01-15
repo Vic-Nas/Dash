@@ -498,7 +498,9 @@ class GameEngine:
                 }
             )
         except Exception as e:
+            import traceback
             print(f"[GameEngine {self.matchId}] Error in endGame: {e}")
+            print(traceback.format_exc())
     
     def stop(self):
         self.running = False
@@ -772,7 +774,16 @@ class GameConsumer(AsyncWebsocketConsumer):
                     engine.updateDirection(self.user.id, direction)
     
     async def gameState(self, event):
-        await self.send(text_data=json.dumps(event['state']))
+        try:
+            state = event['state']
+            print(f"[GameConsumer {self.matchId}] Sending gameState to client: {state.get('type')}")
+            if state.get('type') == 'gameOver':
+                print(f"[GameConsumer {self.matchId}] 🏁 Sending GAME OVER to client: winnerId={state.get('winnerId')}, isTie={state.get('isTie')}")
+            await self.send(text_data=json.dumps(state))
+        except Exception as e:
+            import traceback
+            print(f"[GameConsumer {self.matchId}] Error in gameState: {e}")
+            print(traceback.format_exc())
     
     @database_sync_to_async
     def getPlayerColor(self):

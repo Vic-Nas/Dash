@@ -231,8 +231,12 @@
       .then(r => r.json())
       .then(data => {
         if (data.success) {
-          showAlert('✅ Lobby Created!', `Your lobby code is: ${data.lobbyCode}\n\nShare this code with friends to invite them!`, true);
-          setTimeout(() => location.reload(), 2000);
+          if (data.redirectUrl) {
+            window.location.href = data.redirectUrl;
+          } else {
+            showAlert('✅ Lobby Created!', `Your lobby code is: ${data.lobbyCode}\n\nShare this code with friends to invite them!`, true);
+            setTimeout(() => location.reload(), 2000);
+          }
         } else {
           showAlert('❌ Error', data.error);
         }
@@ -264,8 +268,12 @@
       .then(r => r.json())
       .then(data => {
         if (data.success) {
-          showAlert('✅ Joined!', data.message, true);
-          setTimeout(() => location.reload(), 1000);
+          if (data.redirectUrl) {
+            window.location.href = data.redirectUrl;
+          } else {
+            showAlert('✅ Joined!', data.message, true);
+            setTimeout(() => location.reload(), 1000);
+          }
         } else {
           showAlert('❌ Error', data.error);
         }

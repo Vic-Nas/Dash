@@ -951,7 +951,7 @@ def privateLobbies(request):
 @require_POST
 def createPrivateLobby(request):
     """Create a new private lobby"""
-    from .models import PrivateLobby
+    from .models import PrivateLobby, PrivateLobbyMember
     from datetime import timedelta
     
     try:
@@ -989,8 +989,31 @@ def createPrivateLobby(request):
             )
             
             # Add creator as first member
-            from .models import PrivateLobbyMember
             PrivateLobbyMember.objects.create(lobby=lobby, user=request.user)
+            
+            # If 1v1, auto-create the match immediately
+            if matchType.maxPlayers == 1:
+                match = Match.objects.create(
+                    matchType=matchType,
+                    status='STARTING',
+                    gridSize=matchType.gridSize,
+                    speed=matchType.speed,
+                    playersRequired=1,
+                    currentPlayers=1,
+                    totalPot=Decimal(str(matchType.entryFee))
+                )
+                
+                # Link lobby to match
+                lobby.match = match
+                lobby.status = 'STARTING'
+                lobby.save(update_fields=['match', 'status'])
+                
+                # Add creator as participant
+                MatchParticipation.objects.create(
+                    match=match,
+                    player=request.user,
+                    joinedAt=timezone.now()
+                )
             
             # Record transaction
             Transaction.objects.create(
@@ -1007,7 +1030,8 @@ def createPrivateLobby(request):
             'lobbyCode': lobby.code,
             'lobbyId': lobby.id,
             'newBalance': float(balanceAfter),
-            'message': f'Private lobby created! Share code: {lobby.code}'
+            'message': f'Private lobby created! Share code: {lobby.code}',
+            'redirectUrl': f'/matches/private/waiting/{lobby.id}/'
         })
         
     except json.JSONDecodeError:
@@ -1079,7 +1103,9 @@ def joinPrivateLobby(request):
             
             # Check if lobby is now full and should start
             memberCount = PrivateLobbyMember.objects.filter(lobby=lobby).count()
-            if memberCount >= lobby.matchType.maxPlayers:
+            shouldStart = memberCount >= lobby.matchType.maxPlayers or lobby.matchType.maxPlayers == 1
+            
+            if shouldStart:
                 # Auto-start the match (same logic as multiplayer)
                 lobby.status = 'STARTING'
                 lobby.save(update_fields=['status'])
@@ -1109,11 +1135,12 @@ def joinPrivateLobby(request):
         
         return JsonResponse({
             'success': True,
-            'message': f'Joined lobby {code}!' + (' Match starting...' if memberCount >= lobby.matchType.maxPlayers else ''),
+            'message': f'Joined lobby {code}!' + (' Match starting...' if shouldStart else ''),
             'lobbyCode': lobby.code,
             'lobbyId': lobby.id,
             'memberCount': memberCount,
-            'matchStarted': memberCount >= lobby.matchType.maxPlayers
+            'matchStarted': shouldStart,
+            'redirectUrl': f'/matches/private/waiting/{lobby.id}/' if shouldStart else f'/matches/private/'
         })
         
     except PrivateLobby.DoesNotExist:
@@ -1130,3 +1157,79 @@ def joinPrivateLobby(request):
             'error': str(e),
             'traceback': traceback.format_exc()
         }, status=500)
+
+@login_required
+def privateWaiting(request, lobby_id):
+    """Show waiting page for a private lobby before game starts"""
+    from .models import PrivateLobby, PrivateLobbyMember
+    
+    lobby = get_object_or_404(PrivateLobby, id=lobby_id)
+    
+    # Check if user is a member
+    if not PrivateLobbyMember.objects.filter(lobby=lobby, user=request.user).exists():
+        return redirect('private_lobbies')
+    
+    # Check if creator
+    isCreator = lobby.creator == request.user
+    
+    context = {
+        'lobby_id': lobby.id,
+        'game_name': lobby.matchType.name,
+        'max_players': lobby.matchType.maxPlayers,
+        'code': lobby.code,
+        'show_code': isCreator,  # Only show code to creator
+    }
+    
+    return render(request, 'matches/privateWaiting.html', context)
+
+
+@login_required
+def privateStatus(request, lobby_id):
+    """Get current status of a private lobby (for AJAX polling)"""
+    from .models import PrivateLobby, PrivateLobbyMember
+    
+    lobby = get_object_or_404(PrivateLobby, id=lobby_id)
+    members = PrivateLobbyMember.objects.filter(lobby=lobby).values_list('user__username', flat=True)
+    
+    player_count = len(members)
+    max_players = lobby.matchType.maxPlayers
+    ready_to_start = player_count >= max_players
+    match_started = lobby.match is not None and lobby.status in ['IN_PROGRESS', 'COMPLETED']
+    
+    return JsonResponse({
+        'players': list(members),
+        'player_count': player_count,
+        'max_players': max_players,
+        'ready_to_start': ready_to_start,
+        'match_started': match_started,
+        'match_id': lobby.match.id if lobby.match else None,
+        'lobby_status': lobby.status
+    })
+
+
+@login_required
+@require_POST
+def cancelPrivateLobby(request, lobby_id):
+    """Cancel a private lobby (only by creator)"""
+    from .models import PrivateLobby
+    
+    lobby = get_object_or_404(PrivateLobby, id=lobby_id, creator=request.user)
+    
+    # Only allow cancellation if not in progress
+    if lobby.status in ['IN_PROGRESS', 'COMPLETED']:
+        return JsonResponse({'success': False, 'error': 'Cannot cancel active matches'}, status=400)
+    
+    # Refund the creation cost if it was just created
+    if lobby.status == 'WAITING':
+        creationCost = Decimal(str(SystemSettings.getInt('privateLobbyCreationCost', 50)))
+        profile = request.user.profile
+        with transaction.atomic():
+            profile = type(profile).objects.select_for_update().get(pk=profile.pk)
+            profile.coins = F('coins') + creationCost
+            profile.save(update_fields=['coins'])
+            profile.refresh_from_db()
+    
+    lobby.status = 'EXPIRED'
+    lobby.save(update_fields=['status'])
+    
+    return JsonResponse({'success': True, 'message': 'Lobby cancelled'})
