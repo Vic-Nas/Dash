@@ -991,30 +991,29 @@ def createPrivateLobby(request):
             # Add creator as first member
             PrivateLobbyMember.objects.create(lobby=lobby, user=request.user)
             
-            # If 1v1, auto-create the match immediately
-            if matchType.maxPlayers == 1:
-                match = Match.objects.create(
-                    matchType=matchType,
-                    status='STARTING',
-                    gridSize=matchType.gridSize,
-                    speed=matchType.speed,
-                    playersRequired=1,
-                    currentPlayers=1,
-                    totalPot=Decimal(str(matchType.entryFee))
-                )
-                
-                # Link lobby to match
-                lobby.match = match
-                lobby.status = 'STARTING'
-                lobby.save(update_fields=['match', 'status'])
-                
-                # Add creator as participant
-                MatchParticipation.objects.create(
-                    match=match,
-                    player=request.user,
-                    entryFeePaid=matchType.entryFee,
-                    joinedAt=timezone.now()
-                )
+            # Create Match immediately (not waiting for players like multiplayer)
+            match = Match.objects.create(
+                matchType=matchType,
+                status='STARTING',
+                gridSize=matchType.gridSize,
+                speed=matchType.speed,
+                playersRequired=matchType.playersRequired,
+                currentPlayers=1,
+                totalPot=Decimal(str(matchType.entryFee))
+            )
+            
+            # Link lobby to match
+            lobby.match = match
+            lobby.status = 'STARTING'
+            lobby.save(update_fields=['match', 'status'])
+            
+            # Add creator as participant
+            MatchParticipation.objects.create(
+                match=match,
+                player=request.user,
+                entryFeePaid=matchType.entryFee,
+                joinedAt=timezone.now()
+            )
             
             # Record transaction
             Transaction.objects.create(
@@ -1032,7 +1031,7 @@ def createPrivateLobby(request):
             'lobbyId': lobby.id,
             'newBalance': float(balanceAfter),
             'message': f'Lobby created! Share code: {lobby.code}',
-            'redirectUrl': f'/matches/lobby/{match.id}/' if matchType.maxPlayers == 1 else f'/matches/private/'
+            'redirectUrl': f'/matches/lobby/{match.id}/'
         })
         
     except json.JSONDecodeError:
@@ -1102,47 +1101,20 @@ def joinPrivateLobby(request):
             # Add user to lobby
             PrivateLobbyMember.objects.create(lobby=lobby, user=request.user)
             
-            # Check if lobby is now full and should start
-            memberCount = PrivateLobbyMember.objects.filter(lobby=lobby).count()
-            shouldStart = memberCount >= lobby.matchType.maxPlayers or lobby.matchType.maxPlayers == 1
-            
-            if shouldStart:
-                # Auto-start the match (same logic as multiplayer)
-                lobby.status = 'STARTING'
-                lobby.save(update_fields=['status'])
-                
-                # Create a Match (without bots, just for the lobby)
-                match = Match.objects.create(
-                    matchType=lobby.matchType,
-                    status='STARTING',
-                    gridSize=lobby.matchType.gridSize,
-                    speed=lobby.matchType.speed,
-                    playersRequired=lobby.matchType.playersRequired,
-                    currentPlayers=memberCount,
-                    totalPot=Decimal(str(lobby.matchType.entryFee * memberCount))
-                )
-                
-                # Link lobby to match
-                lobby.match = match
-                lobby.save(update_fields=['match'])
-                
-                # Add all lobby members as match participants
-                for member in PrivateLobbyMember.objects.filter(lobby=lobby):
-                    MatchParticipation.objects.create(
-                        match=match,
-                        player=member.user,
-                        entryFeePaid=lobby.matchType.entryFee,
-                        joinedAt=timezone.now()
-                    )
+            # Add user as match participant (match already exists from creation)
+            MatchParticipation.objects.create(
+                match=lobby.match,
+                player=request.user,
+                entryFeePaid=lobby.matchType.entryFee,
+                joinedAt=timezone.now()
+            )
         
         return JsonResponse({
             'success': True,
-            'message': f'Joined!' + (' Now starting game...' if shouldStart else ''),
+            'message': f'Joined!',
             'lobbyCode': lobby.code,
             'lobbyId': lobby.id,
-            'memberCount': memberCount,
-            'matchStarted': shouldStart,
-            'redirectUrl': f'/matches/lobby/{lobby.match.id}/' if shouldStart else f'/matches/private/'
+            'redirectUrl': f'/matches/lobby/{lobby.match.id}/'
         })
         
     except PrivateLobby.DoesNotExist:
