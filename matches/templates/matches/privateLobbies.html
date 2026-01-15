@@ -119,6 +119,29 @@
     .create-btn{width:100%;background:#667eea;color:#fff;border:none;padding:12px;border-radius:8px;cursor:pointer;font-size:15px;font-weight:600;}
     .create-btn:hover{background:#5568d3;}
     .create-btn:disabled{background:#1a1d35;cursor:not-allowed;opacity:0.5;}
+    
+    @media (max-width: 768px) {
+      header {
+        flex-direction: column;
+        gap: 12px;
+        align-items: flex-start;
+      }
+      .container {
+        padding: 0 12px;
+      }
+      h1 {
+        font-size: 20px;
+      }
+      .code-input-group {
+        flex-direction: column;
+      }
+      .grid {
+        grid-template-columns: 1fr;
+      }
+      .match-stats {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
   </style>
 </head>
 <body>

@@ -64,18 +64,18 @@ class GameEngine:
             del self.players[userId]
     
     def updateBotAI(self, userId, player):
-        """Update bot player AI for autonomous movement"""
+        """Update bot player AI for autonomous movement - moves 8-15 ticks not 5-10"""
         from shop.models import SystemSettings
         
         player['botDirectionChangeCounter'] += 1
         
-        # Time to change direction
+        # Time to change direction - longer intervals (8-15 ticks) to keep bot moving
         if player['botDirectionChangeCounter'] >= player['botNextDirectionChangeAt']:
             player['botDirectionChangeCounter'] = 0
-            player['botNextDirectionChangeAt'] = random.randint(5, 10)
+            player['botNextDirectionChangeAt'] = random.randint(8, 15)
             
             # Get wall avoidance setting (0-100, where 100 = always avoid walls)
-            wallAvoidanceAccuracy = SystemSettings.getInt('botWallAvoidance', 80)
+            wallAvoidanceAccuracy = SystemSettings.getInt('botWallAvoidance', 95)
             wallAvoidanceAccuracy = max(0, min(100, wallAvoidanceAccuracy))  # Clamp to 0-100
             
             # Check ahead for walls/boundaries and prefer to avoid them
@@ -95,8 +95,9 @@ class GameEngine:
                 elif direction == 'RIGHT':
                     testX += 1
                 
-                # Check boundaries
-                if testX < 0 or testX >= self.gridSize or testY < 0 or testY >= self.gridSize:
+                # Check boundaries (with 2-cell lookahead to avoid edges)
+                if testX < 2 or testX >= self.gridSize - 2 or testY < 2 or testY >= self.gridSize - 2:
+                    # Edge cells - avoid them
                     continue
                 
                 # Check wall collision
@@ -113,11 +114,14 @@ class GameEngine:
             if safeDirections and random.randint(0, 100) < wallAvoidanceAccuracy:
                 player['direction'] = random.choice(safeDirections)
             else:
-                # Otherwise pick any random direction (could hit wall)
-                player['direction'] = random.choice(directions)
+                # Otherwise pick from safe directions if available
+                if safeDirections:
+                    player['direction'] = random.choice(safeDirections)
+                else:
+                    player['direction'] = random.choice(directions)
         
-        # Occasionally make a "mistake" (5% chance to ignore AI and just go random)
-        if random.random() < 0.05:
+        # Rarely make a "mistake" (2% chance instead of 5%)
+        if random.random() < 0.02:
             player['direction'] = random.choice(['UP', 'DOWN', 'LEFT', 'RIGHT'])
     
     def updateDirection(self, userId, direction):
@@ -552,25 +556,47 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                 print(f"[Match {matchId}] Failed to update match status: {e}")
                 raise
         
-        @database_sync_to_async
-        def handleGameOver_sync(state):
-            # This will be called when game ends - synchronous database operations
-            match = Match.objects.select_related('matchType').get(id=matchId)
-            
-            isTie = state.get('isTie', False)
-            winnerId = state.get('winnerId')
-            replayData = state.get('replayData')
-            
-            if isTie:
-                splitPot_sync(match, replayData)
-            elif winnerId:
-                awardPot_sync(match, winnerId, replayData)
-            
-            completeMatch_sync(match, winnerId)
-        
         async def handleGameOver(state):
-            # Async wrapper that calls the sync version
-            await handleGameOver_sync(state)
+            """Handle game over - process rewards and complete match"""
+            try:
+                print(f"[Match {matchId}] handleGameOver called with state: isTie={state.get('isTie')}, winnerId={state.get('winnerId')}")
+                
+                # Process in sync context
+                await database_sync_to_async(lambda: handle_game_over_sync(state))()
+                
+                print(f"[Match {matchId}] handleGameOver completed successfully")
+            except Exception as e:
+                print(f"[Match {matchId}] ERROR in handleGameOver: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        def handle_game_over_sync(state):
+            """Synchronous game over handler - runs in thread pool"""
+            from django.db import transaction as dbTransaction
+            
+            try:
+                match = Match.objects.select_related('matchType').get(id=matchId)
+                
+                isTie = state.get('isTie', False)
+                winnerId = state.get('winnerId')
+                replayData = state.get('replayData')
+                
+                print(f"[Match {matchId}] Processing game over: isTie={isTie}, winnerId={winnerId}")
+                
+                with dbTransaction.atomic():
+                    if isTie:
+                        splitPot_sync(match, replayData)
+                    elif winnerId:
+                        awardPot_sync(match, winnerId, replayData)
+                    
+                    completeMatch_sync(match, winnerId)
+                    
+                print(f"[Match {matchId}] Game over processing completed")
+            except Exception as e:
+                print(f"[Match {matchId}] ERROR in handle_game_over_sync: {e}")
+                import traceback
+                traceback.print_exc()
+                raise
         
         def splitPot_sync(match, replayData=None):
             from django.db import transaction as dbTransaction
