@@ -543,6 +543,7 @@ class GameEngine:
                 'frameDuration': int(self.tickRate * 1000),  # Convert to ms
                 'mode': 'multiplayer'
             }
+            print(f"[Match {self.matchId}] 🎬 endGame: Built replayData with {len(self.replayFrames)} frames")
             # Pass replay data to callback
             gameOverState['replayData'] = replayData
             # Handle rewards
@@ -681,7 +682,7 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                     participation.coinReward = share
                     participation.placement = 1
                     if replayData:
-                        participation.replayData = json.dumps(replayData) if not isinstance(replayData, str) else replayData
+                        participation.replayData = replayData
                         participation.save(update_fields=['coinReward', 'placement', 'replayData'])
                     else:
                         participation.save(update_fields=['coinReward', 'placement'])
@@ -721,8 +722,7 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                 profile.refresh_from_db()
                 
                 # Save replay data for ALL participants (including losers)
-                replayDataStr = json.dumps(replayData) if replayData and not isinstance(replayData, str) else replayData
-                
+                # Note: replayData is a dict, save it directly to JSONField
                 for participation in match.participants.select_related('player'):
                     if participation.player_id == winnerId:
                         # Winner
@@ -734,8 +734,8 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                         participation.placement = 2
                     
                     # Save replay data for this participant
-                    if replayDataStr:
-                        participation.replayData = replayDataStr
+                    if replayData:
+                        participation.replayData = replayData
                         participation.save(update_fields=['coinReward', 'placement', 'replayData'])
                     else:
                         participation.save(update_fields=['coinReward', 'placement'])

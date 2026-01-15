@@ -31,14 +31,15 @@
       flex-shrink: 0;
     }
     #hud {
-      position: static;
-      margin-top: 16px;
+      position: absolute;
+      top: 20px;
+      left: 20px;
       background: rgba(18,20,40,0.95);
       padding: 16px;
       border-radius: 8px;
       border: 1px solid #2a2f6b;
       min-width: 200px;
-      max-height: 300px;
+      max-height: 70vh;
       overflow-y: auto;
       z-index: 10;
       pointer-events: auto;
@@ -192,6 +193,10 @@
         font-size: 11px;
         border: 1px solid #2a2f6b;
         border-radius: 8px;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-around;
+        gap: 8px;
       }
       .stat {
         margin-bottom: 6px;
