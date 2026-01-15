@@ -261,9 +261,10 @@ class GameEngine:
                         if newX == otherX and newY == otherY:
                             collisionKey = tuple(sorted([userId, otherId]))
                             if collisionKey not in processedHeadOns:
-                                # Head-on collision: treat like wall hit (both take damage)
-                                self.handleWallHit(userId)
-                                self.handleWallHit(otherId)
+                                # Head-on collision: The one processed LATER in this tick loses
+                                # (because the earlier player "hit" them first in game logic)
+                                # So the later player (otherId) dies, earlier player (userId) wins
+                                self.handlePlayerCollision(attackerId=userId, victimId=otherId)
                                 processedHeadOns.add(collisionKey)
                             collision = True
                             break
