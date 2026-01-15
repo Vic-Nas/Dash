@@ -980,11 +980,12 @@ def createPrivateLobby(request):
             balanceAfter = profile.coins
             
             # Create private lobby (code is auto-generated in model save)
+            # Expire after 10 minutes instead of 1 hour
             lobby = PrivateLobby.objects.create(
                 creator=request.user,
                 matchType=matchType,
                 status='WAITING',
-                expiresAt=timezone.now() + timedelta(hours=1)  # Expire after 1 hour
+                expiresAt=timezone.now() + timedelta(minutes=10)
             )
             
             # Add creator as first member
@@ -1075,13 +1076,44 @@ def joinPrivateLobby(request):
         with transaction.atomic():
             # Add user to lobby
             PrivateLobbyMember.objects.create(lobby=lobby, user=request.user)
+            
+            # Check if lobby is now full and should start
+            memberCount = PrivateLobbyMember.objects.filter(lobby=lobby).count()
+            if memberCount >= lobby.matchType.maxPlayers:
+                # Auto-start the match (same logic as multiplayer)
+                lobby.status = 'STARTING'
+                lobby.save(update_fields=['status'])
+                
+                # Create a Match (without bots, just for the lobby)
+                match = Match.objects.create(
+                    matchType=lobby.matchType,
+                    status='STARTING',
+                    gridSize=lobby.matchType.gridSize,
+                    speed=lobby.matchType.speed,
+                    playersRequired=lobby.matchType.playersRequired,
+                    currentPlayers=memberCount,
+                    totalPot=Decimal(str(lobby.matchType.entryFee * memberCount))
+                )
+                
+                # Link lobby to match
+                lobby.match = match
+                lobby.save(update_fields=['match'])
+                
+                # Add all lobby members as match participants
+                for member in PrivateLobbyMember.objects.filter(lobby=lobby):
+                    MatchParticipation.objects.create(
+                        match=match,
+                        player=member.user,
+                        joinedAt=timezone.now()
+                    )
         
         return JsonResponse({
             'success': True,
-            'message': f'Joined lobby {code}!',
+            'message': f'Joined lobby {code}!' + (' Match starting...' if memberCount >= lobby.matchType.maxPlayers else ''),
             'lobbyCode': lobby.code,
             'lobbyId': lobby.id,
-            'memberCount': memberCount + 1
+            'memberCount': memberCount,
+            'matchStarted': memberCount >= lobby.matchType.maxPlayers
         })
         
     except PrivateLobby.DoesNotExist:
