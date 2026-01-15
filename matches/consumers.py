@@ -219,9 +219,11 @@ class GameEngine:
                 print(f"[Match {self.matchId}] Error calculating positions: {e}")
                 return
             
-            # STEP 3: Process collisions and position updates
+            # STEP 3: Calculate collisions (don't update positions yet)
+            collisions = {}  # userId -> 'none', 'wall', 'headOn', or 'sideKill'
+            sideKillPairs = {}  # userId -> victimId for side kills
             processedHeadOns = set()
-            processedPlayers = set()
+            
             try:
                 for userId in list(newPositions.keys()):
                     if userId not in self.players or userId not in newPositions:
@@ -232,6 +234,7 @@ class GameEngine:
                     
                     # Check boundaries
                     if newX < 0 or newX >= self.gridSize or newY < 0 or newY >= self.gridSize:
+                        collisions[userId] = 'wall'
                         self.handleWallHit(userId)
                         continue
                     
@@ -243,6 +246,7 @@ class GameEngine:
                             break
                     
                     if wallHit:
+                        collisions[userId] = 'wall'
                         self.handleWallHit(userId)
                         continue
                     
@@ -253,27 +257,26 @@ class GameEngine:
                             continue
                         if not self.players[otherId]['alive']:
                             continue
+                        if otherId not in newPositions:
+                            continue
                         
-                        collisionKey = tuple(sorted([userId, otherId]))
-                        if collisionKey in processedHeadOns:
-                            continue  # Already processed this pair
-                        
-                        # Check if BOTH players are moving to the same spot (true head-on)
-                        if otherId in newPositions:
-                            otherX, otherY = newPositions[otherId]
-                            if newX == otherX and newY == otherY:
+                        otherX, otherY = newPositions[otherId]
+                        if newX == otherX and newY == otherY:
+                            collisionKey = tuple(sorted([userId, otherId]))
+                            if collisionKey not in processedHeadOns:
                                 # Head-on collision: BOTH get +1 hit (like hitting a wall)
                                 print(f"[Match {self.matchId}] HEAD-ON: {userId} and {otherId} both moving to ({newX},{newY})")
                                 self.handleWallHit(userId)
                                 self.handleWallHit(otherId)
                                 processedHeadOns.add(collisionKey)
-                                headOnCollision = True
-                                break
+                            collisions[userId] = 'headOn'
+                            headOnCollision = True
+                            break
                     
                     if headOnCollision:
                         continue
                     
-                    # Check side/back collisions (moving into current position)
+                    # Check side/back collisions (moving into ORIGINAL position of other player)
                     sideCollision = False
                     for otherId in list(self.players.keys()):
                         if otherId not in self.players or otherId == userId:
@@ -281,35 +284,43 @@ class GameEngine:
                         if not self.players[otherId]['alive']:
                             continue
                         
-                        # Use the OTHER player's NEW position if already processed, otherwise current position
-                        if otherId in processedPlayers:
-                            otherX, otherY = self.players[otherId]['x'], self.players[otherId]['y']
-                        else:
-                            otherX, otherY = self.players[otherId]['x'], self.players[otherId]['y']  # Current position
+                        # Always check against ORIGINAL position (before any moves in this tick)
+                        otherX, otherY = self.players[otherId]['x'], self.players[otherId]['y']
                         
                         if newX == otherX and newY == otherY:
-                            print(f"[Match {self.matchId}] SIDE KILL: {userId} moving to ({newX},{newY}) kills {otherId} at ({otherX},{otherY})")
+                            print(f"[Match {self.matchId}] SIDE KILL: {userId} moving to ({newX},{newY}) kills {otherId}")
                             self.handlePlayerCollision(attackerId=userId, victimId=otherId)
+                            collisions[userId] = 'sideKill'
+                            sideKillPairs[userId] = otherId
                             sideCollision = True
                             break
                     
-                    # For side collision, attacker moves into the position
-                    # For head-on, neither moves (already handled with continue above)
                     if not sideCollision:
-                        # No collision - update position
-                        if userId in self.players:
-                            self.players[userId]['x'] = newX
-                            self.players[userId]['y'] = newY
-                    else:
-                        # Side collision: attacker moves into victim's position
-                        if userId in self.players:
-                            self.players[userId]['x'] = newX
-                            self.players[userId]['y'] = newY
-                    
-                    processedPlayers.add(userId)
-            
+                        collisions[userId] = 'none'
             except Exception as e:
-                print(f"[Match {self.matchId}] Error processing collisions: {e}")
+                print(f"[Match {self.matchId}] Error calculating collisions: {e}")
+                import traceback
+                traceback.print_exc()
+                return
+            
+            # STEP 4: Apply position updates based on collision results
+            try:
+                for userId in list(newPositions.keys()):
+                    if userId not in self.players:
+                        continue
+                    
+                    collision = collisions.get(userId, 'none')
+                    if collision in ['wall', 'headOn']:
+                        # Don't move
+                        continue
+                    else:
+                        # 'none' or 'sideKill' - move to new position
+                        newX, newY = newPositions[userId]
+                        if userId in self.players:
+                            self.players[userId]['x'] = newX
+                            self.players[userId]['y'] = newY
+            except Exception as e:
+                print(f"[Match {self.matchId}] Error applying positions: {e}")
                 import traceback
                 traceback.print_exc()
                 return
