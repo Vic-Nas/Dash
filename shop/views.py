@@ -16,10 +16,16 @@ import os
 def shop(request):
     packages = CoinPackage.objects.filter(isActive=True)
     
+    # Check if test mode is enabled
+    testMode = os.environ.get('STRIPE_TEST_MODE', 'false').lower() == 'true'
+    
+    # Use test or live public key based on test mode
+    publicKey = os.environ.get('STRIPE_TEST_PUBLIC_KEY', '') if testMode else os.environ.get('STRIPE_PUBLIC_KEY', '')
+    
     context = {
         'packages': packages,
         'profile': request.user.profile,
-        'stripePublicKey': os.environ.get('STRIPE_PUBLIC_KEY', ''),
+        'stripePublicKey': publicKey,
     }
     return render(request, 'shop/shop.html', context)
 
@@ -33,16 +39,20 @@ def createPaymentIntent(request):
         
         package = get_object_or_404(CoinPackage, id=packageId, isActive=True)
         
-        # Check if Stripe is configured
-        stripeSecretKey = os.environ.get('STRIPE_SECRET_KEY')
+        # Check if test mode is enabled
+        testMode = os.environ.get('STRIPE_TEST_MODE', 'false').lower() == 'true'
+        
+        # Get appropriate API key based on test mode
+        if testMode:
+            stripeSecretKey = os.environ.get('STRIPE_TEST_SECRET_KEY')
+        else:
+            stripeSecretKey = os.environ.get('STRIPE_SECRET_KEY')
+        
         if not stripeSecretKey:
             return JsonResponse({
                 'success': False,
-                'error': 'Payment system not configured. STRIPE_SECRET_KEY is missing.'
+                'error': f'Payment system not configured. {"STRIPE_TEST_SECRET_KEY" if testMode else "STRIPE_SECRET_KEY"} is missing.'
             }, status=500)
-        
-        # Check if test mode is enabled
-        testMode = os.environ.get('STRIPE_TEST_MODE', 'false').lower() == 'true'
         
         # Create Stripe payment intent
         import stripe
@@ -96,10 +106,18 @@ def stripeWebhook(request):
     try:
         import stripe
         
+        # Check if test mode is enabled
+        testMode = os.environ.get('STRIPE_TEST_MODE', 'false').lower() == 'true'
+        
+        # Get appropriate webhook secret based on test mode
+        if testMode:
+            stripeWebhookSecret = os.environ.get('STRIPE_TEST_WEBHOOK_SECRET')
+        else:
+            stripeWebhookSecret = os.environ.get('STRIPE_WEBHOOK_SECRET')
+        
         payload = request.body
         sigHeader = request.META.get('HTTP_STRIPE_SIGNATURE')
         
-        stripeWebhookSecret = os.environ.get('STRIPE_WEBHOOK_SECRET')
         if not stripeWebhookSecret:
             return JsonResponse({'error': 'Webhook secret not configured'}, status=500)
         
