@@ -219,6 +219,7 @@ class GameEngine:
                 print(f"[Match {self.matchId}] Error calculating positions: {e}")
                 return
             
+        print(f"[Match {self.matchId}] Tick {self.tickNumber}: Processing {len(newPositions)} players")
             # STEP 3: Calculate collisions (don't update positions yet)
             collisions = {}  # userId -> 'none', 'wall', 'headOn', or 'sideKill'
             sideKillPairs = {}  # userId -> victimId for side kills
@@ -667,7 +668,9 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                     participation.placement = 1
                     if replayData:
                         participation.replayData = json.dumps(replayData) if not isinstance(replayData, str) else replayData
-                    participation.save(update_fields=['coinReward', 'placement', 'replayData'])
+                        participation.save(update_fields=['coinReward', 'placement', 'replayData'])
+                    else:
+                        participation.save(update_fields=['coinReward', 'placement'])
                     
                     Transaction.objects.create(
                         user=participation.player,
@@ -715,7 +718,9 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                     # Save replay data for this participant
                     if replayDataStr:
                         participation.replayData = replayDataStr
-                    participation.save(update_fields=['coinReward', 'placement', 'replayData'])
+                        participation.save(update_fields=['coinReward', 'placement', 'replayData'])
+                    else:
+                        participation.save(update_fields=['coinReward', 'placement'])
                 
                 Transaction.objects.create(
                     user=winner,
