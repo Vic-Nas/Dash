@@ -26,7 +26,4 @@ urlpatterns = [
     path('private/', views.privateLobbies, name='privateLobbies'),
     path('private/create/', views.createPrivateLobby, name='createPrivateLobby'),
     path('private/join/', views.joinPrivateLobby, name='joinPrivateLobby'),
-    path('private/waiting/<int:lobby_id>/', views.privateWaiting, name='privateWaiting'),
-    path('private/status/<int:lobby_id>/', views.privateStatus, name='privateStatus'),
-    path('private/cancel/<int:lobby_id>/', views.cancelPrivateLobby, name='cancelPrivateLobby'),
 ]

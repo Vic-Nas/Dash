@@ -1,224 +1,220 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Private Lobbies - Dash Arena</title>
+  <title>Private Lobbies - Dash</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
   <style>
-    *{box-sizing:border-box;}
-    body{font-family:system-ui,sans-serif;margin:0;background:#0d0f1a;color:#e6e6e6;}
-    header{background:#121428;border-bottom:1px solid #23264a;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;}
-    .brand{font-weight:700;font-size:20px;}
-    a{color:#5b7bff;text-decoration:none;}
-    a:hover{text-decoration:underline;}
-    .container{max-width:1200px;margin:24px auto;padding:0 20px;}
-    h1{margin:0 0 24px;font-size:28px;}
-    .section{background:#121428;border:1px solid #23264a;border-radius:12px;padding:24px;margin-bottom:24px;}
-    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-top:16px;}
-    .card{background:#1a1d35;border:1px solid #2a2f6b;border-radius:10px;padding:16px;transition:all .2s;}
-    .card:hover{border-color:#3940a3;transform:translateY(-2px);}
-    .card-title{font-weight:600;font-size:16px;margin-bottom:8px;}
-    .card-meta{font-size:13px;color:#9ca3af;margin:8px 0;}
-    .badge{display:inline-block;background:#2a2f6b;padding:4px 12px;border-radius:20px;font-size:12px;margin:4px 0;}
-    .badge.waiting{background:#f59e0b;}
-    .badge.progress{background:#3b82f6;}
-    .btn{background:#2a2f6b;color:#fff;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;font-size:14px;display:inline-block;margin:8px 0;}
-    .btn:hover{background:#3940a3;}
-    .btn.primary{background:#5b7bff;}
-    .btn.primary:hover{background:#3940a3;}
-    .btn.danger{background:#ef4444;}
-    .btn.danger:hover{background:#dc2626;}
-    .input-group{display:flex;gap:8px;margin:16px 0;}
-    .input-group input{flex:1;padding:12px;background:#1a1d35;border:1px solid #2a2f6b;border-radius:8px;color:#fff;}
-    .input-group button{padding:12px 24px;}
-    .alert{padding:16px;border-radius:8px;margin-bottom:24px;}
-    .alert-info{background:#1e40af;border:1px solid #3b82f6;}
-    .alert-success{background:#065f46;border:1px solid #10b981;}
-    .alert-error{background:#991b1b;border:1px solid #ef4444;}
-    .code-display{background:#1a1d35;padding:16px;border-radius:8px;border:2px solid #3b82f6;font-family:monospace;font-size:20px;font-weight:700;letter-spacing:2px;text-align:center;margin:16px 0;}
-    .stats{display:flex;gap:16px;margin:12px 0;font-size:14px;}
-    .stat{background:#1a1d35;padding:8px 12px;border-radius:6px;}
-    .stat-label{color:#9ca3af;}
-    .stat-value{color:#5b7bff;font-weight:600;}
-    .modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:1000;align-items:center;justify-content:center;}
-    .modal.active{display:flex;}
-    .modal-content{background:#121428;border:1px solid #23264a;border-radius:12px;padding:24px;max-width:500px;width:90%;}
-    .close-modal{float:right;font-size:28px;font-weight:700;cursor:pointer;color:#9ca3af;}
-    .close-modal:hover{color:#e6e6e6;}
+    body {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      color: white;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .container-main {
+      max-width: 400px;
+      margin: 50px auto;
+    }
+    .card {
+      background: rgba(0,0,0,0.7);
+      border: 2px solid rgba(255,255,255,0.2);
+      border-radius: 15px;
+      padding: 30px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    }
+    .card h2 {
+      text-align: center;
+      margin-bottom: 30px;
+      font-size: 24px;
+    }
+    .section {
+      margin-bottom: 30px;
+    }
+    .section h4 {
+      color: #10b981;
+      margin-bottom: 15px;
+      font-size: 16px;
+    }
+    .form-control {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.3);
+      color: white;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 16px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .form-control::placeholder {
+      color: rgba(255,255,255,0.5);
+    }
+    .form-control:focus {
+      background: rgba(255,255,255,0.15);
+      border-color: rgba(255,255,255,0.5);
+      color: white;
+      box-shadow: 0 0 0 0.2rem rgba(16, 185, 129, 0.25);
+    }
+    .btn {
+      padding: 12px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 16px;
+      width: 100%;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .btn-join {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+      margin-top: 10px;
+    }
+    .btn-join:hover {
+      background: linear-gradient(135deg, #059669, #047857);
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(16, 185, 129, 0.4);
+    }
+    .btn-create {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      margin-top: 10px;
+    }
+    .btn-create:hover {
+      background: linear-gradient(135deg, #764ba2, #6d28d9);
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    }
+    .btn-back {
+      background: rgba(255,255,255,0.2);
+      color: white;
+      margin-top: 20px;
+      border: 2px solid rgba(255,255,255,0.3);
+    }
+    .btn-back:hover {
+      background: rgba(255,255,255,0.3);
+    }
+    .divider {
+      text-align: center;
+      margin: 30px 0;
+      color: rgba(255,255,255,0.5);
+    }
+    .divider:before {
+      content: '';
+      display: inline-block;
+      width: 40%;
+      border-top: 1px solid rgba(255,255,255,0.3);
+      margin-right: 10px;
+      vertical-align: middle;
+    }
+    .divider:after {
+      content: '';
+      display: inline-block;
+      width: 40%;
+      border-top: 1px solid rgba(255,255,255,0.3);
+      margin-left: 10px;
+      vertical-align: middle;
+    }
+    .error-msg {
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.5);
+      color: #fca5a5;
+      padding: 12px;
+      border-radius: 8px;
+      display: none;
+      margin-bottom: 15px;
+    }
+    .success-msg {
+      background: rgba(16, 185, 129, 0.2);
+      border: 1px solid rgba(16, 185, 129, 0.5);
+      color: #86efac;
+      padding: 12px;
+      border-radius: 8px;
+      display: none;
+      margin-bottom: 15px;
+    }
+    .match-type-select select {
+      width: 100%;
+      padding: 12px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.3);
+      color: white;
+      border-radius: 8px;
+    }
+    .match-type-select select option {
+      background: #1f2937;
+      color: white;
+    }
   </style>
 </head>
 <body>
-  <header>
-    <div class="brand">🔒 Private Lobbies</div>
-    <a href="/dashboard/" style="color:#5b7bff;">← Back to Dashboard</a>
-  </header>
+  <div class="container-main">
+    <div class="card">
+      <h2>🔒 Private Lobbies</h2>
 
-  <div class="container">
-    <h1>Private Match Lobbies</h1>
-    <p>Create private lobbies with friends using shareable codes. Cost: {{ creationCost }} coins</p>
+      <div class="error-msg" id="errorMsg"></div>
+      <div class="success-msg" id="successMsg"></div>
 
-    <!-- Join Lobby Section (FIRST) -->
-    <div class="section">
-      <h2>Join Existing Lobby</h2>
-      <p>Enter a lobby code to join a friend's private lobby:</p>
-      <div class="input-group">
-        <input type="text" id="joinCode" placeholder="Enter 6-character code (e.g., ABC123)" maxlength="6" style="text-transform:uppercase;">
-        <button class="btn primary" onclick="joinLobby()">Join Lobby</button>
+      <!-- JOIN SECTION -->
+      <div class="section">
+        <h4>📥 Join Lobby with Code</h4>
+        <input 
+          type="text" 
+          class="form-control" 
+          id="joinCode" 
+          placeholder="Enter 6-character code"
+          maxlength="6"
+          autocomplete="off"
+        >
+        <button class="btn btn-join" onclick="joinLobby()">Join Game</button>
       </div>
-    </div>
 
-    <!-- Create Lobby Section (SECOND) -->
-    <div class="section">
-      <h2>Create New Lobby</h2>
-      <p>Select a match type and create a private lobby with a shareable code:</p>
-      
-      {% if matchTypes %}
-      <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(250px,1fr));">
-        {% for matchType in matchTypes %}
-        <div class="card" style="cursor:pointer;" onclick="selectMatchType({{ matchType.id }}, '{{ matchType.name }}')">
-          <div class="card-title">{{ matchType.name }}</div>
-          <div class="card-meta">{{ matchType.description }}</div>
-          <div class="stats" style="margin-top:12px;">
-            <div class="stat">
-              <div class="stat-label">Entry Fee</div>
-              <div class="stat-value">{{ matchType.entryFee|floatformat:0 }}</div>
-            </div>
-            <div class="stat">
-              <div class="stat-label">Players</div>
-              <div class="stat-value">{{ matchType.playersRequired }}-{{ matchType.maxPlayers }}</div>
-            </div>
-          </div>
-          <button class="btn primary" style="width:100%;margin-top:12px;" onclick="event.stopPropagation();createLobby({{ matchType.id }})">Create ({{ creationCost }} coins)</button>
+      <div class="divider">OR</div>
+
+      <!-- CREATE SECTION -->
+      <div class="section">
+        <h4>➕ Create New Lobby</h4>
+        <div class="match-type-select">
+          <select id="matchType">
+            <option value="">Select Game Type...</option>
+            <option value="1">1v1 (2 players)</option>
+            <option value="2">2v2 (4 players)</option>
+            <option value="3">3v3 (6 players)</option>
+            <option value="4">Free For All (4 players)</option>
+          </select>
         </div>
-        {% endfor %}
+        <button class="btn btn-create" onclick="createLobby()">Create & Play</button>
       </div>
-      {% else %}
-      <div class="alert alert-info">No match types available.</div>
-      {% endif %}
-    </div>
 
-    <!-- Created Lobbies -->
-    {% if createdLobbies %}
-    <div class="section">
-      <h2>Your Created Lobbies</h2>
-      <div class="grid">
-        {% for lobby in createdLobbies %}
-        <div class="card">
-          <div style="display:flex;justify-content:space-between;align-items:start;">
-            <div>
-              <div class="card-title">{{ lobby.matchType.name }}</div>
-              <div class="card-meta">Created {{ lobby.createdAt|timesince }} ago</div>
-            </div>
-            <span class="badge {% if lobby.status == 'WAITING' %}waiting{% elif lobby.status == 'IN_PROGRESS' %}progress{% endif %}">{{ lobby.status }}</span>
-          </div>
-          
-          {% if lobby.status == 'WAITING' %}
-          <div class="code-display">{{ lobby.code }}</div>
-          <p style="font-size:13px;color:#9ca3af;margin:8px 0;">Share this code with friends to invite them</p>
-          
-          <div class="stats">
-            <div class="stat">
-              <div class="stat-label">Members</div>
-              <div class="stat-value">{{ lobby.members.count }}/{{ lobby.matchType.maxPlayers }}</div>
-            </div>
-            <div class="stat">
-              <div class="stat-label">Expires In</div>
-              <div class="stat-value">{{ lobby.expiresAt|timeuntil }}</div>
-            </div>
-          </div>
-          {% else %}
-          <p style="font-size:13px;color:#9ca3af;margin:8px 0;">Status: {{ lobby.status }}</p>
-          {% if lobby.match %}
-          <a href="{% url 'matches:lobby' lobby.match.id %}" class="btn primary" style="width:100%;margin-top:12px;">View Match</a>
-          {% endif %}
-          {% endif %}
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-    {% endif %}
-
-    <!-- Joined Lobbies -->
-    {% if joinedLobbies %}
-    <div class="section">
-      <h2>Lobbies You've Joined</h2>
-      <div class="grid">
-        {% for membership in joinedLobbies %}
-        <div class="card">
-          <div style="display:flex;justify-content:space-between;align-items:start;">
-            <div>
-              <div class="card-title">{{ membership.lobby.matchType.name }}</div>
-              <div class="card-meta">Created by {{ membership.lobby.creator.username }}</div>
-            </div>
-            <span class="badge {% if membership.lobby.status == 'WAITING' %}waiting{% elif membership.lobby.status == 'IN_PROGRESS' %}progress{% endif %}">{{ membership.lobby.status }}</span>
-          </div>
-          
-          <div class="code-display">{{ membership.lobby.code }}</div>
-          
-          <div class="stats">
-            <div class="stat">
-              <div class="stat-label">Members</div>
-              <div class="stat-value">{{ membership.lobby.members.count }}/{{ membership.lobby.matchType.maxPlayers }}</div>
-            </div>
-            {% if membership.lobby.status == 'WAITING' %}
-            <div class="stat">
-              <div class="stat-label">Expires In</div>
-              <div class="stat-value">{{ membership.lobby.expiresAt|timeuntil }}</div>
-            </div>
-            {% endif %}
-          </div>
-          
-          {% if membership.lobby.match and membership.lobby.status == 'IN_PROGRESS' %}
-          <a href="{% url 'matches:lobby' membership.lobby.match.id %}" class="btn primary" style="width:100%;margin-top:12px;">Join Match</a>
-          {% endif %}
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-    {% endif %}
-  </div>
-
-  <!-- Modal for alerts -->
-  <div class="modal" id="alertModal">
-    <div class="modal-content">
-      <span class="close-modal" onclick="closeModal()">&times;</span>
-      <h2 id="alertTitle">Alert</h2>
-      <p id="alertMessage"></p>
-      <button class="btn primary" style="width:100%;margin-top:16px;" onclick="closeModal()">OK</button>
+      <button class="btn btn-back" onclick="window.location.href='/accounts/dashboard/'">← Back to Dashboard</button>
     </div>
   </div>
 
   <script>
-    // Get CSRF token from cookie
     function getCookie(name) {
-      let cookieValue = null;
-      if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-          const cookie = cookies[i].trim();
-          if (cookie.substring(0, name.length + 1) === (name + '=')) {
-            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-            break;
-          }
-        }
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop().split(';').shift();
+    }
+
+    function showError(msg) {
+      const errorEl = document.getElementById('errorMsg');
+      errorEl.textContent = '❌ ' + msg;
+      errorEl.style.display = 'block';
+      document.getElementById('successMsg').style.display = 'none';
+    }
+
+    function showSuccess(msg) {
+      const successEl = document.getElementById('successMsg');
+      successEl.textContent = '✅ ' + msg;
+      successEl.style.display = 'block';
+      document.getElementById('errorMsg').style.display = 'none';
+    }
+
+    function createLobby() {
+      const matchTypeId = document.getElementById('matchType').value;
+      if (!matchTypeId) {
+        showError('Please select a game type');
+        return;
       }
-      return cookieValue;
-    }
-
-    function showAlert(title, message, isSuccess = false) {
-      document.getElementById('alertTitle').textContent = title;
-      document.getElementById('alertMessage').textContent = message;
-      document.getElementById('alertModal').classList.add('active');
-    }
-
-    function closeModal() {
-      document.getElementById('alertModal').classList.remove('active');
-    }
-
-    function createLobby(matchTypeId) {
-      const btn = event.target;
-      btn.disabled = true;
-      btn.textContent = 'Creating...';
 
       fetch('/matches/private/create/', {
         method: 'POST',
@@ -226,34 +222,28 @@
           'Content-Type': 'application/json',
           'X-CSRFToken': getCookie('csrftoken')
         },
-        body: JSON.stringify({matchTypeId: matchTypeId})
+        body: JSON.stringify({ matchTypeId: matchTypeId })
       })
       .then(r => r.json())
       .then(data => {
         if (data.success) {
-          if (data.redirectUrl) {
-            window.location.href = data.redirectUrl;
-          } else {
-            showAlert('✅ Lobby Created!', `Your lobby code is: ${data.lobbyCode}\n\nShare this code with friends to invite them!`, true);
-            setTimeout(() => location.reload(), 2000);
-          }
+          showSuccess(`Lobby created! Code: ${data.lobbyCode}`);
+          setTimeout(() => {
+            if (data.redirectUrl) {
+              window.location.href = data.redirectUrl;
+            }
+          }, 1000);
         } else {
-          showAlert('❌ Error', data.error);
+          showError(data.error);
         }
       })
-      .catch(e => {
-        showAlert('❌ Error', e.message);
-      })
-      .finally(() => {
-        btn.disabled = false;
-        btn.textContent = 'Create (' + {{ creationCost }} + ' coins)';
-      });
+      .catch(e => showError(e.message));
     }
 
     function joinLobby() {
       const code = document.getElementById('joinCode').value.toUpperCase().trim();
       if (!code || code.length !== 6) {
-        showAlert('❌ Invalid Code', 'Code must be 6 characters');
+        showError('Code must be 6 characters');
         return;
       }
 
@@ -263,30 +253,25 @@
           'Content-Type': 'application/json',
           'X-CSRFToken': getCookie('csrftoken')
         },
-        body: JSON.stringify({code: code})
+        body: JSON.stringify({ code: code })
       })
       .then(r => r.json())
       .then(data => {
         if (data.success) {
-          if (data.redirectUrl) {
-            window.location.href = data.redirectUrl;
-          } else {
-            showAlert('✅ Joined!', data.message, true);
-            setTimeout(() => location.reload(), 1000);
-          }
+          showSuccess(`Joined! ${data.message}`);
+          setTimeout(() => {
+            if (data.redirectUrl) {
+              window.location.href = data.redirectUrl;
+            }
+          }, 1000);
         } else {
-          showAlert('❌ Error', data.error);
+          showError(data.error);
         }
       })
-      .catch(e => {
-        showAlert('❌ Error', e.message);
-      });
+      .catch(e => showError(e.message));
     }
 
-    // Allow Enter key in code input
-    document.getElementById('joinCode').addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') joinLobby();
-    });
+    document.getElementById('joinCode').focus();
   </script>
 </body>
 </html>
