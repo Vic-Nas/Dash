@@ -252,19 +252,19 @@ class GameEngine:
                             continue
                         if not self.players[otherId]['alive']:
                             continue
-                        if otherId not in newPositions:
-                            continue
                         
-                        otherX, otherY = newPositions[otherId]
-                        if newX == otherX and newY == otherY:
-                            collisionKey = tuple(sorted([userId, otherId]))
-                            if collisionKey not in processedHeadOns:
-                                # Head-on collision: BOTH get +1 hit (like hitting a wall)
-                                self.handleWallHit(userId)
-                                self.handleWallHit(otherId)
-                                processedHeadOns.add(collisionKey)
-                            headOnCollision = True
-                            break
+                        # Check if other player is moving to same spot
+                        if otherId in newPositions:
+                            otherX, otherY = newPositions[otherId]
+                            if newX == otherX and newY == otherY:
+                                collisionKey = tuple(sorted([userId, otherId]))
+                                if collisionKey not in processedHeadOns:
+                                    # Head-on collision: BOTH get +1 hit (like hitting a wall)
+                                    self.handleWallHit(userId)
+                                    self.handleWallHit(otherId)
+                                    processedHeadOns.add(collisionKey)
+                                headOnCollision = True
+                                break
                     
                     if headOnCollision:
                         continue
