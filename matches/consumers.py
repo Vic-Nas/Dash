@@ -245,10 +245,8 @@ class GameEngine:
                         self.handleWallHit(userId)
                         continue
                     
-                    # Check player collisions
-                    collision = False
-                    
                     # Check head-on collisions (both moving to same spot)
+                    headOnCollision = False
                     for otherId in list(self.players.keys()):
                         if otherId not in self.players or otherId == userId:
                             continue
@@ -261,17 +259,18 @@ class GameEngine:
                         if newX == otherX and newY == otherY:
                             collisionKey = tuple(sorted([userId, otherId]))
                             if collisionKey not in processedHeadOns:
-                                # Head-on collision: The one processed LATER in this tick loses
-                                # (because the earlier player "hit" them first in game logic)
-                                # So the later player (otherId) dies, earlier player (userId) wins
-                                self.handlePlayerCollision(attackerId=userId, victimId=otherId)
+                                # Head-on collision: BOTH get +1 hit (like hitting a wall)
+                                self.handleWallHit(userId)
+                                self.handleWallHit(otherId)
                                 processedHeadOns.add(collisionKey)
-                            collision = True
+                            headOnCollision = True
                             break
-                    if collision:
+                    
+                    if headOnCollision:
                         continue
                     
                     # Check side/back collisions (moving into current position)
+                    sideCollision = False
                     for otherId in list(self.players.keys()):
                         if otherId not in self.players or otherId == userId:
                             continue
@@ -281,16 +280,21 @@ class GameEngine:
                         otherPlayer = self.players[otherId]
                         if newX == otherPlayer['x'] and newY == otherPlayer['y']:
                             self.handlePlayerCollision(attackerId=userId, victimId=otherId)
-                            collision = True
+                            sideCollision = True
                             break
                     
-                    if collision:
-                        continue
-                    
-                    # No collision - update position
-                    if userId in self.players:
-                        self.players[userId]['x'] = newX
-                        self.players[userId]['y'] = newY
+                    # For side collision, attacker moves into the position
+                    # For head-on, neither moves (already handled with continue above)
+                    if not sideCollision:
+                        # No collision - update position
+                        if userId in self.players:
+                            self.players[userId]['x'] = newX
+                            self.players[userId]['y'] = newY
+                    else:
+                        # Side collision: attacker moves into victim's position
+                        if userId in self.players:
+                            self.players[userId]['x'] = newX
+                            self.players[userId]['y'] = newY
             
             except Exception as e:
                 print(f"[Match {self.matchId}] Error processing collisions: {e}")
