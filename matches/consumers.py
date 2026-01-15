@@ -64,25 +64,44 @@ class GameEngine:
             del self.players[userId]
     
     def updateBotAI(self, userId, player):
-        """Update bot player AI for autonomous movement - moves 8-15 ticks not 5-10"""
+        """Update bot player AI - REACTIVE wall avoidance every tick, not just periodic"""
         from shop.models import SystemSettings
         
-        player['botDirectionChangeCounter'] += 1
+        x, y = player['x'], player['y']
+        currentDir = player.get('direction', 'UP')
         
-        # Time to change direction - longer intervals (8-15 ticks) to keep bot moving
-        if player['botDirectionChangeCounter'] >= player['botNextDirectionChangeAt']:
+        # FIRST: Check if current direction is unsafe - if so, IMMEDIATELY change
+        nextX, nextY = x, y
+        if currentDir == 'UP':
+            nextY -= 1
+        elif currentDir == 'DOWN':
+            nextY += 1
+        elif currentDir == 'LEFT':
+            nextX -= 1
+        elif currentDir == 'RIGHT':
+            nextX += 1
+        
+        # Check if next move would be bad (boundary or wall)
+        isCurrentDirUnsafe = (
+            nextX < 0 or nextX >= self.gridSize or 
+            nextY < 0 or nextY >= self.gridSize or
+            any(w['x'] == nextX and w['y'] == nextY for w in self.walls) or
+            any(w['x'] == nextX and w['y'] == nextY for w in self.countdownWalls)
+        )
+        
+        # Periodically pick a new direction (keep it shorter - 4-8 ticks)
+        player['botDirectionChangeCounter'] = player.get('botDirectionChangeCounter', 0) + 1
+        
+        if player['botDirectionChangeCounter'] >= player.get('botNextDirectionChangeAt', 5):
             player['botDirectionChangeCounter'] = 0
-            player['botNextDirectionChangeAt'] = random.randint(8, 15)
-            
-            # Get wall avoidance setting (0-100, where 100 = always avoid walls)
-            wallAvoidanceAccuracy = SystemSettings.getInt('botWallAvoidance', 95)
-            wallAvoidanceAccuracy = max(0, min(100, wallAvoidanceAccuracy))  # Clamp to 0-100
-            
-            # Check ahead for walls/boundaries and prefer to avoid them
-            x, y = player['x'], player['y']
+            player['botNextDirectionChangeAt'] = random.randint(4, 8)
+            isCurrentDirUnsafe = True  # Force direction change
+        
+        # If current direction is unsafe OR timer expired, pick a new safe direction
+        if isCurrentDirUnsafe:
             directions = ['UP', 'DOWN', 'LEFT', 'RIGHT']
             
-            # Check which directions would hit walls/boundaries
+            # Find all safe directions
             safeDirections = []
             for direction in directions:
                 testX, testY = x, y
@@ -95,9 +114,8 @@ class GameEngine:
                 elif direction == 'RIGHT':
                     testX += 1
                 
-                # Check boundaries (with 2-cell lookahead to avoid edges)
-                if testX < 2 or testX >= self.gridSize - 2 or testY < 2 or testY >= self.gridSize - 2:
-                    # Edge cells - avoid them
+                # Check boundaries (strict - avoid edges)
+                if testX < 1 or testX >= self.gridSize - 1 or testY < 1 or testY >= self.gridSize - 1:
                     continue
                 
                 # Check wall collision
@@ -110,18 +128,15 @@ class GameEngine:
                 
                 safeDirections.append(direction)
             
-            # Use wall avoidance setting: higher accuracy = more likely to pick safe direction
-            if safeDirections and random.randint(0, 100) < wallAvoidanceAccuracy:
+            # Pick a safe direction
+            if safeDirections:
                 player['direction'] = random.choice(safeDirections)
             else:
-                # Otherwise pick from safe directions if available
-                if safeDirections:
-                    player['direction'] = random.choice(safeDirections)
-                else:
-                    player['direction'] = random.choice(directions)
+                # If trapped, pick any direction
+                player['direction'] = random.choice(directions)
         
-        # Rarely make a "mistake" (2% chance instead of 5%)
-        if random.random() < 0.02:
+        # Very rarely move random (1% chance)
+        if random.random() < 0.01:
             player['direction'] = random.choice(['UP', 'DOWN', 'LEFT', 'RIGHT'])
     
     def updateDirection(self, userId, direction):
