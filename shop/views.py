@@ -41,18 +41,28 @@ def createPaymentIntent(request):
                 'error': 'Payment system not configured. STRIPE_SECRET_KEY is missing.'
             }, status=500)
         
+        # Check if test mode is enabled
+        testMode = os.environ.get('STRIPE_TEST_MODE', 'false').lower() == 'true'
+        
         # Create Stripe payment intent
         import stripe
         stripe.api_key = stripeSecretKey
         
-        intent = stripe.PaymentIntent.create(
-            amount=int(package.price * 100),  # Convert to cents
-            currency='usd',
-            metadata={
+        # In test mode, allow test card numbers
+        createParams = {
+            'amount': int(package.price * 100),  # Convert to cents
+            'currency': 'usd',
+            'metadata': {
                 'packageId': package.id,
                 'userId': request.user.id
             }
-        )
+        }
+        
+        # Enable test mode if configured
+        if testMode:
+            createParams['payment_method_types'] = ['card']
+        
+        intent = stripe.PaymentIntent.create(**createParams)
         
         # Create purchase record
         CoinPurchase.objects.create(
@@ -66,7 +76,8 @@ def createPaymentIntent(request):
         
         return JsonResponse({
             'success': True,
-            'clientSecret': intent.client_secret
+            'clientSecret': intent.client_secret,
+            'testMode': testMode
         })
         
     except Exception as e:
