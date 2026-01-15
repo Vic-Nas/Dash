@@ -320,6 +320,7 @@
           countdownEl.textContent = data.seconds;
           document.getElementById('waitingMsg').querySelector('p').textContent = 'Game starting in...';
         } else if (data.type === 'gameOver') {
+          console.log('🏁 Game over message received, calling handleGameOver');
           handleGameOver(data);
         } else {
           // Regular game state
@@ -684,6 +685,7 @@
     }
 
     function handleGameOver(data) {
+      console.log('🏁 GAME OVER EVENT RECEIVED:', data);
       // Wait for explosion animation to finish before showing game over (10 frames * 150ms = 1500ms)
       var showGameOverDialog = function() {
         /* ===============================
