@@ -676,13 +676,23 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                 profile.save(update_fields=['coins', 'totalWins'])
                 profile.refresh_from_db()
                 
-                participation = MatchParticipation.objects.get(match=match, player=winner)
-                participation.coinReward = match.totalPot
-                participation.placement = 1
-                # Save replay data
-                if replayData:
-                    participation.replayData = json.dumps(replayData) if not isinstance(replayData, str) else replayData
-                participation.save(update_fields=['coinReward', 'placement', 'replayData'])
+                # Save replay data for ALL participants (including losers)
+                replayDataStr = json.dumps(replayData) if replayData and not isinstance(replayData, str) else replayData
+                
+                for participation in match.participants.select_related('player'):
+                    if participation.player_id == winnerId:
+                        # Winner
+                        participation.coinReward = match.totalPot
+                        participation.placement = 1
+                    else:
+                        # Losers
+                        participation.coinReward = 0
+                        participation.placement = 2
+                    
+                    # Save replay data for this participant
+                    if replayDataStr:
+                        participation.replayData = replayDataStr
+                    participation.save(update_fields=['coinReward', 'placement', 'replayData'])
                 
                 Transaction.objects.create(
                     user=winner,
