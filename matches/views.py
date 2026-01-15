@@ -994,7 +994,7 @@ def createPrivateLobby(request):
             # Create Match immediately (not waiting for players like multiplayer)
             match = Match.objects.create(
                 matchType=matchType,
-                status='STARTING',
+                status='WAITING',
                 gridSize=matchType.gridSize,
                 speed=matchType.speed,
                 playersRequired=matchType.playersRequired,
@@ -1004,7 +1004,7 @@ def createPrivateLobby(request):
             
             # Link lobby to match
             lobby.match = match
-            lobby.status = 'STARTING'
+            lobby.status = 'WAITING'
             lobby.save(update_fields=['match', 'status'])
             
             # Add creator as participant
