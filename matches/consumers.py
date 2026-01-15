@@ -219,7 +219,7 @@ class GameEngine:
                 print(f"[Match {self.matchId}] Error calculating positions: {e}")
                 return
             
-        print(f"[Match {self.matchId}] Tick {self.tickNumber}: Processing {len(newPositions)} players")
+            print(f"[Match {self.matchId}] Tick {self.tickNumber}: Processing {len(newPositions)} players")
             # STEP 3: Calculate collisions (don't update positions yet)
             collisions = {}  # userId -> 'none', 'wall', 'headOn', or 'sideKill'
             sideKillPairs = {}  # userId -> victimId for side kills
@@ -606,7 +606,7 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                 print(f"[Match {matchId}] handleGameOver called with state: isTie={state.get('isTie')}, winnerId={state.get('winnerId')}")
                 
                 # Process in sync context
-                await database_sync_to_async(lambda: handle_game_over_sync(state))()
+                await database_sync_to_async(lambda: handleGameOverSync(state))()
                 
                 print(f"[Match {matchId}] handleGameOver completed successfully")
             except Exception as e:
@@ -614,7 +614,7 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                 import traceback
                 traceback.print_exc()
         
-        def handle_game_over_sync(state):
+        def handleGameOverSync(state):
             """Synchronous game over handler - runs in thread pool"""
             from django.db import transaction as dbTransaction
             
@@ -629,20 +629,20 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                 
                 with dbTransaction.atomic():
                     if isTie:
-                        splitPot_sync(match, replayData)
+                        splitPotSync(match, replayData)
                     elif winnerId:
-                        awardPot_sync(match, winnerId, replayData)
+                        awardPotSync(match, winnerId, replayData)
                     
-                    completeMatch_sync(match, winnerId)
+                    completeMatchSync(match, winnerId)
                     
                 print(f"[Match {matchId}] Game over processing completed")
             except Exception as e:
-                print(f"[Match {matchId}] ERROR in handle_game_over_sync: {e}")
+                print(f"[Match {matchId}] ERROR in handleGameOverSync: {e}")
                 import traceback
                 traceback.print_exc()
                 raise
         
-        def splitPot_sync(match, replayData=None):
+        def splitPotSync(match, replayData=None):
             from django.db import transaction as dbTransaction
             import json
             
@@ -682,7 +682,7 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                         balanceAfter=profile.coins
                     )
         
-        def awardPot_sync(match, winnerId, replayData=None):
+        def awardPotSync(match, winnerId, replayData=None):
             from django.db import transaction as dbTransaction
             from django.contrib.auth import get_user_model
             import json
@@ -732,7 +732,7 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                     balanceAfter=profile.coins
                 )
         
-        def completeMatch_sync(match, winnerId):
+        def completeMatchSync(match, winnerId):
             from django.contrib.auth import get_user_model
             
             User = get_user_model()
