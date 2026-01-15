@@ -531,11 +531,21 @@ def lobby(request, matchId):
     
     participants = match.participants.select_related('player').all()
     
+    # Check if this is a private lobby and get the code
+    from .models import PrivateLobby
+    privateCode = None
+    try:
+        privateLobby = PrivateLobby.objects.get(match=match)
+        privateCode = privateLobby.code
+    except PrivateLobby.DoesNotExist:
+        pass
+    
     context = {
         'match': match,
         'participation': participation,
         'participants': participants,
         'profile': request.user.profile,
+        'privateCode': privateCode,
     }
     return render(request, 'matches/lobby.html', context)
 
@@ -1108,6 +1118,11 @@ def joinPrivateLobby(request):
                 entryFeePaid=lobby.matchType.entryFee,
                 joinedAt=timezone.now()
             )
+            
+            # Update match current players count
+            match = lobby.match
+            match.currentPlayers = MatchParticipation.objects.filter(match=match).count()
+            match.save(update_fields=['currentPlayers'])
         
         return JsonResponse({
             'success': True,
