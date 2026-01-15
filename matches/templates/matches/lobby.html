@@ -376,7 +376,8 @@
         const data = await response.json();
 
         if (data.success) {
-          window.location.href = '/matches/multiplayer/';
+          const redirectUrl = '{% if privateCode %}/matches/private/{% else %}/matches/multiplayer/{% endif %}';
+          window.location.href = redirectUrl;
         } else {
           alert('Error: ' + data.error);
         }

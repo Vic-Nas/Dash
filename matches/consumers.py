@@ -242,12 +242,12 @@ class GameEngine:
                         if newX == otherX and newY == otherY:
                             collisionKey = tuple(sorted([userId, otherId]))
                             if collisionKey not in processedHeadOns:
+                                # Head-on collision: treat like wall hit (both take damage)
                                 self.handleWallHit(userId)
                                 self.handleWallHit(otherId)
                                 processedHeadOns.add(collisionKey)
                             collision = True
                             break
-                    
                     if collision:
                         continue
                     
@@ -553,8 +553,8 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                 raise
         
         @database_sync_to_async
-        def handleGameOver(state):
-            # This will be called when game ends
+        def handleGameOver_sync(state):
+            # This will be called when game ends - synchronous database operations
             match = Match.objects.select_related('matchType').get(id=matchId)
             
             isTie = state.get('isTie', False)
@@ -562,13 +562,17 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
             replayData = state.get('replayData')
             
             if isTie:
-                splitPot(match, replayData)
+                splitPot_sync(match, replayData)
             elif winnerId:
-                awardPot(match, winnerId, replayData)
+                awardPot_sync(match, winnerId, replayData)
             
-            completeMatch(match, winnerId)
+            completeMatch_sync(match, winnerId)
         
-        def splitPot(match, replayData=None):
+        async def handleGameOver(state):
+            # Async wrapper that calls the sync version
+            await handleGameOver_sync(state)
+        
+        def splitPot_sync(match, replayData=None):
             from django.db import transaction as dbTransaction
             import json
             
@@ -606,7 +610,7 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                         balanceAfter=profile.coins
                     )
         
-        def awardPot(match, winnerId, replayData=None):
+        def awardPot_sync(match, winnerId, replayData=None):
             from django.db import transaction as dbTransaction
             from django.contrib.auth import get_user_model
             import json
@@ -644,7 +648,7 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                     balanceAfter=profile.coins
                 )
         
-        def completeMatch(match, winnerId):
+        def completeMatch_sync(match, winnerId):
             from django.contrib.auth import get_user_model
             
             User = get_user_model()
