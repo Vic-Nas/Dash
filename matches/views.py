@@ -1031,8 +1031,8 @@ def createPrivateLobby(request):
             'lobbyCode': lobby.code,
             'lobbyId': lobby.id,
             'newBalance': float(balanceAfter),
-            'message': f'Private lobby created! Share code: {lobby.code}',
-            'redirectUrl': f'/matches/multiplayer/{match.id}/' if matchType.maxPlayers == 1 else f'/matches/private/'
+            'message': f'Lobby created! Share code: {lobby.code}',
+            'redirectUrl': f'/matches/lobby/{match.id}/' if matchType.maxPlayers == 1 else f'/matches/private/'
         })
         
     except json.JSONDecodeError:
@@ -1137,12 +1137,12 @@ def joinPrivateLobby(request):
         
         return JsonResponse({
             'success': True,
-            'message': f'Joined lobby {code}!' + (' Match starting...' if shouldStart else ''),
+            'message': f'Joined!' + (' Now starting game...' if shouldStart else ''),
             'lobbyCode': lobby.code,
             'lobbyId': lobby.id,
             'memberCount': memberCount,
             'matchStarted': shouldStart,
-            'redirectUrl': f'/matches/multiplayer/{lobby.match.id}/' if shouldStart else f'/matches/private/'
+            'redirectUrl': f'/matches/lobby/{lobby.match.id}/' if shouldStart else f'/matches/private/'
         })
         
     except PrivateLobby.DoesNotExist:
