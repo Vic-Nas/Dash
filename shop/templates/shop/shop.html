@@ -109,6 +109,9 @@
     <p>Package: <strong id="packageName"></strong></p>
     <p>Amount: <strong id="packagePrice"></strong></p>
 
+    <input type="text" id="postalCode" placeholder="Postal Code" 
+      style="width:100%;padding:10px;margin:12px 0;border-radius:8px;border:1px solid #2a2f6b;background:#1a1d35;color:#e6e6e6;">
+    
     <div id="card-element"></div>
     <div id="card-errors"></div>
 
@@ -128,6 +131,7 @@
     const elements = stripe.elements();
 
     cardElement = elements.create('card', {
+      hidePostalCode: true,
       style: {
         base: {
           color: '#e6e6e6',
@@ -137,7 +141,7 @@
         },
         invalid: { color: '#ef4444' }
       }
-    });
+    };
 
     cardElement.on('change', e => {
       document.getElementById('card-errors').textContent =
@@ -205,9 +209,16 @@
     btn.disabled = true;
     btn.textContent = 'Processing...';
 
+    const postalCode = document.getElementById('postalCode').value;
+
     const { error, paymentIntent } =
       await stripe.confirmCardPayment(clientSecret, {
-        payment_method: { card: cardElement }
+        payment_method: { 
+          card: cardElement,
+          billing_details: {
+            address: { postal_code: postalCode }
+          }
+        }
       });
 
     if (error) {
