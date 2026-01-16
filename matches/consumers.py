@@ -67,6 +67,11 @@ class GameEngine:
         """Update bot player AI - REACTIVE wall avoidance every tick, not just periodic"""
         from shop.models import SystemSettings
         
+        # Get bot difficulty settings (1-10, higher = smarter)
+        botDifficulty = SystemSettings.getInt('botDifficulty', 5)
+        botReactionSpeed = SystemSettings.getInt('botReactionSpeed', 5)
+        botRandomness = SystemSettings.getInt('botRandomness', 5)
+        
         x, y = player['x'], player['y']
         currentDir = player.get('direction', 'UP')
         
@@ -89,12 +94,14 @@ class GameEngine:
             any(w['x'] == nextX and w['y'] == nextY for w in self.countdownWalls)
         )
         
-        # Periodically pick a new direction (keep it shorter - 4-8 ticks)
+        # Periodically pick a new direction (speed affected by botReactionSpeed: higher = faster reactions)
+        # Range: 4-8 at default (5), up to 2-4 at max difficulty (10), down to 6-12 at min (1)
+        directionChangeInterval = max(2, 10 - botReactionSpeed)  # 2-9 ticks
         player['botDirectionChangeCounter'] = player.get('botDirectionChangeCounter', 0) + 1
         
-        if player['botDirectionChangeCounter'] >= player.get('botNextDirectionChangeAt', 5):
+        if player['botDirectionChangeCounter'] >= player.get('botNextDirectionChangeAt', directionChangeInterval):
             player['botDirectionChangeCounter'] = 0
-            player['botNextDirectionChangeAt'] = random.randint(4, 8)
+            player['botNextDirectionChangeAt'] = random.randint(max(2, directionChangeInterval - 2), directionChangeInterval + 2)
             isCurrentDirUnsafe = True  # Force direction change
         
         # If current direction is unsafe OR timer expired, pick a new safe direction
@@ -135,8 +142,10 @@ class GameEngine:
                 # If trapped, pick any direction
                 player['direction'] = random.choice(directions)
         
-        # Very rarely move random (1% chance)
-        if random.random() < 0.01:
+        # Random movement chance (affected by botRandomness: higher = less random)
+        # At difficulty 5 (default): 1% chance. Higher difficulty = lower chance.
+        randomChance = max(0.001, 0.05 - (botRandomness * 0.005))
+        if random.random() < randomChance:
             player['direction'] = random.choice(['UP', 'DOWN', 'LEFT', 'RIGHT'])
     
     def updateDirection(self, userId, direction):
@@ -659,7 +668,8 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
             
             print(f"[Match {match.id}] splitPotSync: has replayData={replayData is not None}")
             if replayData:
-                print(f"[Match {match.id}] replayData frames count: {len(replayData.get('frames', []))}")
+                frames_count = len(replayData.get('frames', []))
+                print(f"[Match {match.id}] replayData frames count: {frames_count}, mode: {replayData.get('mode')}")
             
             with dbTransaction.atomic():
                 match = Match.objects.select_for_update().get(id=match.id)
@@ -684,8 +694,10 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                     if replayData:
                         participation.replayData = replayData
                         participation.save(update_fields=['coinReward', 'placement', 'replayData'])
+                        print(f"[Match {match.id}] 💾 Saved replay data for participant {participation.player.username}")
                     else:
                         participation.save(update_fields=['coinReward', 'placement'])
+                        print(f"[Match {match.id}] ⚠️  NO REPLAY DATA for participant {participation.player.username}")
                     
                     Transaction.objects.create(
                         user=participation.player,
@@ -706,7 +718,8 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
             
             print(f"[Match {match.id}] awardPotSync: winnerId={winnerId}, has replayData={replayData is not None}")
             if replayData:
-                print(f"[Match {match.id}] replayData frames count: {len(replayData.get('frames', []))}")
+                frames_count = len(replayData.get('frames', []))
+                print(f"[Match {match.id}] replayData frames count: {frames_count}, mode: {replayData.get('mode')}")
             
             with dbTransaction.atomic():
                 match = Match.objects.select_for_update().get(id=match.id)
@@ -737,8 +750,10 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                     if replayData:
                         participation.replayData = replayData
                         participation.save(update_fields=['coinReward', 'placement', 'replayData'])
+                        print(f"[Match {match.id}] 💾 Saved replay data for participant {participation.player.username}")
                     else:
                         participation.save(update_fields=['coinReward', 'placement'])
+                        print(f"[Match {match.id}] ⚠️  NO REPLAY DATA for participant {participation.player.username}")
                 
                 Transaction.objects.create(
                     user=winner,
