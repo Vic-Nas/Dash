@@ -718,7 +718,7 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                     # Skip bot participants (player is None)
                     if not participation.player:
                         participation.coinReward = 0
-                        participation.placement = 1 if winnerId and any(p.id == winnerId for p in Match.objects.get(id=match.id).participants.filter(player__isnull=False)) else 0
+                        participation.placement = 1  # All tied for first place
                         if replayData:
                             participation.replayData = replayData
                             participation.save(update_fields=['placement', 'replayData'])
