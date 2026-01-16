@@ -52,8 +52,32 @@ class GameEngine:
         if userId in self.players:
             return
         
-        x = random.randint(1, self.gridSize - 2)
-        y = random.randint(1, self.gridSize - 2)
+        # Spawn players with minimum distance to avoid starting too close
+        MIN_SPAWN_DISTANCE = 8
+        existing_players = list(self.players.values())
+        
+        spawn_valid = False
+        attempts = 0
+        while not spawn_valid and attempts < 50:
+            x = random.randint(1, self.gridSize - 2)
+            y = random.randint(1, self.gridSize - 2)
+            
+            # Check distance from existing players
+            valid = True
+            for other in existing_players:
+                distance = abs(x - other['x']) + abs(y - other['y'])
+                if distance < MIN_SPAWN_DISTANCE:
+                    valid = False
+                    break
+            
+            if valid:
+                spawn_valid = True
+            attempts += 1
+        
+        # Fallback if no valid spawn found (shouldn't happen on 20x20 grid with 2 players)
+        if not spawn_valid:
+            x = random.randint(1, self.gridSize - 2)
+            y = random.randint(1, self.gridSize - 2)
         
         self.players[userId] = {
             'username': username,
@@ -788,15 +812,17 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                         player_name = participation.player.username if participation.player else f"User({participation.player_id})"
                         print(f"[Match {match.id}] ⚠️  NO REPLAY DATA for {player_name}")
                 
-                Transaction.objects.create(
-                    user=winner,
-                    amount=match.totalPot,
-                    transactionType='MATCH_WIN',
-                    relatedMatch=match,
-                    description=f'Won match: {match.matchType.name}',
-                    balanceBefore=balanceBefore,
-                    balanceAfter=profile.coins
-                )
+                # Only create transaction if winner is a real user (not a bot)
+                if winner:
+                    Transaction.objects.create(
+                        user=winner,
+                        amount=match.totalPot,
+                        transactionType='MATCH_WIN',
+                        relatedMatch=match,
+                        description=f'Won match: {match.matchType.name}',
+                        balanceBefore=balanceBefore,
+                        balanceAfter=profile.coins
+                    )
         
         def completeMatchSync(match, winnerId):
             from django.contrib.auth import get_user_model
