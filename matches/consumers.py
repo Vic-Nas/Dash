@@ -36,13 +36,48 @@ class GameEngine:
             '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#14b8a6',
         ]
         self.replayFrames = []  # ADD THIS
+        # Cache bot settings once to avoid database queries every tick (async/sync context issues)
+        from shop.models import SystemSettings
+        try:
+            self.botDifficulty = SystemSettings.getInt('botDifficulty', 5)
+            self.botReactionSpeed = SystemSettings.getInt('botReactionSpeed', 5)
+            self.botRandomness = SystemSettings.getInt('botRandomness', 5)
+        except Exception as e:
+            print(f"[Match {matchId}] Failed to load bot settings, using defaults: {e}")
+            self.botDifficulty = 5
+            self.botReactionSpeed = 5
+            self.botRandomness = 5
     
     def addPlayer(self, userId, username, playerColor, isBot=False):
         if userId in self.players:
             return
         
-        x = random.randint(1, self.gridSize - 2)
-        y = random.randint(1, self.gridSize - 2)
+        # Spawn players with minimum distance to avoid starting too close
+        MIN_SPAWN_DISTANCE = 8
+        existing_players = list(self.players.values())
+        
+        spawn_valid = False
+        attempts = 0
+        while not spawn_valid and attempts < 50:
+            x = random.randint(1, self.gridSize - 2)
+            y = random.randint(1, self.gridSize - 2)
+            
+            # Check distance from existing players
+            valid = True
+            for other in existing_players:
+                distance = abs(x - other['x']) + abs(y - other['y'])
+                if distance < MIN_SPAWN_DISTANCE:
+                    valid = False
+                    break
+            
+            if valid:
+                spawn_valid = True
+            attempts += 1
+        
+        # Fallback if no valid spawn found (shouldn't happen on 20x20 grid with 2 players)
+        if not spawn_valid:
+            x = random.randint(1, self.gridSize - 2)
+            y = random.randint(1, self.gridSize - 2)
         
         self.players[userId] = {
             'username': username,
@@ -65,7 +100,10 @@ class GameEngine:
     
     def updateBotAI(self, userId, player):
         """Update bot player AI - REACTIVE wall avoidance every tick, not just periodic"""
-        from shop.models import SystemSettings
+        # Use cached bot settings (set in __init__ to avoid database queries every tick)
+        botDifficulty = self.botDifficulty
+        botReactionSpeed = self.botReactionSpeed
+        botRandomness = self.botRandomness
         
         x, y = player['x'], player['y']
         currentDir = player.get('direction', 'UP')
@@ -89,12 +127,14 @@ class GameEngine:
             any(w['x'] == nextX and w['y'] == nextY for w in self.countdownWalls)
         )
         
-        # Periodically pick a new direction (keep it shorter - 4-8 ticks)
+        # Periodically pick a new direction (speed affected by botReactionSpeed: higher = faster reactions)
+        # Range: 4-8 at default (5), up to 2-4 at max difficulty (10), down to 6-12 at min (1)
+        directionChangeInterval = max(2, 10 - botReactionSpeed)  # 2-9 ticks
         player['botDirectionChangeCounter'] = player.get('botDirectionChangeCounter', 0) + 1
         
-        if player['botDirectionChangeCounter'] >= player.get('botNextDirectionChangeAt', 5):
+        if player['botDirectionChangeCounter'] >= player.get('botNextDirectionChangeAt', directionChangeInterval):
             player['botDirectionChangeCounter'] = 0
-            player['botNextDirectionChangeAt'] = random.randint(4, 8)
+            player['botNextDirectionChangeAt'] = random.randint(max(2, directionChangeInterval - 2), directionChangeInterval + 2)
             isCurrentDirUnsafe = True  # Force direction change
         
         # If current direction is unsafe OR timer expired, pick a new safe direction
@@ -135,8 +175,10 @@ class GameEngine:
                 # If trapped, pick any direction
                 player['direction'] = random.choice(directions)
         
-        # Very rarely move random (1% chance)
-        if random.random() < 0.01:
+        # Random movement chance (affected by botRandomness: higher = less random)
+        # At difficulty 5 (default): 1% chance. Higher difficulty = lower chance.
+        randomChance = max(0.001, 0.05 - (botRandomness * 0.005))
+        if random.random() < randomChance:
             player['direction'] = random.choice(['UP', 'DOWN', 'LEFT', 'RIGHT'])
     
     def updateDirection(self, userId, direction):
@@ -219,8 +261,12 @@ class GameEngine:
                 print(f"[Match {self.matchId}] Error calculating positions: {e}")
                 return
             
-            # STEP 3: Process collisions and position updates
+            print(f"[Match {self.matchId}] Tick {self.tickNumber}: Processing {len(newPositions)} players")
+            # STEP 3: Calculate collisions (don't update positions yet)
+            collisions = {}  # userId -> 'none', 'wall', 'headOn', or 'sideKill'
+            sideKillPairs = {}  # userId -> victimId for side kills
             processedHeadOns = set()
+            
             try:
                 for userId in list(newPositions.keys()):
                     if userId not in self.players or userId not in newPositions:
@@ -231,6 +277,7 @@ class GameEngine:
                     
                     # Check boundaries
                     if newX < 0 or newX >= self.gridSize or newY < 0 or newY >= self.gridSize:
+                        collisions[userId] = 'wall'
                         self.handleWallHit(userId)
                         continue
                     
@@ -242,10 +289,11 @@ class GameEngine:
                             break
                     
                     if wallHit:
+                        collisions[userId] = 'wall'
                         self.handleWallHit(userId)
                         continue
                     
-                    # Check head-on collisions (both moving to same spot)
+                    # Check head-on collisions (both moving to same spot OR swapping positions)
                     headOnCollision = False
                     for otherId in list(self.players.keys()):
                         if otherId not in self.players or otherId == userId:
@@ -256,20 +304,33 @@ class GameEngine:
                             continue
                         
                         otherX, otherY = newPositions[otherId]
-                        if newX == otherX and newY == otherY:
-                            collisionKey = tuple(sorted([userId, otherId]))
+                        otherOriginalX, otherOriginalY = self.players[otherId]['x'], self.players[otherId]['y']
+                        
+                        # Check if both moving to same spot
+                        sameSpot = (newX == otherX and newY == otherY)
+                        
+                        # Check if swapping positions (moving into each other's original positions)
+                        swapping = (newX == otherOriginalX and newY == otherOriginalY and 
+                                   otherX == player['x'] and otherY == player['y'])
+                        
+                        if sameSpot or swapping:
+                            # Convert to strings for consistent sorting (userIds can be int or string 'bot_X')
+                            collisionKey = tuple(sorted([str(userId), str(otherId)]))
                             if collisionKey not in processedHeadOns:
                                 # Head-on collision: BOTH get +1 hit (like hitting a wall)
+                                collisionType = "SWAP" if swapping else "SAME_SPOT"
+                                print(f"[Match {self.matchId}] HEAD-ON ({collisionType}): {userId} and {otherId}")
                                 self.handleWallHit(userId)
                                 self.handleWallHit(otherId)
                                 processedHeadOns.add(collisionKey)
+                            collisions[userId] = 'headOn'
                             headOnCollision = True
                             break
                     
                     if headOnCollision:
                         continue
                     
-                    # Check side/back collisions (moving into current position)
+                    # Check side/back collisions (moving into ORIGINAL position of other player)
                     sideCollision = False
                     for otherId in list(self.players.keys()):
                         if otherId not in self.players or otherId == userId:
@@ -277,27 +338,43 @@ class GameEngine:
                         if not self.players[otherId]['alive']:
                             continue
                         
-                        otherPlayer = self.players[otherId]
-                        if newX == otherPlayer['x'] and newY == otherPlayer['y']:
+                        # Always check against ORIGINAL position (before any moves in this tick)
+                        otherX, otherY = self.players[otherId]['x'], self.players[otherId]['y']
+                        
+                        if newX == otherX and newY == otherY:
+                            print(f"[Match {self.matchId}] SIDE KILL: {userId} moving to ({newX},{newY}) kills {otherId}")
                             self.handlePlayerCollision(attackerId=userId, victimId=otherId)
+                            collisions[userId] = 'sideKill'
+                            sideKillPairs[userId] = otherId
                             sideCollision = True
                             break
                     
-                    # For side collision, attacker moves into the position
-                    # For head-on, neither moves (already handled with continue above)
                     if not sideCollision:
-                        # No collision - update position
-                        if userId in self.players:
-                            self.players[userId]['x'] = newX
-                            self.players[userId]['y'] = newY
-                    else:
-                        # Side collision: attacker moves into victim's position
-                        if userId in self.players:
-                            self.players[userId]['x'] = newX
-                            self.players[userId]['y'] = newY
-            
+                        collisions[userId] = 'none'
             except Exception as e:
-                print(f"[Match {self.matchId}] Error processing collisions: {e}")
+                print(f"[Match {self.matchId}] Error calculating collisions: {e}")
+                import traceback
+                traceback.print_exc()
+                return
+            
+            # STEP 4: Apply position updates based on collision results
+            try:
+                for userId in list(newPositions.keys()):
+                    if userId not in self.players:
+                        continue
+                    
+                    collision = collisions.get(userId, 'none')
+                    if collision in ['wall', 'headOn']:
+                        # Don't move
+                        continue
+                    else:
+                        # 'none' or 'sideKill' - move to new position
+                        newX, newY = newPositions[userId]
+                        if userId in self.players:
+                            self.players[userId]['x'] = newX
+                            self.players[userId]['y'] = newY
+            except Exception as e:
+                print(f"[Match {self.matchId}] Error applying positions: {e}")
                 import traceback
                 traceback.print_exc()
                 return
@@ -509,6 +586,7 @@ class GameEngine:
                 'frameDuration': int(self.tickRate * 1000),  # Convert to ms
                 'mode': 'multiplayer'
             }
+            print(f"[Match {self.matchId}] 🎬 endGame: Built replayData with {len(self.replayFrames)} frames")
             # Pass replay data to callback
             gameOverState['replayData'] = replayData
             # Handle rewards
@@ -582,7 +660,7 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                 print(f"[Match {matchId}] handleGameOver called with state: isTie={state.get('isTie')}, winnerId={state.get('winnerId')}")
                 
                 # Process in sync context
-                await database_sync_to_async(lambda: handle_game_over_sync(state))()
+                await database_sync_to_async(lambda: handleGameOverSync(state))()
                 
                 print(f"[Match {matchId}] handleGameOver completed successfully")
             except Exception as e:
@@ -590,7 +668,7 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                 import traceback
                 traceback.print_exc()
         
-        def handle_game_over_sync(state):
+        def handleGameOverSync(state):
             """Synchronous game over handler - runs in thread pool"""
             from django.db import transaction as dbTransaction
             
@@ -605,22 +683,27 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                 
                 with dbTransaction.atomic():
                     if isTie:
-                        splitPot_sync(match, replayData)
+                        splitPotSync(match, replayData)
                     elif winnerId:
-                        awardPot_sync(match, winnerId, replayData)
+                        awardPotSync(match, winnerId, replayData)
                     
-                    completeMatch_sync(match, winnerId)
+                    completeMatchSync(match, winnerId)
                     
                 print(f"[Match {matchId}] Game over processing completed")
             except Exception as e:
-                print(f"[Match {matchId}] ERROR in handle_game_over_sync: {e}")
+                print(f"[Match {matchId}] ERROR in handleGameOverSync: {e}")
                 import traceback
                 traceback.print_exc()
                 raise
         
-        def splitPot_sync(match, replayData=None):
+        def splitPotSync(match, replayData=None):
             from django.db import transaction as dbTransaction
             import json
+            
+            print(f"[Match {match.id}] splitPotSync: has replayData={replayData is not None}")
+            if replayData:
+                frames_count = len(replayData.get('frames', []))
+                print(f"[Match {match.id}] replayData frames count: {frames_count}, mode: {replayData.get('mode')}")
             
             with dbTransaction.atomic():
                 match = Match.objects.select_for_update().get(id=match.id)
@@ -632,6 +715,17 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                 share = match.totalPot / len(participants)
                 
                 for participation in participants:
+                    # Skip bot participants (player is None)
+                    if not participation.player:
+                        participation.coinReward = 0
+                        participation.placement = 1  # All tied for first place
+                        if replayData:
+                            participation.replayData = replayData
+                            participation.save(update_fields=['placement', 'replayData'])
+                        else:
+                            participation.save(update_fields=['placement'])
+                        continue
+                    
                     profile = participation.player.profile
                     profile = type(profile).objects.select_for_update().get(pk=profile.pk)
                     
@@ -643,8 +737,14 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                     participation.coinReward = share
                     participation.placement = 1
                     if replayData:
-                        participation.replayData = json.dumps(replayData) if not isinstance(replayData, str) else replayData
-                    participation.save(update_fields=['coinReward', 'placement', 'replayData'])
+                        participation.replayData = replayData
+                        participation.save(update_fields=['coinReward', 'placement', 'replayData'])
+                        player_name = participation.player.username if participation.player else f"User({participation.player_id})"
+                        print(f"[Match {match.id}] 💾 Saved replay data for {player_name}")
+                    else:
+                        participation.save(update_fields=['coinReward', 'placement'])
+                        player_name = participation.player.username if participation.player else f"User({participation.player_id})"
+                        print(f"[Match {match.id}] ⚠️  NO REPLAY DATA for {player_name}")
                     
                     Transaction.objects.create(
                         user=participation.player,
@@ -656,30 +756,44 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                         balanceAfter=profile.coins
                     )
         
-        def awardPot_sync(match, winnerId, replayData=None):
+        def awardPotSync(match, winnerId, replayData=None):
             from django.db import transaction as dbTransaction
             from django.contrib.auth import get_user_model
             import json
             
             User = get_user_model()
             
+            print(f"[Match {match.id}] awardPotSync: winnerId={winnerId}, has replayData={replayData is not None}")
+            if replayData:
+                frames_count = len(replayData.get('frames', []))
+                print(f"[Match {match.id}] replayData frames count: {frames_count}, mode: {replayData.get('mode')}")
+            
             with dbTransaction.atomic():
                 match = Match.objects.select_for_update().get(id=match.id)
-                winner = User.objects.get(id=winnerId)
+                # Check if winnerId is a valid integer (not a bot ID string like 'bot_280')
+                winner = None
+                if winnerId and isinstance(winnerId, int):
+                    try:
+                        winner = User.objects.get(id=winnerId)
+                    except (User.DoesNotExist, ValueError):
+                        winner = None
                 
-                profile = winner.profile
-                profile = type(profile).objects.select_for_update().get(pk=profile.pk)
-                
-                balanceBefore = profile.coins
-                profile.coins = F('coins') + match.totalPot
-                profile.totalWins = F('totalWins') + 1
-                profile.save(update_fields=['coins', 'totalWins'])
-                profile.refresh_from_db()
+                # Only update winner stats if winner is a real user (not a bot)
+                if winner:
+                    profile = winner.profile
+                    profile = type(profile).objects.select_for_update().get(pk=profile.pk)
+                    
+                    balanceBefore = profile.coins
+                    profile.coins = F('coins') + match.totalPot
+                    profile.totalWins = F('totalWins') + 1
+                    profile.save(update_fields=['coins', 'totalWins'])
+                    profile.refresh_from_db()
                 
                 # Save replay data for ALL participants (including losers)
-                replayDataStr = json.dumps(replayData) if replayData and not isinstance(replayData, str) else replayData
-                
+                # Note: replayData is a dict, save it directly to JSONField
+                print(f"[Match {match.id}] DEBUG: Total participations: {match.participants.count()}")
                 for participation in match.participants.select_related('player'):
+                    print(f"[Match {match.id}] DEBUG: Participation player_id={participation.player_id}, player={participation.player}, isBot={participation.isBot}, username={participation.username}")
                     if participation.player_id == winnerId:
                         # Winner
                         participation.coinReward = match.totalPot
@@ -690,32 +804,47 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                         participation.placement = 2
                     
                     # Save replay data for this participant
-                    if replayDataStr:
-                        participation.replayData = replayDataStr
-                    participation.save(update_fields=['coinReward', 'placement', 'replayData'])
+                    if replayData:
+                        participation.replayData = replayData
+                        participation.save(update_fields=['coinReward', 'placement', 'replayData'])
+                        player_name = participation.player.username if participation.player else f"Bot({participation.username})" if participation.isBot else f"User({participation.player_id})"
+                        print(f"[Match {match.id}] 💾 Saved replay data for {player_name}")
+                    else:
+                        participation.save(update_fields=['coinReward', 'placement'])
+                        player_name = participation.player.username if participation.player else f"Bot({participation.username})" if participation.isBot else f"User({participation.player_id})"
+                        print(f"[Match {match.id}] ⚠️  NO REPLAY DATA for {player_name}")
                 
-                Transaction.objects.create(
-                    user=winner,
-                    amount=match.totalPot,
-                    transactionType='MATCH_WIN',
-                    relatedMatch=match,
-                    description=f'Won match: {match.matchType.name}',
-                    balanceBefore=balanceBefore,
-                    balanceAfter=profile.coins
-                )
+                # Only create transaction if winner is a real user (not a bot)
+                if winner:
+                    Transaction.objects.create(
+                        user=winner,
+                        amount=match.totalPot,
+                        transactionType='MATCH_WIN',
+                        relatedMatch=match,
+                        description=f'Won match: {match.matchType.name}',
+                        balanceBefore=balanceBefore,
+                        balanceAfter=profile.coins
+                    )
         
-        def completeMatch_sync(match, winnerId):
+        def completeMatchSync(match, winnerId):
             from django.contrib.auth import get_user_model
             
             User = get_user_model()
             
             match.status = 'COMPLETED'
             match.completedAt = timezone.now()
-            if winnerId:
-                match.winner = User.objects.get(id=winnerId)
+            # Only set winner if winnerId is a valid integer (not a bot ID string like 'bot_280')
+            if winnerId and isinstance(winnerId, int):
+                try:
+                    match.winner = User.objects.get(id=winnerId)
+                except (User.DoesNotExist, ValueError):
+                    match.winner = None
             match.save(update_fields=['status', 'completedAt', 'winner'])
             
             for participation in match.participants.select_related('player__profile').all():
+                # Skip bot participants (player is None)
+                if not participation.player:
+                    continue
                 profile = participation.player.profile
                 profile.totalMatches = F('totalMatches') + 1
                 profile.save(update_fields=['totalMatches'])
