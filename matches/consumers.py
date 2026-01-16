@@ -36,6 +36,17 @@ class GameEngine:
             '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#14b8a6',
         ]
         self.replayFrames = []  # ADD THIS
+        # Cache bot settings once to avoid database queries every tick (async/sync context issues)
+        from shop.models import SystemSettings
+        try:
+            self.botDifficulty = SystemSettings.getInt('botDifficulty', 5)
+            self.botReactionSpeed = SystemSettings.getInt('botReactionSpeed', 5)
+            self.botRandomness = SystemSettings.getInt('botRandomness', 5)
+        except Exception as e:
+            print(f"[Match {matchId}] Failed to load bot settings, using defaults: {e}")
+            self.botDifficulty = 5
+            self.botReactionSpeed = 5
+            self.botRandomness = 5
     
     def addPlayer(self, userId, username, playerColor, isBot=False):
         if userId in self.players:
@@ -65,12 +76,10 @@ class GameEngine:
     
     def updateBotAI(self, userId, player):
         """Update bot player AI - REACTIVE wall avoidance every tick, not just periodic"""
-        from shop.models import SystemSettings
-        
-        # Get bot difficulty settings (1-10, higher = smarter)
-        botDifficulty = SystemSettings.getInt('botDifficulty', 5)
-        botReactionSpeed = SystemSettings.getInt('botReactionSpeed', 5)
-        botRandomness = SystemSettings.getInt('botRandomness', 5)
+        # Use cached bot settings (set in __init__ to avoid database queries every tick)
+        botDifficulty = self.botDifficulty
+        botReactionSpeed = self.botReactionSpeed
+        botRandomness = self.botRandomness
         
         x, y = player['x'], player['y']
         currentDir = player.get('direction', 'UP')
@@ -681,6 +690,17 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                 share = match.totalPot / len(participants)
                 
                 for participation in participants:
+                    # Skip bot participants (player is None)
+                    if not participation.player:
+                        participation.coinReward = 0
+                        participation.placement = 1 if winnerId and any(p.id == winnerId for p in Match.objects.get(id=match.id).participants.filter(player__isnull=False)) else 0
+                        if replayData:
+                            participation.replayData = replayData
+                            participation.save(update_fields=['placement', 'replayData'])
+                        else:
+                            participation.save(update_fields=['placement'])
+                        continue
+                    
                     profile = participation.player.profile
                     profile = type(profile).objects.select_for_update().get(pk=profile.pk)
                     
@@ -781,6 +801,9 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
             match.save(update_fields=['status', 'completedAt', 'winner'])
             
             for participation in match.participants.select_related('player__profile').all():
+                # Skip bot participants (player is None)
+                if not participation.player:
+                    continue
                 profile = participation.player.profile
                 profile.totalMatches = F('totalMatches') + 1
                 profile.save(update_fields=['totalMatches'])
