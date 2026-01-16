@@ -290,7 +290,8 @@ class GameEngine:
                                    otherX == player['x'] and otherY == player['y'])
                         
                         if sameSpot or swapping:
-                            collisionKey = tuple(sorted([userId, otherId]))
+                            # Convert to strings for consistent sorting (userIds can be int or string 'bot_X')
+                            collisionKey = tuple(sorted([str(userId), str(otherId)]))
                             if collisionKey not in processedHeadOns:
                                 # Head-on collision: BOTH get +1 hit (like hitting a wall)
                                 collisionType = "SWAP" if swapping else "SAME_SPOT"
@@ -745,16 +746,24 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
             
             with dbTransaction.atomic():
                 match = Match.objects.select_for_update().get(id=match.id)
-                winner = User.objects.get(id=winnerId)
+                # Check if winnerId is a valid integer (not a bot ID string like 'bot_280')
+                winner = None
+                if winnerId and isinstance(winnerId, int):
+                    try:
+                        winner = User.objects.get(id=winnerId)
+                    except (User.DoesNotExist, ValueError):
+                        winner = None
                 
-                profile = winner.profile
-                profile = type(profile).objects.select_for_update().get(pk=profile.pk)
-                
-                balanceBefore = profile.coins
-                profile.coins = F('coins') + match.totalPot
-                profile.totalWins = F('totalWins') + 1
-                profile.save(update_fields=['coins', 'totalWins'])
-                profile.refresh_from_db()
+                # Only update winner stats if winner is a real user (not a bot)
+                if winner:
+                    profile = winner.profile
+                    profile = type(profile).objects.select_for_update().get(pk=profile.pk)
+                    
+                    balanceBefore = profile.coins
+                    profile.coins = F('coins') + match.totalPot
+                    profile.totalWins = F('totalWins') + 1
+                    profile.save(update_fields=['coins', 'totalWins'])
+                    profile.refresh_from_db()
                 
                 # Save replay data for ALL participants (including losers)
                 # Note: replayData is a dict, save it directly to JSONField
@@ -796,8 +805,12 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
             
             match.status = 'COMPLETED'
             match.completedAt = timezone.now()
-            if winnerId:
-                match.winner = User.objects.get(id=winnerId)
+            # Only set winner if winnerId is a valid integer (not a bot ID string like 'bot_280')
+            if winnerId and isinstance(winnerId, int):
+                try:
+                    match.winner = User.objects.get(id=winnerId)
+                except (User.DoesNotExist, ValueError):
+                    match.winner = None
             match.save(update_fields=['status', 'completedAt', 'winner'])
             
             for participation in match.participants.select_related('player__profile').all():
