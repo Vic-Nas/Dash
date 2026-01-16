@@ -694,10 +694,12 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                     if replayData:
                         participation.replayData = replayData
                         participation.save(update_fields=['coinReward', 'placement', 'replayData'])
-                        print(f"[Match {match.id}] 💾 Saved replay data for participant {participation.player.username}")
+                        player_name = participation.player.username if participation.player else f"User({participation.player_id})"
+                        print(f"[Match {match.id}] 💾 Saved replay data for {player_name}")
                     else:
                         participation.save(update_fields=['coinReward', 'placement'])
-                        print(f"[Match {match.id}] ⚠️  NO REPLAY DATA for participant {participation.player.username}")
+                        player_name = participation.player.username if participation.player else f"User({participation.player_id})"
+                        print(f"[Match {match.id}] ⚠️  NO REPLAY DATA for {player_name}")
                     
                     Transaction.objects.create(
                         user=participation.player,
@@ -750,10 +752,12 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                     if replayData:
                         participation.replayData = replayData
                         participation.save(update_fields=['coinReward', 'placement', 'replayData'])
-                        print(f"[Match {match.id}] 💾 Saved replay data for participant {participation.player.username}")
+                        player_name = participation.player.username if participation.player else f"User({participation.player_id})"
+                        print(f"[Match {match.id}] 💾 Saved replay data for {player_name}")
                     else:
                         participation.save(update_fields=['coinReward', 'placement'])
-                        print(f"[Match {match.id}] ⚠️  NO REPLAY DATA for participant {participation.player.username}")
+                        player_name = participation.player.username if participation.player else f"User({participation.player_id})"
+                        print(f"[Match {match.id}] ⚠️  NO REPLAY DATA for {player_name}")
                 
                 Transaction.objects.create(
                     user=winner,
