@@ -791,7 +791,9 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                 
                 # Save replay data for ALL participants (including losers)
                 # Note: replayData is a dict, save it directly to JSONField
+                print(f"[Match {match.id}] DEBUG: Total participations: {match.participants.count()}")
                 for participation in match.participants.select_related('player'):
+                    print(f"[Match {match.id}] DEBUG: Participation player_id={participation.player_id}, player={participation.player}, isBot={participation.isBot}, username={participation.username}")
                     if participation.player_id == winnerId:
                         # Winner
                         participation.coinReward = match.totalPot
@@ -805,11 +807,11 @@ async def startMatchCountdown(matchId, roomGroupName, engine):
                     if replayData:
                         participation.replayData = replayData
                         participation.save(update_fields=['coinReward', 'placement', 'replayData'])
-                        player_name = participation.player.username if participation.player else f"User({participation.player_id})"
+                        player_name = participation.player.username if participation.player else f"Bot({participation.username})" if participation.isBot else f"User({participation.player_id})"
                         print(f"[Match {match.id}] 💾 Saved replay data for {player_name}")
                     else:
                         participation.save(update_fields=['coinReward', 'placement'])
-                        player_name = participation.player.username if participation.player else f"User({participation.player_id})"
+                        player_name = participation.player.username if participation.player else f"Bot({participation.username})" if participation.isBot else f"User({participation.player_id})"
                         print(f"[Match {match.id}] ⚠️  NO REPLAY DATA for {player_name}")
                 
                 # Only create transaction if winner is a real user (not a bot)
